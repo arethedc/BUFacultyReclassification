@@ -1,17 +1,9 @@
 {{-- resources/views/reclassification/section4.blade.php --}}
-<x-app-layout>
-<x-slot name="header">
-    <div>
-        <h2 class="text-2xl font-semibold text-gray-800">
-            Reclassification – Section IV
-        </h2>
-        <p class="text-sm text-gray-500">
-            Teaching Experience / Professional / Administrative Experience (Max 40 pts / 10%)
-        </p>
-    </div>
-</x-slot>
-
-<form method="POST">
+<div class="flex flex-col gap-1 mb-4">
+    <h2 class="text-2xl font-semibold text-gray-800">Reclassification - Section IV</h2>
+    <p class="text-sm text-gray-500">Teaching Experience / Professional / Administrative Experience (Max 40 pts / 10%)</p>
+</div>
+<form method="POST" action="{{ route('reclassification.section.save', 4) }}" data-validate-evidence>
 @csrf
 
 <div x-data="sectionFour()" class="py-12 bg-bu-muted min-h-screen">
@@ -321,14 +313,6 @@
 
             {{-- ACTIONS --}}
             <div class="flex justify-end gap-4 pt-2">
-                <button type="submit" name="action" value="draft"
-                        class="px-6 py-2.5 rounded-xl border border-gray-300">
-                    Save Draft
-                </button>
-                <button type="submit" name="action" value="submit"
-                        class="px-6 py-2.5 rounded-xl bg-bu text-white">
-                    Submit Section IV
-                </button>
             </div>
 
         </div>
@@ -417,4 +401,4 @@ finalCapped() {
 }
 </script>
 
-</x-app-layout>
+

@@ -22,13 +22,23 @@ class AuthenticatedSessionController extends Controller
     /**
      * Handle an incoming authentication request.
      */
-    public function store(LoginRequest $request): RedirectResponse
-    {
-        $request->authenticate();
-
-        $request->session()->regenerate();
+public function store(LoginRequest $request): RedirectResponse
+{
+    $request->authenticate();
 
     $user = Auth::user();
+
+    // 🚫 Block inactive users
+    if ($user->status !== 'active') {
+        Auth::logout();
+
+        return back()->withErrors([
+            'email' => 'Your account is inactive. Please contact HR.',
+        ]);
+    }
+
+    // ✅ Only active users continue
+    $request->session()->regenerate();
 
     return match ($user->role) {
         'faculty'   => redirect()->route('faculty.dashboard'),
@@ -37,7 +47,8 @@ class AuthenticatedSessionController extends Controller
         'vpaa'      => redirect()->route('vpaa.dashboard'),
         'president' => redirect()->route('president.dashboard'),
         default     => redirect('/'),
-    };    }
+    };
+}
 
     /**
      * Destroy an authenticated session.

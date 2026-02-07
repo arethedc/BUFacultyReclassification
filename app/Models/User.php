@@ -17,12 +17,15 @@ class User extends Authenticatable
      *
      * @var list<string>
      */
-    protected $fillable = [
-        'name',
-        'email',
-        'password',
-        'role',
-    ];
+protected $fillable = [
+    'name',
+    'email',
+    'password',
+    'role',
+    'department_id',
+    'status',
+];
+
 
     /**
      * The attributes that should be hidden for serialization.
@@ -46,4 +49,15 @@ class User extends Authenticatable
             'password' => 'hashed',
         ];
     }
+public function department()
+{
+    return $this->belongsTo(\App\Models\Department::class);
+}
+
+public function facultyProfile()
+{
+    return $this->hasOne(\App\Models\FacultyProfile::class);
+}
+
+
 }

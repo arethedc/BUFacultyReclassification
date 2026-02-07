@@ -1,5 +1,13 @@
 {{-- resources/views/reclassification/review.blade.php --}}
 <x-app-layout>
+    <nav>
+  @for ($i = 1; $i <= 5; $i++)
+    <a href="{{ route('reclassification.section', $i) }}">
+      Section {{ $i }}
+    </a>
+  @endfor
+</nav>
+
 <x-slot name="header">
     <div class="flex flex-col gap-1">
         <h2 class="text-2xl font-semibold text-gray-800">
@@ -235,7 +243,7 @@
                 <td class="px-4 py-3 font-medium">Section I – Academic Preparation & Professional Development</td>
                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s1.toFixed(2)"></td>
                 <td class="px-4 py-3 text-right">
-                  <a href="{{ route('reclassification.section1') ?? '#' }}"
+                  <a href="{{ route('reclassification.section', 1) }}"
                      class="text-bu text-xs font-medium hover:underline">
                     View Section I
                   </a>
@@ -246,7 +254,7 @@
                 <td class="px-4 py-3 font-medium">Section II – Instructional Competence</td>
                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s2.toFixed(2)"></td>
                 <td class="px-4 py-3 text-right">
-                  <a href="{{ route('reclassification.section2') ?? '#' }}"
+                  <a href="{{ route('reclassification.section', 2) }}"
                      class="text-bu text-xs font-medium hover:underline">
                     View Section II
                   </a>
@@ -257,7 +265,7 @@
                 <td class="px-4 py-3 font-medium">Section III – Research Competence & Productivity</td>
                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s3.toFixed(2)"></td>
                 <td class="px-4 py-3 text-right">
-                  <a href="{{ route('reclassification.section3') ?? '#' }}"
+                  <a href="{{ route('reclassification.section', 3) }}"
                      class="text-bu text-xs font-medium hover:underline">
                     View Section III
                   </a>
@@ -268,7 +276,7 @@
                 <td class="px-4 py-3 font-medium">Section IV – Teaching / Professional / Administrative Experience</td>
                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s4.toFixed(2)"></td>
                 <td class="px-4 py-3 text-right">
-                  <a href="{{ route('reclassification.section4') ?? '#' }}"
+                  <a href="{{ route('reclassification.section', 4) }}"
                      class="text-bu text-xs font-medium hover:underline">
                     View Section IV
                   </a>
@@ -279,7 +287,7 @@
                 <td class="px-4 py-3 font-medium">Section V – Professional & Community Leadership Service</td>
                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s5.toFixed(2)"></td>
                 <td class="px-4 py-3 text-right">
-                  <a href="{{ route('reclassification.section5') ?? '#' }}"
+                  <a href="{{ route('reclassification.section', 5) }}"
                      class="text-bu text-xs font-medium hover:underline">
                     View Section V
                   </a>

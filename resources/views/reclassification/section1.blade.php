@@ -1,21 +1,18 @@
 {{-- resources/views/reclassification/section1.blade.php --}}
-<x-app-layout>
-<x-slot name="header">
-    <div class="flex flex-col gap-1">
-        <h2 class="text-2xl font-semibold text-gray-800">
-            Reclassification – Section I
-        </h2>
-        <p class="text-sm text-gray-500">
-            Academic Preparation and Professional Development (Max 140 pts / 35%)
-        </p>
-    </div>
-</x-slot>
+<div class="flex flex-col gap-1 mb-4">
+  <h2 class="text-2xl font-semibold text-gray-800">Reclassification - Section I</h2>
+  <p class="text-sm text-gray-500">
+    Academic Preparation and Professional Development (Max 140 pts / 35%)
+  </p>
+</div>
 
-<form method="POST" enctype="multipart/form-data">
+<form method="POST"
+      action="{{ route('reclassification.section.save', 1) }}"
+      enctype="multipart/form-data"
+      data-validate-evidence>
 @csrf
 
-<div x-data="sectionOne()" class="py-12 bg-bu-muted min-h-screen">
-<div class="max-w-6xl mx-auto px-4 space-y-10">
+<div x-data="sectionOne(@js($sectionData ?? []))" class="space-y-10">
 
 {{-- =======================
 IMPROVED STICKY SCORE SUMMARY (Expandable)
@@ -44,7 +41,7 @@ IMPROVED STICKY SCORE SUMMARY (Expandable)
     window.addEventListener('scroll', onScroll, { passive:true });
     onScroll();
   "
-  class="sticky top-20 z-20"
+  class="sticky top-24 z-20"
 >
   <div class="bg-white/95 backdrop-blur rounded-2xl border shadow-card">
     <div class="px-5 py-3 flex items-center justify-between gap-4">
@@ -188,19 +185,19 @@ Instruction: Kindly check the corresponding points in the blanks and write the F
   <h4 class="font-medium text-gray-800 mb-2">A1. Bachelor’s Degree</h4>
   <div class="space-y-2 text-sm">
     <label class="flex gap-2">
-      <input @change="refreshA1()" type="radio" name="section1[a1][honors]" value="summa">
+      <input x-model="a1Honors" type="radio" name="section1[a1][honors]" value="summa">
       Summa Cum Laude (3 pts)
     </label>
     <label class="flex gap-2">
-      <input @change="refreshA1()" type="radio" name="section1[a1][honors]" value="magna">
+      <input x-model="a1Honors" type="radio" name="section1[a1][honors]" value="magna">
       Magna Cum Laude (2 pts)
     </label>
     <label class="flex gap-2">
-      <input @change="refreshA1()" type="radio" name="section1[a1][honors]" value="cum">
+      <input x-model="a1Honors" type="radio" name="section1[a1][honors]" value="cum">
       Cum Laude (1 pt)
     </label>
     <label class="flex gap-2">
-      <input @change="refreshA1()" type="radio" name="section1[a1][honors]" value="none">
+      <input x-model="a1Honors" type="radio" name="section1[a1][honors]" value="none">
       None
     </label>
   </div>
@@ -284,7 +281,6 @@ $tables = [
                 </select>
 
               @elseif($col === 'Category')
-                {{-- ✅ paper-based categories per item --}}
                 <template x-if="['a4','a6'].includes('{{ $cfg['key'] }}')">
                   <select x-model="row.category"
                           :name="`section1[{{ $cfg['key'] }}][${i}][category]`"
@@ -517,10 +513,8 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                 <span class="text-xs text-gray-400">(Auto)</span>
               </div>
 
-              {{-- show range hint (paper-based) --}}
               <div class="text-xs text-gray-500 mt-1" x-text="rangeHintC(row)"></div>
 
-              {{-- hidden field to submit computed points --}}
               <input type="hidden"
                      :name="`section1[c][${i}][points]`"
                      :value="ptsC(row)">
@@ -565,34 +559,43 @@ SECTION I EVIDENCE
     <input type="file" name="section1[evidence_files][]" multiple
            @change="handleEvidence($event)"
            class="w-full text-sm">
+
+    <template x-if="existingEvidence.length">
+      <div class="mt-3 text-xs text-gray-600 space-y-1">
+        <div class="font-medium text-gray-700">Existing evidence</div>
+        <template x-for="(ev, idx) in existingEvidence" :key="ev.id || idx">
+          <div class="flex items-center justify-between">
+            <span x-text="ev.name"></span>
+            <span class="text-gray-400" x-text="ev.status"></span>
+          </div>
+        </template>
+      </div>
+    </template>
   </div>
 </div>
 
-{{-- ACTIONS --}}
-<div class="flex justify-end gap-4">
-  <button type="submit" name="action" value="draft"
-          class="px-6 py-2.5 rounded-xl border">
-    Save Draft
-  </button>
-  <button type="submit" name="action" value="submit"
-          class="px-6 py-2.5 rounded-xl bg-bu text-white">
-    Submit Section I
-  </button>
-</div>
-
-</div>
 </div>
 </form>
 
 <script>
-function sectionOne() {
+function sectionOne(initial = {}) {
   return {
     evidenceFiles: [],
+    existingEvidence: initial.existingEvidence || [],
+    a1Honors: (initial.a1 && initial.a1.honors) ? initial.a1.honors : '',
 
     // A arrays
-    a2: [], a3: [], a4: [], a5: [], a6: [], a7: [], a8: [], a9: [],
+    a2: initial.a2 || [],
+    a3: initial.a3 || [],
+    a4: initial.a4 || [],
+    a5: initial.a5 || [],
+    a6: initial.a6 || [],
+    a7: initial.a7 || [],
+    a8: initial.a8 || [],
+    a9: initial.a9 || [],
     // B/C arrays
-    b: [], c: [],
+    b: initial.b || [],
+    c: initial.c || [],
 
     // placeholders for text inputs
     placeholders: {
@@ -604,11 +607,16 @@ function sectionOne() {
       a9: { Certification: 'e.g., Cisco / Microsoft' },
     },
 
+    init() {
+      const keys = ['a2','a3','a4','a5','a6','a7','a8','a9','b','c'];
+      keys.forEach((k) => {
+        if (!Array.isArray(this[k])) this[k] = [];
+      });
+    },
+
     handleEvidence(e) {
       this.evidenceFiles = Array.from(e.target.files || []);
     },
-
-    refreshA1() {},
 
     addRow(key) {
       const base = { text:'', category:'', thesis:'', relation:'', level:'', blocks:'', evidence:'' };
@@ -621,7 +629,6 @@ function sectionOne() {
       return v > max ? max : v;
     },
 
-    // ===== PAPER-BASED A POINTS (fixed) =====
     ptsA(key, row) {
       const cat = (row?.category || '');
       const thesis = (row?.thesis || '');
@@ -629,14 +636,12 @@ function sectionOne() {
       const lvl = (row?.level || '');
       const blocks = Number(row?.blocks || 0);
 
-      // A2 additional bachelor
       if (key === 'a2') {
         if (cat === 'teaching') return 10;
         if (cat === 'not_teaching') return 5;
         return 0;
       }
 
-      // A3 masters
       if (key === 'a3') {
         if (cat === 'teaching' && thesis === 'with') return 100;
         if (cat === 'teaching' && thesis === 'without') return 90;
@@ -645,42 +650,36 @@ function sectionOne() {
         return 0;
       }
 
-      // A4 masters units (9-unit blocks)
       if (key === 'a4') {
         if (cat === 'specialization') return blocks * 4;
         if (cat === 'other') return blocks * 3;
         return 0;
       }
 
-      // A5 additional masters
       if (key === 'a5') {
         if (cat === 'teaching') return 15;
         if (cat === 'not_teaching') return 10;
         return 0;
       }
 
-      // A6 doctoral units (9-unit blocks)
       if (key === 'a6') {
         if (cat === 'specialization') return blocks * 5;
         if (cat === 'other') return blocks * 4;
         return 0;
       }
 
-      // A7 doctorate degree
       if (key === 'a7') {
         if (cat === 'teaching') return 140;
         if (cat === 'not_teaching') return 120;
         return 0;
       }
 
-      // A8 gov exams (cap 15 total; cap 5 per exam rule is handled below)
       if (key === 'a8') {
         if (rel === 'direct') return 10;
         if (rel === 'not_direct') return 5;
         return 0;
       }
 
-      // A9 certifications (cap 10 total)
       if (key === 'a9') {
         if (lvl === 'international') return 5;
         if (lvl === 'national') return 3;
@@ -691,8 +690,7 @@ function sectionOne() {
     },
 
     a1Pts() {
-      const el = document.querySelector('input[name="section1[a1][honors]"]:checked');
-      const v = el ? el.value : '';
+      const v = this.a1Honors || '';
       if (v === 'summa') return 3;
       if (v === 'magna') return 2;
       if (v === 'cum') return 1;
@@ -700,11 +698,6 @@ function sectionOne() {
     },
 
     rawA8() {
-      // paper: "not to exceed 5 pts per examination"
-      // our options are 10 or 5, so only 5 is within that cap;
-      // BUT you pasted official table includes 10 and 5.
-      // We'll enforce: if user chose "direct"(10), still allow, but per-exam cap rule isn't consistent with 10.
-      // To avoid wrong adding: we cap each exam contribution at 5.
       return (this.a8 || []).reduce((t, r) => t + Math.min(this.ptsA('a8', r), 5), 0);
     },
 
@@ -721,14 +714,12 @@ function sectionOne() {
       const a6 = (this.a6 || []).reduce((t, r) => t + this.ptsA('a6', r), 0);
       const a7 = (this.a7 || []).reduce((t, r) => t + this.ptsA('a7', r), 0);
 
-      // caps
       const a8 = this.cap(this.rawA8(), 15);
       const a9 = this.cap(this.rawA9(), 10);
 
       return a1 + a2 + a3 + a4 + a5 + a6 + a7 + a8 + a9;
     },
 
-    // ===== PAPER-BASED B POINTS (fixed) =====
     ptsB(row) {
       const h = String(row?.hours || '');
       if (h === '120') return 15;
@@ -742,7 +733,6 @@ function sectionOne() {
       return (this.b || []).reduce((t, r) => t + this.ptsB(r), 0);
     },
 
-    // ===== PAPER-BASED C POINTS (ranges; user must pick exact) =====
     pointOptionsForC(row) {
       const role = row?.role;
       const level = row?.level;
@@ -785,44 +775,74 @@ function sectionOne() {
       return opts;
     },
 
-// ✅ REPLACE your current ptsC(row) with this AUTO (paper-min-range) version
-ptsC(row) {
-  const role = (row?.role || '').trim();
-  const level = (row?.level || '').trim();
-  if (!role || !level) return 0;
+    rangeHintC(row) {
+      const role = row?.role;
+      const level = row?.level;
+      if (!role || !level) return '';
 
-  // Paper-based MIN values (conservative, avoids over-scoring)
-  const minMap = {
-    speaker:     { international: 13, national: 11, regional: 9, provincial: 7, municipal: 4, school: 1 },
-    resource:    { international: 11, national: 9,  regional: 7, provincial: 5, municipal: 3, school: 1 },
-    participant: { international: 9,  national: 7,  regional: 5, provincial: 3, municipal: 2, school: 1 },
-  };
+      const ranges = {
+        speaker: {
+          international: [13,15],
+          national: [11,12],
+          regional: [9,10],
+          provincial: [7,8],
+          municipal: [4,6],
+          school: [1,3],
+        },
+        resource: {
+          international: [11,12],
+          national: [9,10],
+          regional: [7,8],
+          provincial: [5,6],
+          municipal: [3,4],
+          school: [1,2],
+        },
+        participant: {
+          international: [9,10],
+          national: [7,8],
+          regional: [5,6],
+          provincial: [3,4],
+          municipal: [2,2],
+          school: [1,1],
+        },
+      };
 
-  return Number(minMap?.[role]?.[level] || 0);
-},
+      const r = ranges?.[role]?.[level];
+      if (!r) return '';
 
-// ✅ KEEP rawC() but now it will sum the AUTO points above
-rawC() {
-  return (this.c || []).reduce((t, r) => t + this.ptsC(r), 0);
-},
+      return `Range: ${r[0]}-${r[1]} pts`;
+    },
 
-// ✅ KEEP these (no change needed)
-rawTotal() {
-  return this.rawA() + this.rawB() + this.rawC();
-},
+    ptsC(row) {
+      const role = (row?.role || '').trim();
+      const level = (row?.level || '').trim();
+      if (!role || !level) return 0;
 
-cappedTotal() {
-  return this.cap(
-    this.cap(this.rawA(), 140) +
-    this.cap(this.rawB(), 20) +
-    this.cap(this.rawC(), 20),
-    140
-  );
-},
+      const minMap = {
+        speaker:     { international: 13, national: 11, regional: 9, provincial: 7, municipal: 4, school: 1 },
+        resource:    { international: 11, national: 9,  regional: 7, provincial: 5, municipal: 3, school: 1 },
+        participant: { international: 9,  national: 7,  regional: 5, provincial: 3, municipal: 2, school: 1 },
+      };
+
+      return Number(minMap?.[role]?.[level] || 0);
+    },
+
+    rawC() {
+      return (this.c || []).reduce((t, r) => t + this.ptsC(r), 0);
+    },
+
+    rawTotal() {
+      return this.rawA() + this.rawB() + this.rawC();
+    },
+
+    cappedTotal() {
+      return this.cap(
+        this.cap(this.rawA(), 140) +
+        this.cap(this.rawB(), 20) +
+        this.cap(this.rawC(), 20),
+        140
+      );
+    },
   }
 }
 </script>
-
-<script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</x-app-layout>

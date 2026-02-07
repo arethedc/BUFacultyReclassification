@@ -1,17 +1,14 @@
 {{-- resources/views/reclassification/section2.blade.php --}}
-<x-app-layout>
-<x-slot name="header">
-    <div class="flex flex-col gap-1">
-        <h2 class="text-2xl font-semibold text-gray-800">
-            Reclassification – Section II
-        </h2>
-        <p class="text-sm text-gray-500">
-            Instructional Competence (Max 120 pts / 30%)
-        </p>
-    </div>
-</x-slot>
+<div class="flex flex-col gap-1 mb-4">
+    <h2 class="text-2xl font-semibold text-gray-800">
+        Reclassification - Section II
+    </h2>
+    <p class="text-sm text-gray-500">
+        Instructional Competence (Max 120 pts / 30%)
+    </p>
+</div>
 
-<form method="POST">
+<form method="POST" action="{{ route('reclassification.section.save', 2) }}" data-validate-evidence data-view-only="true">
 @csrf
 
 <div x-data="sectionTwo()" class="py-12 bg-bu-muted min-h-screen">
@@ -440,15 +437,6 @@ Counted (capped):
         Clear
     </button>
 
-    <button type="submit" name="action" value="draft"
-            class="px-6 py-2.5 rounded-xl border border-gray-300">
-        Save Draft
-    </button>
-
-    <button type="submit" name="action" value="submit"
-            class="px-6 py-2.5 rounded-xl bg-bu text-white">
-        Submit Section II
-    </button>
 </div>
 
         </div>
@@ -595,6 +583,3 @@ clearAll() {
 }
 </script>
 
-<script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-</x-app-layout>

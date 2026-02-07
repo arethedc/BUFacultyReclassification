@@ -13,6 +13,10 @@
 
         <!-- Scripts -->
         @vite(['resources/css/app.css', 'resources/js/app.js'])
+
+        <!-- ✅ AlpineJS (load ONCE globally) -->
+        <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
+        <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
     </head>
     <body class="font-sans antialiased">
         <div class="min-h-screen bg-gray-100">
@@ -32,5 +36,102 @@
                 {{ $slot }}
             </main>
         </div>
+
+        <script>
+            function isFieldFilled(el) {
+                if (el.disabled || el.type === 'hidden') return false;
+                if (el.type === 'checkbox' || el.type === 'radio') return el.checked;
+                if (el.tagName === 'SELECT') return el.value !== '';
+                return (el.value || '').trim() !== '';
+            }
+
+            function validateFormRows(form) {
+                if (!form || form.dataset.viewOnly === 'true') return true;
+                const evidenceSelects = form.querySelectorAll('select[name*="[evidence]"]');
+                let invalid = false;
+                let firstInvalid = null;
+
+                evidenceSelects.forEach((select) => {
+                    const row = select.closest('tr')
+                        || select.closest('[data-evidence-row]')
+                        || select.closest('.evidence-row')
+                        || select.closest('div')
+                        || form;
+
+                    const fields = Array.from(row.querySelectorAll('input,select,textarea'))
+                        .filter(el => el.type !== 'hidden' && !el.disabled);
+
+                    const nonEvidenceFields = fields.filter(el => el !== select);
+
+                    const started = nonEvidenceFields.some(isFieldFilled) || isFieldFilled(select);
+                    if (!started) {
+                        select.classList.remove('border-red-500');
+                        nonEvidenceFields.forEach(el => el.classList.remove('border-red-500'));
+                        return;
+                    }
+
+                    let rowInvalid = false;
+
+                    // Require evidence when row is started
+                    if (!isFieldFilled(select)) {
+                        rowInvalid = true;
+                        select.classList.add('border-red-500');
+                    } else {
+                        select.classList.remove('border-red-500');
+                    }
+
+                    // Require other fields to be filled when row is started
+                    nonEvidenceFields.forEach((el) => {
+                        if (!isFieldFilled(el)) {
+                            rowInvalid = true;
+                            el.classList.add('border-red-500');
+                        } else {
+                            el.classList.remove('border-red-500');
+                        }
+                    });
+
+                    if (rowInvalid) {
+                        invalid = true;
+                        if (!firstInvalid) firstInvalid = select;
+                    }
+                });
+
+                if (invalid) {
+                    if (firstInvalid) {
+                        firstInvalid.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        firstInvalid.focus({ preventScroll: true });
+                    }
+                    alert('Please complete all required fields and evidence for each started row before continuing.');
+                }
+
+                return !invalid;
+            }
+
+            window.validateFormRows = validateFormRows;
+
+            document.addEventListener('DOMContentLoaded', () => {
+                document.querySelectorAll('form[data-validate-evidence]').forEach((form) => {
+                    form.addEventListener('submit', (event) => {
+                        if (!validateFormRows(form)) {
+                            event.preventDefault();
+                        }
+                    });
+                });
+
+                document.addEventListener('click', (event) => {
+                    if (event.defaultPrevented) return;
+                    const navLink = event.target.closest('a[data-section-nav]');
+                    if (!navLink) return;
+
+                    const activePane = document.querySelector('[data-section-pane].is-active');
+                    const form = activePane ? activePane.querySelector('form[data-validate-evidence]') : null;
+                    if (!form) return;
+
+                    if (!validateFormRows(form)) {
+                        event.preventDefault();
+                    }
+                });
+            });
+        </script>
     </body>
 </html>

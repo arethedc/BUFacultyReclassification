@@ -1,17 +1,9 @@
 {{-- resources/views/reclassification/section5.blade.php --}}
-<x-app-layout>
-<x-slot name="header">
-    <div class="flex flex-col gap-1">
-        <h2 class="text-2xl font-semibold text-gray-800">
-            Reclassification – Section V
-        </h2>
-        <p class="text-sm text-gray-500">
-            Professional & Community Leadership Service (Max 30 pts / 7.5%)
-        </p>
-    </div>
-</x-slot>
-
-<form method="POST" enctype="multipart/form-data">
+<div class="flex flex-col gap-1 mb-4">
+    <h2 class="text-2xl font-semibold text-gray-800">Reclassification - Section V</h2>
+    <p class="text-sm text-gray-500">Professional & Community Leadership Service (Max 30 pts / 7.5%)</p>
+</div>
+<form method="POST" action="{{ route('reclassification.section.save', 5) }}" enctype="multipart/form-data" data-validate-evidence>
 @csrf
 
 <div x-data="sectionFive()" class="py-12 bg-bu-muted min-h-screen">
@@ -616,14 +608,6 @@
 
     {{-- ACTIONS --}}
     <div class="flex justify-end gap-4">
-      <button type="submit" name="action" value="draft"
-              class="px-6 py-2.5 rounded-xl border border-gray-300">
-        Save Draft
-      </button>
-      <button type="submit" name="action" value="submit"
-              class="px-6 py-2.5 rounded-xl bg-bu text-white">
-        Submit Section V
-      </button>
     </div>
 
   </div>
@@ -762,8 +746,5 @@ function sectionFive() {
 }
 </script>
 
-<script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
-<script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
-
 </form>
-</x-app-layout>
+
