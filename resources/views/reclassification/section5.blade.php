@@ -6,7 +6,7 @@
 <form method="POST" action="{{ route('reclassification.section.save', 5) }}" enctype="multipart/form-data" data-validate-evidence>
 @csrf
 
-<div x-data="sectionFive()" class="py-12 bg-bu-muted min-h-screen">
+<div x-data="sectionFive(@js($sectionData ?? []), @js($globalEvidence ?? []))" x-init="init()" class="py-12 bg-bu-muted min-h-screen">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
 
     {{-- =======================
@@ -114,10 +114,10 @@
     =============================== --}}
     <div class="bg-white rounded-2xl shadow-card border border-gray-200">
       <div class="p-6">
-        <p class="text-sm text-gray-600">
-          Professional and community leadership service within the last three (3) years.
-          Section total is capped at 30 pts, plus 1/3 of previous reclassification (still capped).
-        </p>
+          <p class="text-sm text-gray-600">
+            Professional and community leadership service within the last three (3) years.
+            Section total is capped at 30 pts. Previous reclassification points are applied as 1/3 within B, C, and D caps.
+          </p>
       </div>
     </div>
 
@@ -200,19 +200,65 @@
                   </td>
 
                   <td class="p-2 text-gray-700">
-                    <span x-text="ptsA(row)"></span>
+                    <span x-text="Number(rowPoints('a', i)).toFixed(2)"></span>
                     <span class="text-xs text-gray-400">(Auto)</span>
+                    <div class="mt-1 text-xs">
+                      <span x-show="rowCounted('a', i)" class="text-green-700">Counted</span>
+                      <span x-show="rowDuplicate('a', i)" class="text-amber-600">Not counted (duplicate)</span>
+                    </div>
                   </td>
 
                   <td class="p-2">
+                    <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
+                            :class="rowEvidenceCount('a', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
+                        <span x-text="rowEvidenceCount('a', i) > 0 ? `Evidence attached (${rowEvidenceCount('a', i)})` : 'No evidence'"></span>
+                      </span>
+
+                      <button type="button"
+                              @click="openSelectEvidence('a', i)"
+                              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        Select Evidence
+                      </button>
+
+                      <button type="button"
+                              @click="openShowEvidence('a', i)"
+                              :disabled="rowEvidenceCount('a', i) === 0"
+                              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+                              :class="rowEvidenceCount('a', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
+                        Show Evidence
+                        <span class="text-[11px]" x-text="`(${rowEvidenceCount('a', i)})`"></span>
+                      </button>
+                    </div>
+
+                    <template x-if="(row.comments || []).length">
+                      <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                        <div class="font-semibold text-amber-800">Reviewer comments</div>
+                        <div class="mt-1 space-y-1">
+                          <template x-for="comment in row.comments" :key="comment.id">
+                            <div>
+                              <span class="font-medium" x-text="comment.author || 'Reviewer'"></span>:
+                              <span x-text="comment.body"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+
                     <select x-model="row.evidence"
-                            :name="`section5[a][${i}][evidence]`"
-                            class="rounded border-gray-300 w-full">
+                            multiple
+                            :name="`section5[a][${i}][evidence][]`"
+                            class="sr-only"
+                            tabindex="-1"
+                            aria-hidden="true">
                       <option value="" disabled>Select evidence (required)</option>
-                      <template x-for="(e,idx) in evidenceFiles" :key="idx">
-                        <option :value="idx" x-text="e.name"></option>
+                      <template x-for="opt in evidenceOptions()" :key="opt.value">
+                        <option :value="opt.value" x-text="opt.label"></option>
                       </template>
                     </select>
+                    <template x-for="token in (row.evidence || [])" :key="token">
+                      <input type="hidden" :name="`section5[a][${i}][evidence][]`" :value="token">
+                    </template>
                   </td>
 
                   <td class="p-2 text-right">
@@ -225,7 +271,7 @@
         </div>
 
         <button type="button"
-                @click="aRows.push({ title:'', kind:'', level:'', grant:'', evidence:'' })"
+                @click="aRows.push({ title:'', kind:'', level:'', grant:'', evidence:[] })"
                 class="text-sm text-bu hover:underline">
           + Add award / citation
         </button>
@@ -247,8 +293,21 @@
         </p>
       </div>
 
-      <div class="p-6 space-y-3">
-        <p x-show="bRows.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
+        <div class="p-6 space-y-3">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+            <label class="block text-xs text-gray-500">Previous Reclassification (B) Points</label>
+            <input type="number"
+                   min="0"
+                   step="0.01"
+                   x-model.number="b_prev"
+                   name="section5[b_prev]"
+                   class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
+                   placeholder="Enter previous B points">
+            <p class="mt-1 text-[11px] text-gray-500">
+              Counted: <span class="font-medium text-gray-700" x-text="prevBThird()"></span>
+            </p>
+          </div>
+          <p x-show="bRows.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
           <table x-show="bRows.length" class="w-full text-sm border rounded-lg overflow-hidden">
@@ -298,19 +357,65 @@
                   </td>
 
                   <td class="p-2 text-gray-700">
-                    <span x-text="ptsB(row)"></span>
+                    <span x-text="Number(rowPoints('b', i)).toFixed(2)"></span>
                     <span class="text-xs text-gray-400">(Auto)</span>
+                    <div class="mt-1 text-xs">
+                      <span x-show="rowCounted('b', i)" class="text-green-700">Counted</span>
+                      <span x-show="rowDuplicate('b', i)" class="text-amber-600">Not counted (duplicate)</span>
+                    </div>
                   </td>
 
                   <td class="p-2">
+                    <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
+                            :class="rowEvidenceCount('b', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
+                        <span x-text="rowEvidenceCount('b', i) > 0 ? `Evidence attached (${rowEvidenceCount('b', i)})` : 'No evidence'"></span>
+                      </span>
+
+                      <button type="button"
+                              @click="openSelectEvidence('b', i)"
+                              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        Select Evidence
+                      </button>
+
+                      <button type="button"
+                              @click="openShowEvidence('b', i)"
+                              :disabled="rowEvidenceCount('b', i) === 0"
+                              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+                              :class="rowEvidenceCount('b', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
+                        Show Evidence
+                        <span class="text-[11px]" x-text="`(${rowEvidenceCount('b', i)})`"></span>
+                      </button>
+                    </div>
+
+                    <template x-if="(row.comments || []).length">
+                      <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                        <div class="font-semibold text-amber-800">Reviewer comments</div>
+                        <div class="mt-1 space-y-1">
+                          <template x-for="comment in row.comments" :key="comment.id">
+                            <div>
+                              <span class="font-medium" x-text="comment.author || 'Reviewer'"></span>:
+                              <span x-text="comment.body"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+
                     <select x-model="row.evidence"
-                            :name="`section5[b][${i}][evidence]`"
-                            class="rounded border-gray-300 w-full">
+                            multiple
+                            :name="`section5[b][${i}][evidence][]`"
+                            class="sr-only"
+                            tabindex="-1"
+                            aria-hidden="true">
                       <option value="" disabled>Select evidence (required)</option>
-                      <template x-for="(e,idx) in evidenceFiles" :key="idx">
-                        <option :value="idx" x-text="e.name"></option>
+                      <template x-for="opt in evidenceOptions()" :key="opt.value">
+                        <option :value="opt.value" x-text="opt.label"></option>
                       </template>
                     </select>
+                    <template x-for="token in (row.evidence || [])" :key="token">
+                      <input type="hidden" :name="`section5[b][${i}][evidence][]`" :value="token">
+                    </template>
                   </td>
 
                   <td class="p-2 text-right">
@@ -323,7 +428,7 @@
         </div>
 
         <button type="button"
-                @click="bRows.push({ org:'', role:'', level:'', evidence:'' })"
+                @click="bRows.push({ org:'', role:'', level:'', evidence:[] })"
                 class="text-sm text-bu hover:underline">
           + Add organization role
         </button>
@@ -345,13 +450,25 @@
         </p>
       </div>
 
-      <div class="p-6 space-y-6">
-
-        {{-- C1 Academic committee work (cap 10) --}}
-        <div class="rounded-xl border p-4">
-          <div class="flex items-start justify-between gap-4">
+        <div class="p-6 space-y-6">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+            <label class="block text-xs text-gray-500">Previous Reclassification (C) Points</label>
+            <input type="number"
+                   min="0"
+                   step="0.01"
+                   x-model.number="c_prev"
+                   name="section5[c_prev]"
+                   class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
+                   placeholder="Enter previous C points">
+            <p class="mt-1 text-[11px] text-gray-500">
+              Counted: <span class="font-medium text-gray-700" x-text="prevCThird()"></span>
+            </p>
+          </div>
+          {{-- C1 --}}
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
             <div>
-              <p class="font-semibold text-gray-800">C1. Academic committee work <span class="text-xs text-gray-500">(cap 10 pts)</span></p>
+              <p class="font-semibold text-gray-800">C1. Academic committee work</p>
               <p class="text-xs text-gray-500 mt-1">Subject area work, accreditation prep, syllabi, curriculum revision, etc.</p>
             </div>
             <div class="text-right">
@@ -360,40 +477,121 @@
             </div>
           </div>
 
-          <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label class="text-xs text-gray-600">Role</label>
-              <select x-model="c1.role" name="section5[c][c1][role]" class="mt-1 w-full rounded border-gray-300">
-                <option value="" disabled>Select role (required)</option>
-                <option value="overall">Over-all Chairman — 7 pts/activity</option>
-                <option value="chairman">Chairman — 5 pts/activity</option>
-                <option value="member">Member — 2 pts/activity</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs text-gray-600">No. of activities</label>
-              <input x-model.number="c1.qty" name="section5[c][c1][qty]" type="number" min="0"
-                     class="mt-1 w-full rounded border-gray-300" placeholder="Enter number of activities">
-            </div>
-            <div>
-              <label class="text-xs text-gray-600">Evidence</label>
-              <select x-model="c1.evidence" name="section5[c][c1][evidence]" class="mt-1 w-full rounded border-gray-300">
-                <option value="" disabled>Select evidence (required)</option>
-                <template x-for="(e,idx) in evidenceFiles" :key="idx">
-                  <option :value="idx" x-text="e.name"></option>
+          <p x-show="c1.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
+
+          <div class="overflow-x-auto">
+            <table x-show="c1.length" class="w-full text-sm border rounded-lg overflow-hidden">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">Activity</th>
+                  <th class="p-2 text-left">Role</th>
+                    <th class="p-2 text-left">Pts</th>
+                    <th class="p-2 text-left">Evidence</th>
+                    <th class="p-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(row,i) in c1" :key="i">
+                  <tr class="border-t">
+                    <td class="p-2">
+                      <input x-model="row.title"
+                             :name="`section5[c1][${i}][title]`"
+                             class="w-full rounded border-gray-300"
+                             placeholder="e.g., Curriculum revision (year)">
+                    </td>
+                    <td class="p-2">
+                      <select x-model="row.role"
+                              :name="`section5[c1][${i}][role]`"
+                              class="rounded border-gray-300 w-full">
+                        <option value="" disabled>Select role</option>
+                        <option value="overall">Over-all Chairman (7 pts)</option>
+                        <option value="chairman">Chairman (5 pts)</option>
+                        <option value="member">Member (2 pts)</option>
+                      </select>
+                    </td>
+                      <td class="p-2 text-gray-700">
+                        <span x-text="Number(rowPoints('c1', i)).toFixed(2)"></span>
+                        <span class="text-xs text-gray-400">(Auto)</span>
+                      <div class="mt-1 text-xs">
+                        <span x-show="rowCounted('c1', i)" class="text-green-700">Counted</span>
+                        <span x-show="rowDuplicate('c1', i)" class="text-amber-600">Not counted (duplicate)</span>
+                      </div>
+                    </td>
+                    <td class="p-2">
+                      <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
+                              :class="rowEvidenceCount('c1', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
+                          <span x-text="rowEvidenceCount('c1', i) > 0 ? `Evidence attached (${rowEvidenceCount('c1', i)})` : 'No evidence'"></span>
+                        </span>
+
+                        <button type="button"
+                                @click="openSelectEvidence('c1', i)"
+                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+                          Select Evidence
+                        </button>
+
+                        <button type="button"
+                                @click="openShowEvidence('c1', i)"
+                                :disabled="rowEvidenceCount('c1', i) === 0"
+                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+                                :class="rowEvidenceCount('c1', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
+                          Show Evidence
+                          <span class="text-[11px]" x-text="`(${rowEvidenceCount('c1', i)})`"></span>
+                        </button>
+                      </div>
+
+                      <template x-if="(row.comments || []).length">
+                        <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                          <div class="font-semibold text-amber-800">Reviewer comments</div>
+                          <div class="mt-1 space-y-1">
+                            <template x-for="comment in row.comments" :key="comment.id">
+                              <div>
+                                <span class="font-medium" x-text="comment.author || 'Reviewer'"></span>:
+                                <span x-text="comment.body"></span>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                        <select x-model="row.evidence"
+                                multiple
+                                :name="`section5[c1][${i}][evidence][]`"
+                                class="sr-only"
+                                tabindex="-1"
+                                aria-hidden="true">
+                          <option value="" disabled>Select evidence</option>
+                          <template x-for="opt in evidenceOptions()" :key="opt.value">
+                            <option :value="opt.value" x-text="opt.label"></option>
+                          </template>
+                        </select>
+                        <template x-for="token in (row.evidence || [])" :key="token">
+                          <input type="hidden" :name="`section5[c1][${i}][evidence][]`" :value="token">
+                        </template>
+                    </td>
+                    <td class="p-2 text-right">
+                      <button type="button" @click="c1.splice(i,1)" class="text-red-500 text-xs hover:underline">Remove</button>
+                    </td>
+                  </tr>
                 </template>
-              </select>
-            </div>
+              </tbody>
+            </table>
           </div>
 
-          <p class="text-xs text-gray-500 mt-3">Raw points: <span class="font-medium text-gray-700" x-text="c1_raw()"></span></p>
+            <button type="button"
+                   @click="c1.push({ title:'', role:'', evidence:[] })"
+                    class="text-sm text-bu hover:underline">
+              + Add committee work
+            </button>
+
+          <p class="text-xs text-gray-500">Counted points for C1 are capped at 10.</p>
         </div>
 
-        {{-- C2 Co-curricular activities (cap 5) --}}
-        <div class="rounded-xl border p-4">
-          <div class="flex items-start justify-between gap-4">
+        {{-- C2 --}}
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
             <div>
-              <p class="font-semibold text-gray-800">C2. Co-curricular activities <span class="text-xs text-gray-500">(cap 5 pts)</span></p>
+              <p class="font-semibold text-gray-800">C2. Co-curricular activities</p>
             </div>
             <div class="text-right">
               <p class="text-xs text-gray-500">Counted</p>
@@ -401,40 +599,121 @@
             </div>
           </div>
 
-          <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label class="text-xs text-gray-600">Type</label>
-              <select x-model="c2.type" name="section5[c][c2][type]" class="mt-1 w-full rounded border-gray-300">
-                <option value="" disabled>Select type (required)</option>
-                <option value="campus">Campus — 5 pts/activity</option>
-                <option value="department">Department — 3 pts/activity</option>
-                <option value="class">Class — 1 pt/activity</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs text-gray-600">No. of activities</label>
-              <input x-model.number="c2.qty" name="section5[c][c2][qty]" type="number" min="0"
-                     class="mt-1 w-full rounded border-gray-300" placeholder="Enter number of activities">
-            </div>
-            <div>
-              <label class="text-xs text-gray-600">Evidence</label>
-              <select x-model="c2.evidence" name="section5[c][c2][evidence]" class="mt-1 w-full rounded border-gray-300">
-                <option value="" disabled>Select evidence (required)</option>
-                <template x-for="(e,idx) in evidenceFiles" :key="idx">
-                  <option :value="idx" x-text="e.name"></option>
+          <p x-show="c2.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
+
+          <div class="overflow-x-auto">
+            <table x-show="c2.length" class="w-full text-sm border rounded-lg overflow-hidden">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">Activity</th>
+                  <th class="p-2 text-left">Type</th>
+                    <th class="p-2 text-left">Pts</th>
+                    <th class="p-2 text-left">Evidence</th>
+                    <th class="p-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(row,i) in c2" :key="i">
+                  <tr class="border-t">
+                    <td class="p-2">
+                      <input x-model="row.title"
+                             :name="`section5[c2][${i}][title]`"
+                             class="w-full rounded border-gray-300"
+                             placeholder="e.g., Campus activity (year)">
+                    </td>
+                    <td class="p-2">
+                      <select x-model="row.type"
+                              :name="`section5[c2][${i}][type]`"
+                              class="rounded border-gray-300 w-full">
+                        <option value="" disabled>Select type</option>
+                        <option value="campus">Campus (5 pts)</option>
+                        <option value="department">Department (3 pts)</option>
+                        <option value="class">Class (1 pt)</option>
+                      </select>
+                    </td>
+                      <td class="p-2 text-gray-700">
+                        <span x-text="Number(rowPoints('c2', i)).toFixed(2)"></span>
+                        <span class="text-xs text-gray-400">(Auto)</span>
+                      <div class="mt-1 text-xs">
+                        <span x-show="rowCounted('c2', i)" class="text-green-700">Counted</span>
+                        <span x-show="rowDuplicate('c2', i)" class="text-amber-600">Not counted (duplicate)</span>
+                      </div>
+                    </td>
+                    <td class="p-2">
+                      <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
+                              :class="rowEvidenceCount('c2', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
+                          <span x-text="rowEvidenceCount('c2', i) > 0 ? `Evidence attached (${rowEvidenceCount('c2', i)})` : 'No evidence'"></span>
+                        </span>
+
+                        <button type="button"
+                                @click="openSelectEvidence('c2', i)"
+                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+                          Select Evidence
+                        </button>
+
+                        <button type="button"
+                                @click="openShowEvidence('c2', i)"
+                                :disabled="rowEvidenceCount('c2', i) === 0"
+                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+                                :class="rowEvidenceCount('c2', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
+                          Show Evidence
+                          <span class="text-[11px]" x-text="`(${rowEvidenceCount('c2', i)})`"></span>
+                        </button>
+                      </div>
+
+                      <template x-if="(row.comments || []).length">
+                        <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                          <div class="font-semibold text-amber-800">Reviewer comments</div>
+                          <div class="mt-1 space-y-1">
+                            <template x-for="comment in row.comments" :key="comment.id">
+                              <div>
+                                <span class="font-medium" x-text="comment.author || 'Reviewer'"></span>:
+                                <span x-text="comment.body"></span>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                        <select x-model="row.evidence"
+                                multiple
+                                :name="`section5[c2][${i}][evidence][]`"
+                                class="sr-only"
+                                tabindex="-1"
+                                aria-hidden="true">
+                          <option value="" disabled>Select evidence</option>
+                          <template x-for="opt in evidenceOptions()" :key="opt.value">
+                            <option :value="opt.value" x-text="opt.label"></option>
+                          </template>
+                        </select>
+                        <template x-for="token in (row.evidence || [])" :key="token">
+                          <input type="hidden" :name="`section5[c2][${i}][evidence][]`" :value="token">
+                        </template>
+                    </td>
+                    <td class="p-2 text-right">
+                      <button type="button" @click="c2.splice(i,1)" class="text-red-500 text-xs hover:underline">Remove</button>
+                    </td>
+                  </tr>
                 </template>
-              </select>
-            </div>
+              </tbody>
+            </table>
           </div>
 
-          <p class="text-xs text-gray-500 mt-3">Raw points: <span class="font-medium text-gray-700" x-text="c2_raw()"></span></p>
+            <button type="button"
+                   @click="c2.push({ title:'', type:'', evidence:[] })"
+                    class="text-sm text-bu hover:underline">
+              + Add co-curricular activity
+            </button>
+
+          <p class="text-xs text-gray-500">Counted points for C2 are capped at 5.</p>
         </div>
 
-        {{-- C3 University activities (cap 10) --}}
-        <div class="rounded-xl border p-4">
-          <div class="flex items-start justify-between gap-4">
+        {{-- C3 --}}
+        <div class="space-y-3">
+          <div class="flex items-center justify-between">
             <div>
-              <p class="font-semibold text-gray-800">C3. University Activities <span class="text-xs text-gray-500">(cap 10 pts)</span></p>
+              <p class="font-semibold text-gray-800">C3. University activities</p>
               <p class="text-xs text-gray-500 mt-1">Faculty dev seminars, school programs, graduation, intramurals, etc.</p>
             </div>
             <div class="text-right">
@@ -443,36 +722,115 @@
             </div>
           </div>
 
-          <div class="mt-4 grid grid-cols-1 md:grid-cols-3 gap-3">
-            <div>
-              <label class="text-xs text-gray-600">Role</label>
-              <select x-model="c3.role" name="section5[c][c3][role]" class="mt-1 w-full rounded border-gray-300">
-                <option value="" disabled>Select role (required)</option>
-                <option value="overall">Over-all Chairman — 5 pts/activity</option>
-                <option value="chairman">Committee Chairman — 3 pts/activity</option>
-                <option value="member">Member — 1 pt/activity</option>
-              </select>
-            </div>
-            <div>
-              <label class="text-xs text-gray-600">No. of activities</label>
-              <input x-model.number="c3.qty" name="section5[c][c3][qty]" type="number" min="0"
-                     class="mt-1 w-full rounded border-gray-300" placeholder="Enter number of activities">
-            </div>
-            <div>
-              <label class="text-xs text-gray-600">Evidence</label>
-              <select x-model="c3.evidence" name="section5[c][c3][evidence]" class="mt-1 w-full rounded border-gray-300">
-                <option value="" disabled>Select evidence (required)</option>
-                <template x-for="(e,idx) in evidenceFiles" :key="idx">
-                  <option :value="idx" x-text="e.name"></option>
+          <p x-show="c3.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
+
+          <div class="overflow-x-auto">
+            <table x-show="c3.length" class="w-full text-sm border rounded-lg overflow-hidden">
+              <thead class="bg-gray-50">
+                <tr>
+                  <th class="p-2 text-left">Activity</th>
+                  <th class="p-2 text-left">Role</th>
+                    <th class="p-2 text-left">Pts</th>
+                    <th class="p-2 text-left">Evidence</th>
+                    <th class="p-2"></th>
+                </tr>
+              </thead>
+              <tbody>
+                <template x-for="(row,i) in c3" :key="i">
+                  <tr class="border-t">
+                    <td class="p-2">
+                      <input x-model="row.title"
+                             :name="`section5[c3][${i}][title]`"
+                             class="w-full rounded border-gray-300"
+                             placeholder="e.g., Graduation activities (year)">
+                    </td>
+                    <td class="p-2">
+                      <select x-model="row.role"
+                              :name="`section5[c3][${i}][role]`"
+                              class="rounded border-gray-300 w-full">
+                        <option value="" disabled>Select role</option>
+                        <option value="overall">Over-all Chairman (5 pts)</option>
+                        <option value="chairman">Committee Chairman (3 pts)</option>
+                        <option value="member">Member (1 pt)</option>
+                      </select>
+                    </td>
+                      <td class="p-2 text-gray-700">
+                        <span x-text="Number(rowPoints('c3', i)).toFixed(2)"></span>
+                        <span class="text-xs text-gray-400">(Auto)</span>
+                      <div class="mt-1 text-xs">
+                        <span x-show="rowCounted('c3', i)" class="text-green-700">Counted</span>
+                        <span x-show="rowDuplicate('c3', i)" class="text-amber-600">Not counted (duplicate)</span>
+                      </div>
+                    </td>
+                    <td class="p-2">
+                      <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
+                              :class="rowEvidenceCount('c3', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
+                          <span x-text="rowEvidenceCount('c3', i) > 0 ? `Evidence attached (${rowEvidenceCount('c3', i)})` : 'No evidence'"></span>
+                        </span>
+
+                        <button type="button"
+                                @click="openSelectEvidence('c3', i)"
+                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+                          Select Evidence
+                        </button>
+
+                        <button type="button"
+                                @click="openShowEvidence('c3', i)"
+                                :disabled="rowEvidenceCount('c3', i) === 0"
+                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+                                :class="rowEvidenceCount('c3', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
+                          Show Evidence
+                          <span class="text-[11px]" x-text="`(${rowEvidenceCount('c3', i)})`"></span>
+                        </button>
+                      </div>
+
+                      <template x-if="(row.comments || []).length">
+                        <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                          <div class="font-semibold text-amber-800">Reviewer comments</div>
+                          <div class="mt-1 space-y-1">
+                            <template x-for="comment in row.comments" :key="comment.id">
+                              <div>
+                                <span class="font-medium" x-text="comment.author || 'Reviewer'"></span>:
+                                <span x-text="comment.body"></span>
+                              </div>
+                            </template>
+                          </div>
+                        </div>
+                      </template>
+
+                        <select x-model="row.evidence"
+                                multiple
+                                :name="`section5[c3][${i}][evidence][]`"
+                                class="sr-only"
+                                tabindex="-1"
+                                aria-hidden="true">
+                          <option value="" disabled>Select evidence</option>
+                          <template x-for="opt in evidenceOptions()" :key="opt.value">
+                            <option :value="opt.value" x-text="opt.label"></option>
+                          </template>
+                        </select>
+                        <template x-for="token in (row.evidence || [])" :key="token">
+                          <input type="hidden" :name="`section5[c3][${i}][evidence][]`" :value="token">
+                        </template>
+                    </td>
+                    <td class="p-2 text-right">
+                      <button type="button" @click="c3.splice(i,1)" class="text-red-500 text-xs hover:underline">Remove</button>
+                    </td>
+                  </tr>
                 </template>
-              </select>
-            </div>
+              </tbody>
+            </table>
           </div>
 
-          <p class="text-xs text-gray-500 mt-3">Raw points: <span class="font-medium text-gray-700" x-text="c3_raw()"></span></p>
-          <p class="text-xs text-gray-500 mt-2">Note: Overall C is capped at 15.</p>
-        </div>
+            <button type="button"
+                   @click="c3.push({ title:'', role:'', evidence:[] })"
+                    class="text-sm text-bu hover:underline">
+              + Add university activity
+            </button>
 
+          <p class="text-xs text-gray-500">Counted points for C3 are capped at 10. Overall C is capped at 15.</p>
+        </div>
       </div>
     </div>
 
@@ -489,8 +847,21 @@
         </p>
       </div>
 
-      <div class="p-6 space-y-3">
-        <p x-show="dRows.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
+        <div class="p-6 space-y-3">
+          <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+            <label class="block text-xs text-gray-500">Previous Reclassification (D) Points</label>
+            <input type="number"
+                   min="0"
+                   step="0.01"
+                   x-model.number="d_prev"
+                   name="section5[d_prev]"
+                   class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
+                   placeholder="Enter previous D points">
+            <p class="mt-1 text-[11px] text-gray-500">
+              Counted: <span class="font-medium text-gray-700" x-text="prevDThird()"></span>
+            </p>
+          </div>
+          <p x-show="dRows.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
           <table x-show="dRows.length" class="w-full text-sm border rounded-lg overflow-hidden">
@@ -498,8 +869,7 @@
               <tr>
                 <th class="p-2 text-left">Project / Program</th>
                 <th class="p-2 text-left">Role</th>
-                <th class="p-2 text-left">No. of activities</th>
-                <th class="p-2 text-left">Pts</th>
+                  <th class="p-2 text-left">Pts</th>
                 <th class="p-2 text-left">Evidence</th>
                 <th class="p-2"></th>
               </tr>
@@ -525,28 +895,66 @@
                     </select>
                   </td>
 
-                  <td class="p-2">
-                    <input x-model.number="row.qty"
-                           :name="`section5[d][${i}][qty]`"
-                           type="number" min="0"
-                           class="w-40 rounded border-gray-300"
-                           placeholder="Enter number of activities">
-                  </td>
-
-                  <td class="p-2 text-gray-700">
-                    <span x-text="ptsD(row)"></span>
+                    <td class="p-2 text-gray-700">
+                    <span x-text="Number(rowPoints('d', i)).toFixed(2)"></span>
                     <span class="text-xs text-gray-400">(Auto)</span>
+                    <div class="mt-1 text-xs">
+                      <span x-show="rowCounted('d', i)" class="text-green-700">Counted</span>
+                      <span x-show="rowDuplicate('d', i)" class="text-amber-600">Not counted (duplicate)</span>
+                    </div>
                   </td>
 
                   <td class="p-2">
-                    <select x-model="row.evidence"
-                            :name="`section5[d][${i}][evidence]`"
-                            class="rounded border-gray-300 w-full">
-                      <option value="" disabled>Select evidence (required)</option>
-                      <template x-for="(e,idx) in evidenceFiles" :key="idx">
-                        <option :value="idx" x-text="e.name"></option>
+                    <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
+                            :class="rowEvidenceCount('d', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
+                        <span x-text="rowEvidenceCount('d', i) > 0 ? `Evidence attached (${rowEvidenceCount('d', i)})` : 'No evidence'"></span>
+                      </span>
+
+                      <button type="button"
+                              @click="openSelectEvidence('d', i)"
+                              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+                        Select Evidence
+                      </button>
+
+                      <button type="button"
+                              @click="openShowEvidence('d', i)"
+                              :disabled="rowEvidenceCount('d', i) === 0"
+                              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+                              :class="rowEvidenceCount('d', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
+                        Show Evidence
+                        <span class="text-[11px]" x-text="`(${rowEvidenceCount('d', i)})`"></span>
+                      </button>
+                    </div>
+
+                    <template x-if="(row.comments || []).length">
+                      <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+                        <div class="font-semibold text-amber-800">Reviewer comments</div>
+                        <div class="mt-1 space-y-1">
+                          <template x-for="comment in row.comments" :key="comment.id">
+                            <div>
+                              <span class="font-medium" x-text="comment.author || 'Reviewer'"></span>:
+                              <span x-text="comment.body"></span>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
+                    </template>
+
+                      <select x-model="row.evidence"
+                              multiple
+                              :name="`section5[d][${i}][evidence][]`"
+                              class="sr-only"
+                              tabindex="-1"
+                              aria-hidden="true">
+                        <option value="" disabled>Select evidence (required)</option>
+                        <template x-for="opt in evidenceOptions()" :key="opt.value">
+                          <option :value="opt.value" x-text="opt.label"></option>
+                        </template>
+                      </select>
+                      <template x-for="token in (row.evidence || [])" :key="token">
+                        <input type="hidden" :name="`section5[d][${i}][evidence][]`" :value="token">
                       </template>
-                    </select>
                   </td>
 
                   <td class="p-2 text-right">
@@ -558,11 +966,11 @@
           </table>
         </div>
 
-        <button type="button"
-                @click="dRows.push({ title:'', role:'', qty:'', evidence:'' })"
-                class="text-sm text-bu hover:underline">
-          + Add community activity
-        </button>
+          <button type="button"
+                 @click="dRows.push({ title:'', role:'', evidence:[] })"
+                  class="text-sm text-bu hover:underline">
+            + Add community activity
+          </button>
 
         <p class="text-xs text-gray-500">Counted points for D are capped at 10.</p>
       </div>
@@ -571,83 +979,606 @@
     {{-- ===============================
     PREVIOUS RECLASSIFICATION
     =============================== --}}
-    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-      <div class="p-6">
-        <label class="block text-sm font-medium text-gray-700">
-          Points from Previous Reclassification (if applicable)
-        </label>
-        <input
-          x-model.number="previous"
-          name="section5[previous_points]"
-          type="number" step="0.01"
-          class="mt-1 w-56 rounded border-gray-300"
-          placeholder="Type previous total points (e.g., 12.00)"
-        >
-        <p class="text-xs text-gray-500 mt-1">
-          System applies 1/3 of this value. Subject to validation.
-        </p>
+      <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+        <div class="p-6">
+          <p class="text-sm text-gray-600">
+            Previous reclassification points are entered per section (B, C, and D) and are applied as one-third
+            to the respective caps.
+          </p>
+          <div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+            <label class="block text-xs text-gray-500">Previous Reclassification (Whole Section V) Points</label>
+            <input
+              x-model.number="previous"
+              name="section5[previous_points]"
+              type="number" step="0.01"
+              class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
+              placeholder="Enter previous total points"
+            >
+            <p class="text-xs text-gray-500 mt-1">
+              Counted: <span class="font-medium text-gray-700" x-text="prevThird()"></span>
+            </p>
+          </div>
+        </div>
       </div>
-    </div>
 
-    {{-- ===============================
-    EVIDENCE UPLOAD
-    =============================== --}}
-    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-      <div class="px-6 py-4 border-b">
-        <h3 class="text-lg font-semibold text-gray-800">Section V Evidence Upload</h3>
-        <p class="text-sm text-gray-500 mt-1">Upload once. Reference a file per row.</p>
-      </div>
-      <div class="p-6">
-        <input type="file"
-               name="section5[evidence_files][]"
-               multiple
-               @change="handleEvidence($event)"
-               class="w-full text-sm">
-      </div>
-    </div>
+    <div class="hidden" x-effect="emitScore(cappedTotal())"></div>
 
     {{-- ACTIONS --}}
-    <div class="flex justify-end gap-4">
+    <div class="flex justify-end gap-4"></div>
+
+
+  </div>
+
+{{-- EVIDENCE MODAL --}}
+<div x-cloak x-show="evidenceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+  <div class="absolute inset-0 bg-black/40" @click="closeEvidenceModal()"></div>
+
+  <div class="relative bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-xl border"
+       role="dialog"
+       aria-labelledby="evidence-modal-title"
+       aria-describedby="evidence-modal-desc"
+       x-ref="evidenceModal"
+       @keydown.tab.prevent="cycleFocus($event, 'evidence')"
+       @keydown.escape.window="closeEvidenceModal()">
+
+    <div class="px-6 py-4 border-b flex items-center justify-between">
+      <div>
+        <h3 id="evidence-modal-title" class="text-lg font-semibold text-gray-800"
+            x-text="evidenceModalMode === 'show' ? 'Selected Evidence' : 'Select Evidence'"></h3>
+        <p id="evidence-modal-desc" class="text-xs text-gray-500">
+          Attach evidence files from your upload library. You can select multiple files per row.
+        </p>
+      </div>
+      <button type="button" @click="closeEvidenceModal()" class="text-gray-500 hover:text-gray-700">
+        Close
+      </button>
     </div>
 
+    <div class="p-6 max-h-[60vh] overflow-y-auto">
+      <template x-if="evidenceModalMode === 'select'">
+        <div>
+          <template x-if="evidencePool().length === 0">
+            <div class="rounded-xl border border-dashed p-6 text-center text-sm text-gray-500 space-y-3">
+              <p>No uploaded files yet. Use the Evidence Library below to add files.</p>
+              <button type="button"
+                      @click="scrollToLibrary(); closeEvidenceModal()"
+                      class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
+                Go to Evidence Library
+              </button>
+            </div>
+          </template>
+
+          <template x-if="evidencePool().length > 0">
+            <div class="space-y-3">
+              <template x-for="item in evidencePool()" :key="item.value">
+                <label class="flex items-center gap-3 p-3 rounded-xl border hover:bg-gray-50">
+                  <input type="checkbox" class="rounded text-bu"
+                         :value="item.value" x-model="evidenceSelection">
+                  <div class="flex-1 min-w-0">
+                    <p class="text-sm font-medium text-gray-800 truncate" x-text="item.label"></p>
+                    <div class="text-xs text-gray-500 flex items-center gap-2">
+                      <span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[10px]"
+                            x-text="item.typeLabel"></span>
+                      <span x-text="item.uploadedAt || (item.isNew ? 'New upload' : '')"></span>
+                    </div>
+                  </div>
+                  <button type="button"
+                          @click="openPreview(item)"
+                          class="text-xs text-bu hover:underline"
+                          :disabled="!item.url && !item.file">
+                    Preview
+                  </button>
+                </label>
+              </template>
+            </div>
+          </template>
+        </div>
+      </template>
+
+      <template x-if="evidenceModalMode === 'show'">
+        <div>
+          <template x-if="currentEvidenceItems().length === 0">
+            <div class="rounded-xl border border-dashed p-6 text-center text-sm text-gray-500 space-y-3">
+              <p>No evidence attached to this row yet.</p>
+              <button type="button"
+                      @click="openSelectEvidence(currentRow.key, currentRow.index)"
+                      class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
+                Select Evidence
+              </button>
+            </div>
+          </template>
+
+          <template x-if="currentEvidenceItems().length > 0">
+            <div class="overflow-hidden rounded-xl border">
+              <table class="w-full text-sm">
+                <thead class="bg-gray-50 text-left">
+                  <tr>
+                    <th class="px-4 py-2">File</th>
+                    <th class="px-4 py-2">Type</th>
+                    <th class="px-4 py-2">Uploaded</th>
+                    <th class="px-4 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody class="divide-y">
+                  <template x-for="item in currentEvidenceItems()" :key="item.value">
+                    <tr>
+                      <td class="px-4 py-2">
+                        <p class="font-medium text-gray-800" x-text="item.label"></p>
+                      </td>
+                      <td class="px-4 py-2 text-gray-500" x-text="item.typeLabel"></td>
+                      <td class="px-4 py-2 text-gray-500" x-text="item.uploadedAt || (item.isNew ? 'New upload' : '')"></td>
+                      <td class="px-4 py-2 text-right space-x-2">
+                        <button type="button"
+                                @click="openPreview(item)"
+                                class="text-xs text-bu hover:underline"
+                                :disabled="!item.url && !item.file">
+                          View
+                        </button>
+                        <button type="button"
+                                @click="openSelectEvidence(currentRow.key, currentRow.index)"
+                                class="text-xs text-gray-600 hover:underline">
+                          Change
+                        </button>
+                        <button type="button"
+                                @click="detachEvidence(item.value)"
+                                class="text-xs text-red-600 hover:underline">
+                          Detach
+                        </button>
+                      </td>
+                    </tr>
+                  </template>
+                </tbody>
+              </table>
+            </div>
+          </template>
+        </div>
+      </template>
+    </div>
+
+    <div class="px-6 py-4 border-t flex items-center justify-between">
+      <p class="text-xs text-gray-500">
+        Tip: You can attach multiple evidence files per row.
+      </p>
+      <div class="flex items-center gap-2">
+        <button type="button" @click="closeEvidenceModal()"
+                class="px-4 py-2 rounded-lg border text-sm text-gray-700 hover:bg-gray-50">
+          Close
+        </button>
+        <button type="button"
+                x-show="evidenceModalMode === 'select' && evidencePool().length > 0"
+                @click="attachSelectedEvidence()"
+                class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
+          Attach Selected
+        </button>
+      </div>
+    </div>
   </div>
 </div>
 
+{{-- PREVIEW MODAL --}}
+<div x-cloak x-show="previewOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+  <div class="absolute inset-0 bg-black/40" @click="closePreview()"></div>
+  <div class="relative bg-white w-full max-w-4xl mx-4 rounded-2xl shadow-xl border"
+       role="dialog"
+       aria-labelledby="preview-modal-title"
+       x-ref="previewModal"
+       @keydown.tab.prevent="cycleFocus($event, 'preview')"
+       @keydown.escape.window="closePreview()">
+    <div class="px-6 py-4 border-b flex items-center justify-between">
+      <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800" x-text="previewItem?.label || 'Preview'"></h3>
+      <button type="button" @click="closePreview()" class="text-gray-500 hover:text-gray-700">Close</button>
+    </div>
+    <div class="p-6">
+      <template x-if="previewItem && previewItem.isImage">
+        <img :src="previewItem.previewUrl" alt="Evidence preview" class="max-h-[70vh] mx-auto rounded-lg border" />
+      </template>
+      <template x-if="previewItem && previewItem.isPdf">
+        <iframe :src="previewItem.previewUrl" class="w-full h-[70vh] rounded-lg border"></iframe>
+      </template>
+      <template x-if="previewItem && !previewItem.isImage && !previewItem.isPdf">
+        <div class="text-sm text-gray-600 space-y-3">
+          <p>Preview is not available for this file type.</p>
+          <template x-if="previewItem.url">
+            <a :href="previewItem.url" target="_blank" class="text-bu hover:underline">Open in new tab</a>
+          </template>
+        </div>
+      </template>
+    </div>
+  </div>
+</div>
+
+{{-- TOAST --}}
+<div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 right-6 z-50">
+  <div class="px-4 py-2 rounded-lg shadow-lg text-sm text-white"
+       :class="toast.type === 'success' ? 'bg-green-600' : 'bg-gray-800'">
+    <span x-text="toast.message"></span>
+  </div>
+</div>
+
+
+</div>
+
 <script>
-function sectionFive() {
+function sectionFive(initial = {}, globalEvidence = []) {
   return {
-    evidenceFiles: [],
-    handleEvidence(e) { this.evidenceFiles = Array.from(e.target.files || []); },
+    globalEvidence: globalEvidence || [],
+    evidenceModalOpen: false,
+    evidenceModalMode: 'select',
+    evidenceSelection: [],
+    currentRow: { key: null, index: null },
+    lastFocusEl: null,
+    previewOpen: false,
+    previewItem: null,
+    toast: { show: false, message: '', type: 'success' },
+    toastTimer: null,
 
-    // A/B/D rows start EMPTY with required placeholders
-    aRows: [],
-    bRows: [],
-    dRows: [],
+      aRows: initial.a || [],
+      bRows: initial.b || [],
+      c1: initial.c1 || [],
+      c2: initial.c2 || [],
+      c3: initial.c3 || [],
+      dRows: initial.d || [],
+      b_prev: Number(initial.b_prev || 0),
+      c_prev: Number(initial.c_prev || 0),
+      d_prev: Number(initial.d_prev || 0),
+      previous: Number(initial.previous_points || 0),
 
-    // C aggregates (start blank for required selections)
-    c1: { role:'', qty:'', evidence:'' }, // cap 10
-    c2: { type:'', qty:'', evidence:'' }, // cap 5
-    c3: { role:'', qty:'', evidence:'' }, // cap 10
+    init() {
+      const lists = ['aRows','bRows','c1','c2','c3','dRows'];
+      const toArray = (val) => {
+        if (Array.isArray(val)) return val;
+        if (val === null || val === undefined || val === '') return [];
+        return [String(val)];
+      };
+      const toComments = (val) => Array.isArray(val) ? val : [];
 
-    previous: 0,
+      lists.forEach((k) => {
+        if (!Array.isArray(this[k])) this[k] = [];
+        this[k] = this[k].map((row) => ({
+          ...row,
+          evidence: toArray(row.evidence),
+          comments: toComments(row.comments),
+        }));
+      });
 
-    // ---------- POINTS ----------
+      window.addEventListener('evidence-detached', (event) => {
+        const id = event.detail?.id;
+        if (!id) return;
+        const token = `e:${id}`;
+        const removeToken = (arr) => Array.isArray(arr) ? arr.filter((v) => String(v) !== token) : [];
+        lists.forEach((k) => {
+          this[k] = (this[k] || []).map((row) => ({
+            ...row,
+            evidence: removeToken(row.evidence || []),
+          }));
+        });
+      });
+
+      window.addEventListener('evidence-updated', (event) => {
+        const list = event.detail?.evidence;
+        if (Array.isArray(list)) {
+          this.globalEvidence = list;
+        }
+      });
+    },
+
+    evidenceOptions() {
+      return (this.globalEvidence || []).map((ev) => ({
+        value: `e:${ev.id}`,
+        label: ev.name,
+        url: ev.url || null,
+        mime: ev.mime_type || '',
+        uploadedAt: ev.uploaded_at || '',
+        isNew: false,
+        file: null,
+      }));
+    },
+
+    fileTypeLabel(name, mime) {
+      if (mime) {
+        const parts = mime.split('/');
+        return (parts[1] || parts[0]).toUpperCase();
+      }
+      const ext = (name || '').split('.').pop();
+      return ext ? ext.toUpperCase() : 'FILE';
+    },
+
+    evidencePool() {
+      return this.evidenceOptions().map((item) => {
+        const typeLabel = this.fileTypeLabel(item.label, item.mime);
+        const isImage = (item.mime || '').startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(item.label || '');
+        const isPdf = (item.mime || '') === 'application/pdf' || /\.pdf$/i.test(item.label || '');
+        return {
+          ...item,
+          typeLabel,
+          isImage,
+          isPdf,
+        };
+      });
+    },
+
+    selectedEvidence(values) {
+      const list = [];
+      const map = new Map(this.evidencePool().map((opt) => [String(opt.value), opt]));
+      const arr = Array.isArray(values) ? values : (values ? [values] : []);
+      arr.forEach((val) => {
+        const key = String(val);
+        if (!key) return;
+        list.push(map.get(key) || { value: key, label: `Selected file (${key})`, url: null, isNew: false, mime: '', typeLabel: 'FILE', isImage: false, isPdf: false });
+      });
+      return list;
+    },
+
+    rowEvidenceCount(key, index = null) {
+      const list = this.getRowEvidence(key, index);
+      return Array.isArray(list) ? list.length : 0;
+    },
+
+    getRowEvidence(key, index = null) {
+      const rowsByKey = {
+        a: this.aRows,
+        b: this.bRows,
+        c1: this.c1,
+        c2: this.c2,
+        c3: this.c3,
+        d: this.dRows,
+      };
+      const rows = rowsByKey[key] || [];
+      const row = rows[index] || {};
+      return row.evidence || [];
+    },
+
+    setRowEvidence(key, index, values) {
+      const clean = Array.isArray(values) ? values.filter(Boolean) : [];
+      const ensure = (arr) => {
+        if (!arr[index]) arr[index] = { evidence: [] };
+        arr[index].evidence = clean;
+      };
+      if (key === 'a') return ensure(this.aRows);
+      if (key === 'b') return ensure(this.bRows);
+      if (key === 'c1') return ensure(this.c1);
+      if (key === 'c2') return ensure(this.c2);
+      if (key === 'c3') return ensure(this.c3);
+      if (key === 'd') return ensure(this.dRows);
+    },
+
+    openSelectEvidence(key, index = null) {
+      this.lastFocusEl = document.activeElement;
+      this.currentRow = { key, index };
+      this.evidenceSelection = [...this.getRowEvidence(key, index)];
+      this.evidenceModalMode = 'select';
+      this.evidenceModalOpen = true;
+      this.$nextTick(() => this.focusFirst('evidence'));
+    },
+
+    openShowEvidence(key, index = null) {
+      this.lastFocusEl = document.activeElement;
+      this.currentRow = { key, index };
+      this.evidenceModalMode = 'show';
+      this.evidenceModalOpen = true;
+      this.$nextTick(() => this.focusFirst('evidence'));
+    },
+
+    closeEvidenceModal() {
+      this.evidenceModalOpen = false;
+      this.evidenceSelection = [];
+      this.$nextTick(() => {
+        if (this.lastFocusEl) this.lastFocusEl.focus({ preventScroll: true });
+      });
+    },
+
+    attachSelectedEvidence() {
+      this.setRowEvidence(this.currentRow.key, this.currentRow.index, this.evidenceSelection);
+      this.toastMessage('Evidence attached', 'success');
+      this.closeEvidenceModal();
+    },
+
+    detachEvidence(value) {
+      if (!confirm('Detach evidence from this criterion? The file will remain in your uploaded files.')) return;
+      const current = this.getRowEvidence(this.currentRow.key, this.currentRow.index);
+      const next = current.filter((v) => v !== value);
+      this.setRowEvidence(this.currentRow.key, this.currentRow.index, next);
+      this.toastMessage('Evidence detached', 'success');
+      if (next.length === 0) {
+        this.evidenceModalMode = 'show';
+      }
+    },
+
+    currentEvidenceItems() {
+      return this.selectedEvidence(this.getRowEvidence(this.currentRow.key, this.currentRow.index));
+    },
+
+    openPreview(item) {
+      if (!item) return;
+      this.lastFocusEl = document.activeElement;
+      let previewUrl = item.url || null;
+      if (!previewUrl && item.file instanceof File) {
+        previewUrl = URL.createObjectURL(item.file);
+      }
+      this.previewItem = {
+        ...item,
+        previewUrl,
+      };
+      this.previewOpen = true;
+      this.$nextTick(() => this.focusFirst('preview'));
+    },
+
+    closePreview() {
+      this.previewOpen = false;
+      this.previewItem = null;
+      this.$nextTick(() => {
+        if (this.lastFocusEl) this.lastFocusEl.focus({ preventScroll: true });
+      });
+    },
+
+    focusFirst(which) {
+      const ref = which === 'preview'
+        ? this.$refs.previewModal
+        : this.$refs.evidenceModal;
+      if (!ref) return;
+      const focusable = ref.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])');
+      if (focusable.length) {
+        focusable[0].focus({ preventScroll: true });
+      }
+    },
+
+    cycleFocus(event, which) {
+      const ref = which === 'preview'
+        ? this.$refs.previewModal
+        : this.$refs.evidenceModal;
+      if (!ref) return;
+      const focusable = Array.from(ref.querySelectorAll('button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])'))
+        .filter((el) => !el.disabled);
+      if (!focusable.length) return;
+      const index = focusable.indexOf(document.activeElement);
+      const nextIndex = event.shiftKey ? (index <= 0 ? focusable.length - 1 : index - 1) : (index === focusable.length - 1 ? 0 : index + 1);
+      focusable[nextIndex].focus({ preventScroll: true });
+    },
+
+    scrollToLibrary() {
+      const el = document.getElementById('global-evidence-library');
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    },
+
+    toastMessage(message, type = 'success') {
+      this.toast.message = message;
+      this.toast.type = type;
+      this.toast.show = true;
+      clearTimeout(this.toastTimer);
+      this.toastTimer = setTimeout(() => { this.toast.show = false; }, 2000);
+    },
+
+    rowHasValue(row) {
+      if (!row || typeof row !== 'object') return false;
+      return Object.values(row).some((val) => {
+        if (Array.isArray(val)) return val.length > 0;
+        if (typeof val === 'number') return val !== 0;
+        if (typeof val === 'string') return val.trim() !== '';
+        if (typeof val === 'boolean') return val === true;
+        return false;
+      });
+    },
+
+    bucketOnceRows(rows, keyFn, pointsFn) {
+      const seen = new Set();
+      return (rows || []).map((row) => {
+        const key = String(keyFn(row) || '');
+        const points = Number(pointsFn(row) || 0);
+        if (!key || points <= 0) {
+          return { ...row, points: 0, counted: false };
+        }
+        if (seen.has(key)) {
+          return { ...row, points: 0, counted: false };
+        }
+        seen.add(key);
+        return { ...row, points, counted: true };
+      });
+    },
+
+    bucketedRows(key) {
+      const rowsByKey = {
+        a: this.aRows,
+        b: this.bRows,
+        c1: this.c1,
+        c2: this.c2,
+        c3: this.c3,
+        d: this.dRows,
+      };
+      const rows = rowsByKey[key] || [];
+
+      const keyFns = {
+        a: (r) => `${r.kind || ''}|${(r.kind || '') === 'scholarship' ? (r.grant || '') : (r.level || '')}`,
+        b: (r) => `${r.role || ''}|${r.level || ''}`,
+        c1: (r) => r.role || '',
+        c2: (r) => r.type || '',
+        c3: (r) => r.role || '',
+        d: (r) => r.role || '',
+      };
+
+      const pointsFns = {
+        a: (r) => this.ptsA(r),
+        b: (r) => this.ptsB(r),
+        c1: (r) => this.ptsC1(r),
+        c2: (r) => this.ptsC2(r),
+        c3: (r) => this.ptsC3(r),
+        d: (r) => this.ptsD(r),
+      };
+
+      return this.bucketOnceRows(rows, keyFns[key], pointsFns[key]);
+    },
+
+    rowPoints(key, index) {
+      const rows = this.bucketedRows(key);
+      return Number(rows[index]?.points || 0);
+    },
+
+    rowCounted(key, index) {
+      const rows = this.bucketedRows(key);
+      return !!rows[index]?.counted;
+    },
+
+    bucketKey(key, row) {
+      const keyFns = {
+        a: (r) => `${r.kind || ''}|${(r.kind || '') === 'scholarship' ? (r.grant || '') : (r.level || '')}`,
+        b: (r) => `${r.role || ''}|${r.level || ''}`,
+        c1: (r) => r.role || '',
+        c2: (r) => r.type || '',
+        c3: (r) => r.role || '',
+        d: (r) => r.role || '',
+      };
+      return String(keyFns[key] ? keyFns[key](row || {}) : '');
+    },
+
+    bucketPoints(key, row) {
+      const pointsFns = {
+        a: (r) => this.ptsA(r),
+        b: (r) => this.ptsB(r),
+        c1: (r) => this.ptsC1(r),
+        c2: (r) => this.ptsC2(r),
+        c3: (r) => this.ptsC3(r),
+        d: (r) => this.ptsD(r),
+      };
+      return Number(pointsFns[key] ? pointsFns[key](row || {}) : 0);
+    },
+
+    rowDuplicate(key, index) {
+      const rowsByKey = {
+        a: this.aRows,
+        b: this.bRows,
+        c1: this.c1,
+        c2: this.c2,
+        c3: this.c3,
+        d: this.dRows,
+      };
+      const rows = rowsByKey[key] || [];
+      const row = rows[index];
+      if (!row) return false;
+      const bucket = this.bucketKey(key, row);
+      if (!bucket) return false;
+      const currentPoints = this.bucketPoints(key, row);
+      if (currentPoints <= 0) return false;
+      const computed = this.bucketedRows(key);
+      const computedRow = computed[index];
+      if (!computedRow) return false;
+      return !computedRow.counted;
+    },
+
     ptsA(row) {
-      if (!row || !row.kind) return Number(0).toFixed(2);
+      if (!row || !row.kind) return 0;
 
       if (row.kind !== 'scholarship') {
-        if (!row.level) return Number(0).toFixed(2);
+        if (!row.level) return 0;
         const lvl = { international:5, national:4, regional:3, local:2, school:1 };
-        return Number(lvl[row.level] || 0).toFixed(2);
+        return Number(lvl[row.level] || 0);
       }
 
-      if (!row.grant) return Number(0).toFixed(2);
+      if (!row.grant) return 0;
       const grant = { full:5, partial_4:4, partial_3:3, travel_2:2, travel_1:1 };
-      return Number(grant[row.grant] || 0).toFixed(2);
+      return Number(grant[row.grant] || 0);
     },
 
     ptsB(row) {
-      if (!row || !row.role || !row.level) return Number(0).toFixed(2);
+      if (!row || !row.role || !row.level) return 0;
 
       const officer = { international:10, national:8, regional:6, local:4, school:2 };
       const chairman = { international:5, national:4, regional:3, local:2, school:1 };
@@ -661,90 +1592,105 @@ function sectionFive() {
         member,
       };
 
-      return Number(mapByRole[row.role]?.[row.level] || 0).toFixed(2);
+      return Number(mapByRole[row.role]?.[row.level] || 0);
     },
 
-    ptsC1() {
-      if (!this.c1.role || this.c1.qty === '' || this.c1.qty === null) return Number(0).toFixed(2);
-      const per = { overall:7, chairman:5, member:2 };
-      return Number((Number(this.c1.qty || 0) * (per[this.c1.role] || 0))).toFixed(2);
-    },
-    ptsC2() {
-      if (!this.c2.type || this.c2.qty === '' || this.c2.qty === null) return Number(0).toFixed(2);
-      const per = { campus:5, department:3, class:1 };
-      return Number((Number(this.c2.qty || 0) * (per[this.c2.type] || 0))).toFixed(2);
-    },
-    ptsC3() {
-      if (!this.c3.role || this.c3.qty === '' || this.c3.qty === null) return Number(0).toFixed(2);
-      const per = { overall:5, chairman:3, member:1 };
-      return Number((Number(this.c3.qty || 0) * (per[this.c3.role] || 0))).toFixed(2);
-    },
+      ptsC1(row) {
+        if (!row || !row.role) return 0;
+        const per = { overall:7, chairman:5, member:2 };
+        return Number(per[row.role] || 0);
+      },
 
-    ptsD(row) {
-      if (!row || !row.role || row.qty === '' || row.qty === null) return Number(0).toFixed(2);
-      const per = { chairman:5, coordinator:3, participant:1 };
-      return Number(Number(row.qty || 0) * (per[row.role] || 0)).toFixed(2);
-    },
+      ptsC2(row) {
+        if (!row || !row.type) return 0;
+        const per = { campus:5, department:3, class:1 };
+        return Number(per[row.type] || 0);
+      },
+
+      ptsC3(row) {
+        if (!row || !row.role) return 0;
+        const per = { overall:5, chairman:3, member:1 };
+        return Number(per[row.role] || 0);
+      },
+
+      ptsD(row) {
+        if (!row || !row.role) return 0;
+        const per = { chairman:5, coordinator:3, participant:1 };
+        return Number(per[row.role] || 0);
+      },
 
     cap(v, max) { v = Number(v || 0); return v > max ? max : v; },
 
-    // ---------- SUMS ----------
     sumA_raw() {
-      const t = this.aRows.reduce((s,r)=> s + Number(this.ptsA(r)), 0);
+      const t = this.bucketedRows('a').reduce((s,r)=> s + Number(r.points || 0), 0);
       return t.toFixed(2);
     },
     sumA_capped() { return Number(this.cap(this.sumA_raw(), 5)).toFixed(2); },
 
-    sumB_raw() {
-      const t = this.bRows.reduce((s,r)=> s + Number(this.ptsB(r)), 0);
-      return t.toFixed(2);
-    },
-    sumB_capped() { return Number(this.cap(this.sumB_raw(), 10)).toFixed(2); },
+      sumB_raw() {
+        const t = this.bucketedRows('b').reduce((s,r)=> s + Number(r.points || 0), 0);
+        const prev = Number(this.prevBThird());
+        return (t + prev).toFixed(2);
+      },
+      sumB_capped() { return Number(this.cap(this.sumB_raw(), 10)).toFixed(2); },
 
-    c1_raw() { return this.ptsC1(); },
-    c1_capped() { return Number(this.cap(this.c1_raw(), 10)).toFixed(2); },
+      c1_raw() { return this.bucketedRows('c1').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(2); },
+      c1_capped() { return Number(this.cap(this.c1_raw(), 10)).toFixed(2); },
 
-    c2_raw() { return this.ptsC2(); },
+    c2_raw() { return this.bucketedRows('c2').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(2); },
     c2_capped() { return Number(this.cap(this.c2_raw(), 5)).toFixed(2); },
 
-    c3_raw() { return this.ptsC3(); },
+    c3_raw() { return this.bucketedRows('c3').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(2); },
     c3_capped() { return Number(this.cap(this.c3_raw(), 10)).toFixed(2); },
 
-    sumC_raw() {
-      const t = Number(this.c1_raw()) + Number(this.c2_raw()) + Number(this.c3_raw());
-      return t.toFixed(2);
-    },
-    sumC_capped() {
-      const t = Number(this.c1_capped()) + Number(this.c2_capped()) + Number(this.c3_capped());
-      return Number(this.cap(t, 15)).toFixed(2);
-    },
+      sumC_raw() {
+        const t = Number(this.c1_raw()) + Number(this.c2_raw()) + Number(this.c3_raw());
+        const prev = Number(this.prevCThird());
+        return (t + prev).toFixed(2);
+      },
+      sumC_capped() {
+        const t = Number(this.c1_capped()) + Number(this.c2_capped()) + Number(this.c3_capped()) + Number(this.prevCThird());
+        return Number(this.cap(t, 15)).toFixed(2);
+      },
 
-    sumD_raw() {
-      const t = this.dRows.reduce((s,r)=> s + Number(this.ptsD(r)), 0);
-      return t.toFixed(2);
-    },
-    sumD_capped() { return Number(this.cap(this.sumD_raw(), 10)).toFixed(2); },
+      sumD_raw() {
+        const t = this.bucketedRows('d').reduce((s,r)=> s + Number(r.points || 0), 0);
+        const prev = Number(this.prevDThird());
+        return (t + prev).toFixed(2);
+      },
+      sumD_capped() { return Number(this.cap(this.sumD_raw(), 10)).toFixed(2); },
 
-    subtotal() {
-      return (
-        Number(this.sumA_capped()) +
-        Number(this.sumB_capped()) +
-        Number(this.sumC_capped()) +
-        Number(this.sumD_capped())
-      ).toFixed(2);
-    },
+      subtotal() {
+        return (
+          Number(this.sumA_capped()) +
+          Number(this.sumB_capped()) +
+          Number(this.sumC_capped()) +
+          Number(this.sumD_capped())
+        ).toFixed(2);
+      },
 
-    prevThird() { return (Number(this.previous || 0) / 3).toFixed(2); },
+      prevBThird() { return (Number(this.b_prev || 0) / 3).toFixed(2); },
+      prevCThird() { return (Number(this.c_prev || 0) / 3).toFixed(2); },
+      prevDThird() { return (Number(this.d_prev || 0) / 3).toFixed(2); },
+      prevThird() { return (Number(this.previous || 0) / 3).toFixed(2); },
 
-    rawTotal() { return (Number(this.subtotal()) + Number(this.prevThird())).toFixed(2); },
+      rawTotal() { return (Number(this.subtotal()) + Number(this.prevThird())).toFixed(2); },
 
     cappedTotal() {
       const raw = Number(this.rawTotal());
       return (raw > 30 ? 30 : raw).toFixed(2);
+    },
+
+    emitScore(points) {
+      document.dispatchEvent(new CustomEvent('section-score', {
+        detail: { section: '5', points: Number(points || 0) },
+      }));
     },
   }
 }
 </script>
 
 </form>
+
+
 

@@ -30,4 +30,9 @@ class ReclassificationApplication extends Model
     {
         return $this->hasMany(ReclassificationSection::class, 'reclassification_application_id');
     }
+
+    public function rowComments()
+    {
+        return $this->hasMany(ReclassificationRowComment::class, 'reclassification_application_id');
+    }
 }

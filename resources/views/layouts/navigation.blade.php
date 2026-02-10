@@ -38,24 +38,169 @@
                     {{-- HR-only shortcuts --}}
                     @if(Auth::user()->role === 'hr')
                         <div class="hidden lg:flex items-center gap-2 ml-4 pl-4 border-l border-gray-200">
-                            <span class="text-xs font-semibold uppercase tracking-wide text-gray-400">
-                                HR Tools
-                            </span>
+                            <div class="relative"
+                                 x-data="{ open: false }"
+                                 @mouseenter="open = true"
+                                 @mouseleave="open = false">
+                                <button type="button"
+                                        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl
+                                               text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50
+                                               border border-transparent transition">
+                                    Reclassification
+                                    <svg class="h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.94a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
 
-                            <x-nav-link :href="route('users.create')" :active="request()->routeIs('users.create')">
-                                {{ __('Create User') }}
-                            </x-nav-link>
+                                <div x-show="open"
+                                     x-transition
+                                     class="absolute left-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-lg z-50">
+                                    <div class="py-2">
+                                        <a href="{{ route('reclassification.review.queue') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.review.queue') ? 'font-semibold text-gray-900' : '' }}">
+                                            Review Queue
+                                        </a>
+                                        <a href="{{ route('reclassification.admin.submissions') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.admin.submissions') ? 'font-semibold text-gray-900' : '' }}">
+                                            All Submissions
+                                        </a>
+                                        <a href="{{ route('reclassification.periods') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.periods') ? 'font-semibold text-gray-900' : '' }}">
+                                            Submission Periods
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
 
-                            <x-nav-link :href="route('users.index')" :active="request()->routeIs('users.index')">
-                                {{ __('Users') }}
-                            </x-nav-link>
+                            <div class="relative"
+                                 x-data="{ open: false }"
+                                 @mouseenter="open = true"
+                                 @mouseleave="open = false">
+                                <button type="button"
+                                        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl
+                                               text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50
+                                               border border-transparent transition">
+                                    User Management
+                                    <svg class="h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.94a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
 
-                            {{-- Optional if you already created faculty.index --}}
-                            @if(Route::has('faculty.index'))
-                                <x-nav-link :href="route('faculty.index')" :active="request()->routeIs('faculty.index')">
-                                    {{ __('Faculty Records') }}
-                                </x-nav-link>
-                            @endif
+                                <div x-show="open"
+                                     x-transition
+                                     class="absolute left-0 mt-2 w-52 rounded-xl border border-gray-200 bg-white shadow-lg z-50">
+                                    <div class="py-2">
+                                        <a href="{{ route('users.index') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('users.index') ? 'font-semibold text-gray-900' : '' }}">
+                                            Users
+                                        </a>
+                                        <a href="{{ route('users.create') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('users.create') ? 'font-semibold text-gray-900' : '' }}">
+                                            Create User
+                                        </a>
+                                        @if(Route::has('faculty.index'))
+                                            <a href="{{ route('faculty.index') }}"
+                                               class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('faculty.index') ? 'font-semibold text-gray-900' : '' }}">
+                                                Faculty Records
+                                            </a>
+                                        @endif
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @elseif(Auth::user()->role === 'dean')
+                        <div class="hidden lg:flex items-center gap-2 ml-4 pl-4 border-l border-gray-200">
+                            <div class="relative"
+                                 x-data="{ open: false }"
+                                 @mouseenter="open = true"
+                                 @mouseleave="open = false">
+                                <button type="button"
+                                        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl
+                                               text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50
+                                               border border-transparent transition">
+                                    Reclassification
+                                    <svg class="h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.94a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
+
+                                <div x-show="open"
+                                     x-transition
+                                     class="absolute left-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-lg z-50">
+                                    <div class="py-2">
+                                        <a href="{{ route('reclassification.dean.review') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.dean.review') ? 'font-semibold text-gray-900' : '' }}">
+                                            Review Queue
+                                        </a>
+                                        <a href="{{ route('dean.submissions') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('dean.submissions') ? 'font-semibold text-gray-900' : '' }}">
+                                            All Submissions
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="relative"
+                                 x-data="{ open: false }"
+                                 @mouseenter="open = true"
+                                 @mouseleave="open = false">
+                                <button type="button"
+                                        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl
+                                               text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50
+                                               border border-transparent transition">
+                                    Faculty Management
+                                    <svg class="h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.94a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
+
+                                <div x-show="open"
+                                     x-transition
+                                     class="absolute left-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-lg z-50">
+                                    <div class="py-2">
+                                        <a href="{{ route('dean.faculty.index') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('dean.faculty.index') ? 'font-semibold text-gray-900' : '' }}">
+                                            Faculty Records
+                                        </a>
+                                        <a href="{{ route('dean.users.create') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('dean.users.create') ? 'font-semibold text-gray-900' : '' }}">
+                                            Create Faculty
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    @elseif(in_array(Auth::user()->role, ['vpaa','president'], true))
+                        <div class="hidden lg:flex items-center gap-2 ml-4 pl-4 border-l border-gray-200">
+                            <div class="relative"
+                                 x-data="{ open: false }"
+                                 @mouseenter="open = true"
+                                 @mouseleave="open = false">
+                                <button type="button"
+                                        class="inline-flex items-center gap-2 px-3 py-2 rounded-xl
+                                               text-sm font-medium text-gray-700 hover:text-gray-900 hover:bg-gray-50
+                                               border border-transparent transition">
+                                    Reclassification
+                                    <svg class="h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fill-rule="evenodd" d="M5.23 7.21a.75.75 0 011.06.02L10 11.168l3.71-3.94a.75.75 0 111.08 1.04l-4.24 4.5a.75.75 0 01-1.08 0l-4.24-4.5a.75.75 0 01.02-1.06z" clip-rule="evenodd"/>
+                                    </svg>
+                                </button>
+
+                                <div x-show="open"
+                                     x-transition
+                                     class="absolute left-0 mt-2 w-56 rounded-xl border border-gray-200 bg-white shadow-lg z-50">
+                                    <div class="py-2">
+                                        <a href="{{ route('reclassification.review.queue') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.review.queue') ? 'font-semibold text-gray-900' : '' }}">
+                                            Review Queue
+                                        </a>
+                                        <a href="{{ route('reclassification.review.submissions') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.review.submissions') ? 'font-semibold text-gray-900' : '' }}">
+                                            All Submissions
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     @endif
                 </div>
@@ -115,6 +260,27 @@
                                             {{ __('Faculty Records') }}
                                         </x-dropdown-link>
                                     @endif
+                                </div>
+                            @elseif(Auth::user()->role === 'dean')
+                                <div class="py-2 border-b border-gray-100">
+                                    <x-dropdown-link :href="route('reclassification.dean.review')">
+                                        {{ __('Review Queue') }}
+                                    </x-dropdown-link>
+                                    <x-dropdown-link :href="route('dean.faculty.index')">
+                                        {{ __('Faculty Records') }}
+                                    </x-dropdown-link>
+                                    <x-dropdown-link :href="route('dean.users.create')">
+                                        {{ __('Create Faculty') }}
+                                    </x-dropdown-link>
+                                </div>
+                            @elseif(in_array(Auth::user()->role, ['vpaa','president'], true))
+                                <div class="py-2 border-b border-gray-100">
+                                    <x-dropdown-link :href="route('reclassification.review.queue')">
+                                        {{ __('Review Queue') }}
+                                    </x-dropdown-link>
+                                    <x-dropdown-link :href="route('reclassification.review.submissions')">
+                                        {{ __('All Submissions') }}
+                                    </x-dropdown-link>
                                 </div>
                             @endif
 
@@ -185,6 +351,16 @@
                         {{ __('Faculty Records') }}
                     </x-responsive-nav-link>
                 @endif
+            @elseif(in_array(Auth::user()->role, ['vpaa','president'], true))
+                <div class="px-4 pt-3 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
+                    Reclassification
+                </div>
+                <x-responsive-nav-link :href="route('reclassification.review.queue')" :active="request()->routeIs('reclassification.review.queue')">
+                    {{ __('Review Queue') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('reclassification.review.submissions')" :active="request()->routeIs('reclassification.review.submissions')">
+                    {{ __('All Submissions') }}
+                </x-responsive-nav-link>
             @endif
         </div>
 

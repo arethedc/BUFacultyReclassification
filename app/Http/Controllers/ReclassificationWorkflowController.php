@@ -55,7 +55,21 @@ class ReclassificationWorkflowController extends Controller
             'vpaa_review' => ['next_status' => 'president_review', 'next_step' => 'president'],
         ];
 
-        // President "forward" doesn't exist; president approves/finalizes later
+        if ($application->status === 'finalized') {
+            return back()->with('success', 'Reclassification already finalized.');
+        }
+
+        if ($application->status === 'president_review') {
+            $application->update([
+                'status' => 'finalized',
+                'current_step' => 'finalized',
+                'finalized_at' => now(),
+                'returned_from' => null,
+            ]);
+
+            return back()->with('success', 'Reclassification finalized.');
+        }
+
         abort_unless(isset($map[$application->status]), 422);
 
         $next = $map[$application->status];

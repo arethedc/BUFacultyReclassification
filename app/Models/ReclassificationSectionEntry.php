@@ -26,4 +26,19 @@ class ReclassificationSectionEntry extends Model
     {
         return $this->belongsTo(ReclassificationSection::class, 'reclassification_section_id');
     }
+
+    public function evidences()
+    {
+        return $this->belongsToMany(
+            ReclassificationEvidence::class,
+            'reclassification_evidence_links',
+            'reclassification_section_entry_id',
+            'reclassification_evidence_id'
+        )->withTimestamps();
+    }
+
+    public function rowComments()
+    {
+        return $this->hasMany(ReclassificationRowComment::class, 'reclassification_section_entry_id');
+    }
 }

@@ -5,9 +5,15 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\FacultyProfileController;
 use App\Http\Controllers\ReclassificationFormController;
+use App\Http\Controllers\ReclassificationPeriodController;
+use App\Http\Controllers\ReclassificationReviewController;
 use App\Http\Controllers\ReclassificationWorkflowController;
 use App\Http\Controllers\ReclassificationEvidenceReviewController;
+use App\Http\Controllers\ReclassificationRowCommentController;
+use App\Http\Controllers\ReclassificationAdminController;
 use App\Models\ReclassificationApplication;
+use App\Models\ReclassificationPeriod;
+use App\Models\User;
 
 /*
 |--------------------------------------------------------------------------
@@ -45,20 +51,172 @@ Route::middleware(['auth'])->group(function () {
     })->name('faculty.dashboard');
 
     Route::middleware(['role:dean'])->get('/dean/dashboard', function () {
-        return view('dashboards.dean');
+        $user = request()->user()->load('department');
+        $departmentId = $user->department_id;
+
+        $statusCounts = ReclassificationApplication::query()
+            ->where('status', '!=', 'draft')
+            ->when($departmentId, function ($query) use ($departmentId) {
+                $query->whereHas('faculty', function ($faculty) use ($departmentId) {
+                    $faculty->where('department_id', $departmentId);
+                });
+            })
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $recentApplications = ReclassificationApplication::query()
+            ->when($departmentId, function ($query) use ($departmentId) {
+                $query->whereHas('faculty', function ($faculty) use ($departmentId) {
+                    $faculty->where('department_id', $departmentId);
+                });
+            })
+            ->where('status', '!=', 'draft')
+            ->with(['faculty.department'])
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('created_at')
+            ->take(6)
+            ->get();
+
+        $facultyCount = User::query()
+            ->where('role', 'faculty')
+            ->when($departmentId, fn ($query) => $query->where('department_id', $departmentId))
+            ->count();
+
+        $departmentName = $user->department?->name ?? 'Department';
+
+        return view('dashboards.dean', compact(
+            'statusCounts',
+            'recentApplications',
+            'facultyCount',
+            'departmentName'
+        ));
     })->name('dean.dashboard');
 
+    Route::middleware(['role:dean'])->group(function () {
+        Route::get('/dean/users/create', [UserController::class, 'create'])
+            ->name('dean.users.create');
+        Route::post('/dean/users', [UserController::class, 'store'])
+            ->name('dean.users.store');
+        Route::get('/dean/faculty', [FacultyProfileController::class, 'index'])
+            ->name('dean.faculty.index');
+        Route::get('/dean/submissions', [ReclassificationAdminController::class, 'deanIndex'])
+            ->name('dean.submissions');
+    });
+
+    Route::middleware(['role:dean,hr,vpaa,president'])->prefix('reclassification')->group(function () {
+        Route::get('/review-queue', [ReclassificationReviewController::class, 'index'])
+            ->name('reclassification.review.queue');
+        Route::get('/review/{application}', [ReclassificationReviewController::class, 'show'])
+            ->name('reclassification.review.show');
+        Route::post('/review/{application}/section2', [ReclassificationReviewController::class, 'saveSectionTwo'])
+            ->name('reclassification.review.section2.save');
+        Route::post('/review/{application}/section1-c/{entry}', [ReclassificationReviewController::class, 'updateSectionOneC'])
+            ->name('reclassification.review.section1c.update');
+
+        Route::get('/dean/review', [ReclassificationReviewController::class, 'index'])
+            ->name('reclassification.dean.review');
+        Route::get('/dean/review/{application}', [ReclassificationReviewController::class, 'show'])
+            ->name('reclassification.dean.review.show');
+        Route::post('/dean/review/{application}/section2', [ReclassificationReviewController::class, 'saveSectionTwo'])
+            ->name('reclassification.dean.section2.save');
+        Route::post('/dean/review/{application}/section1-c/{entry}', [ReclassificationReviewController::class, 'updateSectionOneC'])
+            ->name('reclassification.dean.section1c.update');
+    });
+
     Route::middleware(['role:hr'])->get('/hr/dashboard', function () {
-        return view('dashboards.hr');
+        $statusCounts = ReclassificationApplication::query()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $openPeriod = ReclassificationPeriod::query()
+            ->where('is_open', true)
+            ->orderByDesc('created_at')
+            ->first();
+
+        $recentApplications = ReclassificationApplication::query()
+            ->with('faculty.department')
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get();
+
+        $facultyCount = User::query()->where('role', 'faculty')->count();
+
+        return view('dashboards.hr', compact(
+            'statusCounts',
+            'openPeriod',
+            'recentApplications',
+            'facultyCount'
+        ));
     })->name('hr.dashboard');
 
+    Route::middleware(['role:hr'])->prefix('reclassification')->group(function () {
+        Route::get('/periods', [ReclassificationPeriodController::class, 'index'])
+            ->name('reclassification.periods');
+        Route::post('/periods', [ReclassificationPeriodController::class, 'store'])
+            ->name('reclassification.periods.store');
+        Route::post('/periods/{period}/toggle', [ReclassificationPeriodController::class, 'toggle'])
+            ->name('reclassification.periods.toggle');
+        Route::get('/submissions', [ReclassificationAdminController::class, 'index'])
+            ->name('reclassification.admin.submissions');
+    });
+
     Route::middleware(['role:vpaa'])->get('/vpaa/dashboard', function () {
-        return view('dashboards.vpaa');
+        $statusCounts = ReclassificationApplication::query()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $recentApplications = ReclassificationApplication::query()
+            ->with('faculty.department')
+            ->where('status', '!=', 'draft')
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get();
+
+        $totalSubmissions = ReclassificationApplication::query()
+            ->where('status', '!=', 'draft')
+            ->count();
+
+        return view('dashboards.vpaa', compact(
+            'statusCounts',
+            'recentApplications',
+            'totalSubmissions'
+        ));
     })->name('vpaa.dashboard');
 
     Route::middleware(['role:president'])->get('/president/dashboard', function () {
-        return view('dashboards.president');
+        $statusCounts = ReclassificationApplication::query()
+            ->selectRaw('status, COUNT(*) as total')
+            ->groupBy('status')
+            ->pluck('total', 'status');
+
+        $recentApplications = ReclassificationApplication::query()
+            ->with('faculty.department')
+            ->where('status', '!=', 'draft')
+            ->orderByDesc('submitted_at')
+            ->orderByDesc('created_at')
+            ->limit(5)
+            ->get();
+
+        $totalSubmissions = ReclassificationApplication::query()
+            ->where('status', '!=', 'draft')
+            ->count();
+
+        return view('dashboards.president', compact(
+            'statusCounts',
+            'recentApplications',
+            'totalSubmissions'
+        ));
     })->name('president.dashboard');
+
+    Route::middleware(['role:vpaa,president'])->prefix('reclassification')->group(function () {
+        Route::get('/all-submissions', [ReclassificationAdminController::class, 'index'])
+            ->name('reclassification.review.submissions');
+    });
 
     /*
     |----------------------------------------------------------------------
@@ -94,9 +252,18 @@ Route::middleware(['auth'])->group(function () {
             ->whereNumber('number')
             ->name('reclassification.section.save');
 
+        Route::post('/section/{number}/reset', [ReclassificationFormController::class, 'resetSection'])
+            ->whereNumber('number')
+            ->name('reclassification.section.reset');
+
         // Review page (optional)
         Route::get('/review', [ReclassificationFormController::class, 'review'])
             ->name('reclassification.review');
+        Route::post('/review', [ReclassificationFormController::class, 'reviewSave'])
+            ->name('reclassification.review.save');
+
+        Route::post('/reset', [ReclassificationFormController::class, 'resetApplication'])
+            ->name('reclassification.reset');
 
         // Submitted / under review screen
         Route::get('/submitted', [ReclassificationFormController::class, 'submitted'])
@@ -105,10 +272,21 @@ Route::middleware(['auth'])->group(function () {
         // Submitted summary (read-only)
         Route::get('/submitted-summary', [ReclassificationFormController::class, 'submittedSummary'])
             ->name('reclassification.submitted-summary');
+        Route::get('/submitted-summary/{application}', [ReclassificationFormController::class, 'submittedSummaryShow'])
+            ->name('reclassification.submitted-summary.show');
 
         // Workflow actions
         Route::post('/{application}/submit', [ReclassificationWorkflowController::class, 'submit'])
             ->name('reclassification.submit');
+
+        Route::post('/evidences', [ReclassificationFormController::class, 'uploadEvidence'])
+            ->name('reclassification.evidence.upload');
+
+        Route::post('/evidences/{evidence}/detach', [ReclassificationFormController::class, 'detachEvidence'])
+            ->name('reclassification.evidence.detach');
+
+        Route::delete('/evidences/{evidence}', [ReclassificationFormController::class, 'deleteEvidence'])
+            ->name('reclassification.evidence.delete');
     });
 
     /*
@@ -131,6 +309,9 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('/evidences/{evidence}/reject', [ReclassificationEvidenceReviewController::class, 'reject'])
             ->name('reclassification.evidence.reject');
+
+        Route::post('/{application}/entries/{entry}/comments', [ReclassificationRowCommentController::class, 'store'])
+            ->name('reclassification.row-comments.store');
     });
 
     /*

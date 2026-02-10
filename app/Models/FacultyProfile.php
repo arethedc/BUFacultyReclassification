@@ -15,6 +15,7 @@ class FacultyProfile extends Model
         'employment_type',
         'teaching_rank',
         'rank_step',
+        'rank_level_id',
         'original_appointment_date',
     ];
 
@@ -25,5 +26,10 @@ class FacultyProfile extends Model
     public function user()
     {
         return $this->belongsTo(User::class);
+    }
+
+    public function rankLevel()
+    {
+        return $this->belongsTo(RankLevel::class);
     }
 }

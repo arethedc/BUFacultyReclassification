@@ -39,9 +39,18 @@
                   x-data="{
                     editMode: {{ $errors->any() ? 'true' : 'false' }},
                     original: {},
+                    formatEmployeeNo(value) {
+                      const digits = String(value || '').replace(/\D/g, '').slice(0, 7);
+                      return digits.length > 4
+                        ? digits.slice(0, 4) + '-' + digits.slice(4)
+                        : digits;
+                    },
                     init() {
                       this.original = {
-                        name: $refs.name?.value ?? '',
+                        first_name: $refs.first_name?.value ?? '',
+                        middle_name: $refs.middle_name?.value ?? '',
+                        last_name: $refs.last_name?.value ?? '',
+                        suffix: $refs.suffix?.value ?? '',
                         email: $refs.email?.value ?? '',
                         department_id: $refs.department_id?.value ?? '',
                         status: $refs.status?.value ?? '',
@@ -51,7 +60,10 @@
                       this.editMode = true;
                     },
                     discard() {
-                      if ($refs.name) $refs.name.value = this.original.name;
+                      if ($refs.first_name) $refs.first_name.value = this.original.first_name;
+                      if ($refs.middle_name) $refs.middle_name.value = this.original.middle_name;
+                      if ($refs.last_name) $refs.last_name.value = this.original.last_name;
+                      if ($refs.suffix) $refs.suffix.value = this.original.suffix;
                       if ($refs.email) $refs.email.value = this.original.email;
                       if ($refs.department_id) $refs.department_id.value = this.original.department_id;
                       if ($refs.status) $refs.status.value = this.original.status;
@@ -141,16 +153,47 @@
                     </div>
 
                     <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700">Full Name</label>
-                            <input x-ref="name"
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">First Name</label>
+                            <input x-ref="first_name"
                                    :disabled="!editMode"
                                    type="text"
-                                   name="name"
-                                   value="{{ old('name', $user->name) }}"
+                                   name="first_name"
+                                   value="{{ old('first_name', $nameParts['first_name'] ?? '') }}"
                                    class="mt-1 w-full rounded-xl border border-gray-300 bg-white
                                           focus:border-bu focus:ring-bu disabled:bg-gray-100 disabled:text-gray-600"
                                    required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Last Name</label>
+                            <input x-ref="last_name"
+                                   :disabled="!editMode"
+                                   type="text"
+                                   name="last_name"
+                                   value="{{ old('last_name', $nameParts['last_name'] ?? '') }}"
+                                   class="mt-1 w-full rounded-xl border border-gray-300 bg-white
+                                          focus:border-bu focus:ring-bu disabled:bg-gray-100 disabled:text-gray-600"
+                                   required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Middle Name</label>
+                            <input x-ref="middle_name"
+                                   :disabled="!editMode"
+                                   type="text"
+                                   name="middle_name"
+                                   value="{{ old('middle_name', $nameParts['middle_name'] ?? '') }}"
+                                   class="mt-1 w-full rounded-xl border border-gray-300 bg-white
+                                          focus:border-bu focus:ring-bu disabled:bg-gray-100 disabled:text-gray-600">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Suffix</label>
+                            <input x-ref="suffix"
+                                   :disabled="!editMode"
+                                   type="text"
+                                   name="suffix"
+                                   value="{{ old('suffix', $nameParts['suffix'] ?? '') }}"
+                                   class="mt-1 w-full rounded-xl border border-gray-300 bg-white
+                                          focus:border-bu focus:ring-bu disabled:bg-gray-100 disabled:text-gray-600">
                         </div>
 
                         @if($showDepartment)
@@ -173,6 +216,34 @@
                         @endif
                     </div>
                 </div>
+
+                @if($user->role === 'faculty')
+                    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+                        <div class="px-6 py-4 border-b">
+                            <h3 class="text-lg font-semibold text-gray-800">Faculty Profile</h3>
+                            <p class="text-sm text-gray-500">Employee number format: 4 digits, dash, 3 digits.</p>
+                        </div>
+
+                        <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                            <div>
+                                <label class="block text-sm font-medium text-gray-700">Employee Number</label>
+                                <input x-ref="employee_no"
+                                       :disabled="!editMode"
+                                       type="text"
+                                       name="employee_no"
+                                       placeholder="1234-567"
+                                       value="{{ old('employee_no', $user->facultyProfile?->employee_no) }}"
+                                       @input="$event.target.value = formatEmployeeNo($event.target.value)"
+                                       class="mt-1 w-full rounded-xl border border-gray-300 bg-white
+                                              focus:border-bu focus:ring-bu disabled:bg-gray-100 disabled:text-gray-600"
+                                       required>
+                                @error('employee_no')
+                                    <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
+                                @enderror
+                            </div>
+                        </div>
+                    </div>
+                @endif
 
                 {{-- ACCOUNT STATUS --}}
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200">

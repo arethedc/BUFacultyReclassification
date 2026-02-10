@@ -13,10 +13,16 @@
 
             <form
                 x-data="{
-                    role: '{{ old('role', ($context ?? null) === 'faculty' ? 'faculty' : '') }}'
+                    role: '{{ old('role', ($forceRole ?? null) ? $forceRole : (($context ?? null) === 'faculty' ? 'faculty' : '')) }}',
+                    formatEmployeeNo(value) {
+                        const digits = String(value || '').replace(/\D/g, '').slice(0, 7);
+                        return digits.length > 4
+                            ? digits.slice(0, 4) + '-' + digits.slice(4)
+                            : digits;
+                    }
                 }"
                 method="POST"
-                action="{{ route('users.store') }}"
+                action="{{ $actionRoute ?? route('users.store') }}"
                 class="space-y-8 pb-12"
             >
                 @csrf
@@ -36,7 +42,9 @@
                 {{-- =========================
                     STEP 1: ROLE SELECTION
                 ========================== --}}
-                @if(($context ?? null) !== 'faculty')
+                @if(($forceRole ?? null) === 'faculty')
+                    <input type="hidden" name="role" value="faculty">
+                @elseif(($context ?? null) !== 'faculty')
                     <div class="bg-white rounded-2xl shadow-card border border-gray-200">
                         <div class="px-6 py-4 border-b">
                             <h3 class="text-lg font-semibold text-gray-800">User Role</h3>
@@ -203,18 +211,25 @@
                         <div x-show="role === 'faculty' || role === 'dean'" x-transition class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-700">Department</label>
 
-                            <select
-                                name="department_id"
-                                class="mt-1 w-full md:w-1/2 rounded-xl border bg-white
-                                {{ $errors->has('department_id') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
-                            >
-                                <option value="">Select Department</option>
-                                @foreach($departments as $dept)
-                                    <option value="{{ $dept->id }}" {{ old('department_id') == $dept->id ? 'selected' : '' }}>
-                                        {{ $dept->name }}
-                                    </option>
-                                @endforeach
-                            </select>
+                            @if(!empty($lockDepartment) && !empty($defaultDepartmentId))
+                                <div class="mt-1 w-full md:w-1/2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-700">
+                                    {{ optional($departments->first())->name ?? 'Department' }}
+                                </div>
+                                <input type="hidden" name="department_id" value="{{ $defaultDepartmentId }}">
+                            @else
+                                <select
+                                    name="department_id"
+                                    class="mt-1 w-full md:w-1/2 rounded-xl border bg-white
+                                    {{ $errors->has('department_id') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
+                                >
+                                    <option value="">Select Department</option>
+                                    @foreach($departments as $dept)
+                                        <option value="{{ $dept->id }}" {{ old('department_id') == $dept->id ? 'selected' : '' }}>
+                                            {{ $dept->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                            @endif
 
                             @error('department_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
@@ -249,7 +264,9 @@
                             <input
                                 type="text"
                                 name="employee_no"
+                                placeholder="1234-567"
                                 value="{{ old('employee_no') }}"
+                                @input="$event.target.value = formatEmployeeNo($event.target.value)"
                                 class="mt-1 w-full rounded-xl border bg-white
                                 {{ $errors->has('employee_no') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
                             >
@@ -259,7 +276,7 @@
                             @enderror
 
                             <p class="mt-1 text-xs text-gray-500">
-                                Required when Role = Faculty (per validation rules).
+                                Required when Role = Faculty. Format: 4 digits, dash, 3 digits.
                             </p>
                         </div>
 
@@ -290,43 +307,39 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Academic Rank</label>
+                            <label class="block text-sm font-medium text-gray-700">Academic Rank Level</label>
 
                             <select
-                                name="teaching_rank"
+                                name="rank_level_id"
                                 class="mt-1 w-full rounded-xl border bg-white
-                                {{ $errors->has('teaching_rank') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
+                                {{ $errors->has('rank_level_id') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
                             >
-                                <option value="">Select Teaching Rank</option>
-                                @foreach(['Instructor','Assistant Professor','Associate Professor','Full Professor'] as $r)
-                                    <option value="{{ $r }}" {{ old('teaching_rank') === $r ? 'selected' : '' }}>
-                                        {{ $r }}
+                                <option value="">Select Rank Level</option>
+                                @foreach($rankLevels as $level)
+                                    <option value="{{ $level->id }}" {{ old('rank_level_id') == $level->id ? 'selected' : '' }}>
+                                        {{ $level->title }}
                                     </option>
                                 @endforeach
                             </select>
 
-                            @error('teaching_rank')
+                            @error('rank_level_id')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Rank Step</label>
-
+                            <label class="block text-sm font-medium text-gray-700">Highest Degree Earned</label>
                             <select
-                                name="rank_step"
+                                name="highest_degree"
                                 class="mt-1 w-full rounded-xl border bg-white
-                                {{ $errors->has('rank_step') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
+                                {{ $errors->has('highest_degree') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
                             >
-                                <option value="">Select Rank Step</option>
-                                @foreach(['A','B','C'] as $s)
-                                    <option value="{{ $s }}" {{ old('rank_step') === $s ? 'selected' : '' }}>
-                                        {{ $s }}
-                                    </option>
-                                @endforeach
+                                <option value="">Select degree</option>
+                                <option value="bachelors" {{ old('highest_degree') === 'bachelors' ? 'selected' : '' }}>Bachelor’s</option>
+                                <option value="masters" {{ old('highest_degree') === 'masters' ? 'selected' : '' }}>Master’s</option>
+                                <option value="doctorate" {{ old('highest_degree') === 'doctorate' ? 'selected' : '' }}>Doctorate</option>
                             </select>
-
-                            @error('rank_step')
+                            @error('highest_degree')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                         </div>

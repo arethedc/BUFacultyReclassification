@@ -6,6 +6,7 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
+use App\Models\FacultyHighestDegree;
 
 class User extends Authenticatable
 {
@@ -57,6 +58,16 @@ public function department()
 public function facultyProfile()
 {
     return $this->hasOne(\App\Models\FacultyProfile::class);
+}
+
+public function facultyHighestDegree()
+{
+    return $this->hasOne(FacultyHighestDegree::class);
+}
+
+public function reclassificationRowComments()
+{
+    return $this->hasMany(\App\Models\ReclassificationRowComment::class, 'user_id');
 }
 
 

@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\User;
 use App\Models\FacultyProfile;
+use App\Models\FacultyHighestDegree;
 use Illuminate\Http\Request;
 use Illuminate\Validation\Rule;
 
@@ -11,8 +12,13 @@ class FacultyProfileController extends Controller
 {
     public function index(Request $request)
     {
+        $viewer = $request->user();
+        abort_unless(in_array($viewer->role, ['hr', 'dean'], true), 403);
+
         $q = trim((string) $request->get('q', ''));
         $status = $request->get('status', 'active'); // active | inactive | all
+        $departmentId = $request->get('department_id');
+        $rankLevelId = $request->get('rank_level_id');
 
         // ✅ guard allowed values (prevents invalid filters)
         if (!in_array($status, ['active', 'inactive', 'all'], true)) {
@@ -21,11 +27,25 @@ class FacultyProfileController extends Controller
 
         $query = User::query()
             ->where('role', 'faculty')
-            ->with(['department', 'facultyProfile']);
+            ->with(['department', 'facultyProfile' . (\Illuminate\Support\Facades\Schema::hasTable('rank_levels') ? '.rankLevel' : '')]);
 
         // ✅ hide inactive by default
         if ($status !== 'all') {
             $query->where('status', $status);
+        }
+
+        if ($viewer->role === 'dean') {
+            $departmentId = $viewer->department_id;
+        }
+
+        if (!empty($departmentId)) {
+            $query->where('department_id', $departmentId);
+        }
+
+        if (!empty($rankLevelId)) {
+            $query->whereHas('facultyProfile', function ($profile) use ($rankLevelId) {
+                $profile->where('rank_level_id', $rankLevelId);
+            });
         }
 
         // ✅ search (name/email/employee no)
@@ -45,16 +65,35 @@ class FacultyProfileController extends Controller
             ->appends([
                 'q' => $q,
                 'status' => $status,
+                'department_id' => $departmentId,
+                'rank_level_id' => $rankLevelId,
             ]);
 
-return view('faculty_profiles.index', compact('faculty', 'q', 'status'));
+        $departments = \App\Models\Department::orderBy('name')->get();
+        if ($viewer->role === 'dean' && $viewer->department_id) {
+            $departments = $departments->where('id', $viewer->department_id)->values();
+            $departmentId = $viewer->department_id;
+        }
+        $rankLevels = \Illuminate\Support\Facades\Schema::hasTable('rank_levels')
+            ? \App\Models\RankLevel::orderBy('order_no')->get()
+            : collect();
+
+        return view('faculty_profiles.index', compact(
+            'faculty',
+            'q',
+            'status',
+            'departments',
+            'rankLevels',
+            'departmentId',
+            'rankLevelId'
+        ));
     }
 
     public function edit(User $user)
     {
         abort_unless($user->role === 'faculty', 404);
 
-        $user->load(['facultyProfile', 'department']);
+        $user->load(['facultyProfile', 'department', 'facultyHighestDegree']);
 
         // ✅ Ensure profile exists
         $profile = $user->facultyProfile ?? FacultyProfile::create([
@@ -62,7 +101,9 @@ return view('faculty_profiles.index', compact('faculty', 'q', 'status'));
             'employee_no' => 'TEMP-' . $user->id,
         ]);
 
-        return view('faculty_profiles.edit', compact('user', 'profile'));
+        $highestDegree = $user->facultyHighestDegree;
+
+        return view('faculty_profiles.edit', compact('user', 'profile', 'highestDegree'));
     }
 
     public function update(Request $request, User $user)
@@ -80,9 +121,23 @@ return view('faculty_profiles.index', compact('faculty', 'q', 'status'));
             'teaching_rank' => 'required|string|max:100',
             'rank_step' => ['nullable', Rule::in(['A', 'B', 'C'])],
             'original_appointment_date' => 'nullable|date',
+            'highest_degree' => ['nullable', Rule::in(['bachelors', 'masters', 'doctorate'])],
         ]);
 
-        $profile->update($data);
+        $profile->update([
+            'employee_no' => $data['employee_no'],
+            'employment_type' => $data['employment_type'],
+            'teaching_rank' => $data['teaching_rank'],
+            'rank_step' => $data['rank_step'] ?? null,
+            'original_appointment_date' => $data['original_appointment_date'] ?? null,
+        ]);
+
+        if (!empty($data['highest_degree'])) {
+            FacultyHighestDegree::updateOrCreate(
+                ['user_id' => $user->id],
+                ['highest_degree' => $data['highest_degree']]
+            );
+        }
 
         return redirect()
             ->route('faculty-profiles.edit', $user)

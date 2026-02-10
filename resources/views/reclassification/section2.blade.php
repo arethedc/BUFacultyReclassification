@@ -8,10 +8,21 @@
     </p>
 </div>
 
-<form method="POST" action="{{ route('reclassification.section.save', 2) }}" data-validate-evidence data-view-only="true">
+@php
+  $actionRoute = $actionRoute ?? route('reclassification.section.save', 2);
+  $readOnly = $readOnly ?? false;
+  $embedded = $embedded ?? false;
+@endphp
+
+<form method="POST"
+      action="{{ $actionRoute }}"
+      data-validate-evidence
+      data-view-only="{{ $readOnly ? 'true' : 'false' }}">
 @csrf
 
-<div x-data="sectionTwo()" class="py-12 bg-bu-muted min-h-screen">
+<div x-data="sectionTwo(@js($sectionData ?? []))"
+     x-init="init()"
+     class="{{ $embedded ? 'py-4' : 'py-12 bg-bu-muted min-h-screen' }}">
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
 
     {{-- =======================
@@ -176,6 +187,7 @@ Counted (capped):
                                        name="section2[ratings][dean][i1]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -184,6 +196,7 @@ Counted (capped):
                                        name="section2[ratings][chair][i1]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -192,6 +205,7 @@ Counted (capped):
                                        name="section2[ratings][student][i1]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -211,6 +225,7 @@ Counted (capped):
                                        name="section2[ratings][dean][i2]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -219,6 +234,7 @@ Counted (capped):
                                        name="section2[ratings][chair][i2]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -227,6 +243,7 @@ Counted (capped):
                                        name="section2[ratings][student][i2]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -246,6 +263,7 @@ Counted (capped):
                                        name="section2[ratings][dean][i3]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -254,6 +272,7 @@ Counted (capped):
                                        name="section2[ratings][chair][i3]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -262,6 +281,7 @@ Counted (capped):
                                        name="section2[ratings][student][i3]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -281,6 +301,7 @@ Counted (capped):
                                        name="section2[ratings][dean][i4]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -289,6 +310,7 @@ Counted (capped):
                                        name="section2[ratings][chair][i4]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -297,6 +319,7 @@ Counted (capped):
                                        name="section2[ratings][student][i4]"
                                        type="number" step="0.01" min="1" max="4"
                                        class="w-24 text-center rounded border-gray-300"
+                                       @if($readOnly) disabled @endif
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -423,6 +446,7 @@ Counted (capped):
                        name="section2[previous_points]"
                        type="number" step="0.01"
                        class="mt-1 w-48 rounded border-gray-300"
+                       @if($readOnly) disabled @endif
                        placeholder="0.00">
                 <p class="text-xs text-gray-500 mt-1">
                     System applies 1/3 of this value. Subject to validation.
@@ -433,10 +457,16 @@ Counted (capped):
 <div class="flex justify-end gap-4 pt-2">
     <button type="button"
             @click="clearAll()"
-            class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
+            @if($readOnly) disabled @endif
+            class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
         Clear
     </button>
-
+    @if(!$readOnly)
+        <button type="submit"
+                class="px-6 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft">
+            Save Section II
+        </button>
+    @endif
 </div>
 
         </div>
@@ -447,7 +477,7 @@ Counted (capped):
 </form>
 
 <script>
-function sectionTwo() {
+function sectionTwo(initial = {}) {
   return {
 hasAnyRating() {
   const all = [
@@ -471,6 +501,19 @@ clearAll() {
       student: { i1: null, i2: null, i3: null, i4: null },
     },
     previous: 0,
+
+    init() {
+      if (initial.ratings) {
+        this.ratings = {
+          dean:    { i1: initial.ratings?.dean?.i1 ?? null, i2: initial.ratings?.dean?.i2 ?? null, i3: initial.ratings?.dean?.i3 ?? null, i4: initial.ratings?.dean?.i4 ?? null },
+          chair:   { i1: initial.ratings?.chair?.i1 ?? null, i2: initial.ratings?.chair?.i2 ?? null, i3: initial.ratings?.chair?.i3 ?? null, i4: initial.ratings?.chair?.i4 ?? null },
+          student: { i1: initial.ratings?.student?.i1 ?? null, i2: initial.ratings?.student?.i2 ?? null, i3: initial.ratings?.student?.i3 ?? null, i4: initial.ratings?.student?.i4 ?? null },
+        };
+      }
+      if (initial.previous_points !== undefined && initial.previous_points !== null && initial.previous_points !== '') {
+        this.previous = Number(initial.previous_points || 0);
+      }
+    },
 
     cap(v, max) {
       v = Number(v || 0);
@@ -582,4 +625,5 @@ clearAll() {
   }
 }
 </script>
+
 

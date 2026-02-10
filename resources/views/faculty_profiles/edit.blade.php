@@ -48,6 +48,7 @@
                         employee_no: $refs.employee_no?.value ?? '',
                         employment_type: $refs.employment_type?.value ?? '',
                         teaching_rank: $refs.teaching_rank?.value ?? '',
+                        highest_degree: $refs.highest_degree?.value ?? '',
                         rank_step: $refs.rank_step?.value ?? '',
                         original_appointment_date: $refs.original_appointment_date?.value ?? ''
                       };
@@ -57,6 +58,7 @@
                       if ($refs.employee_no) $refs.employee_no.value = this.original.employee_no;
                       if ($refs.employment_type) $refs.employment_type.value = this.original.employment_type;
                       if ($refs.teaching_rank) $refs.teaching_rank.value = this.original.teaching_rank;
+                      if ($refs.highest_degree) $refs.highest_degree.value = this.original.highest_degree;
                       if ($refs.rank_step) $refs.rank_step.value = this.original.rank_step;
                       if ($refs.original_appointment_date) $refs.original_appointment_date.value = this.original.original_appointment_date;
                       this.editMode = false;
@@ -251,6 +253,25 @@
                                 @endforeach
                             </select>
                             @error('teaching_rank')
+                                <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                            @enderror
+                        </div>
+
+                        {{-- Highest Degree --}}
+                        <div>
+                            <label class="block text-sm font-medium text-gray-700">Highest Degree Earned</label>
+                            <select x-ref="highest_degree"
+                                    :disabled="!editMode"
+                                    name="highest_degree"
+                                    class="mt-1 w-full rounded-xl border border-gray-300 bg-white
+                                           focus:border-bu focus:ring-bu
+                                           disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed">
+                                <option value="">—</option>
+                                <option value="bachelors" @selected(old('highest_degree', $highestDegree?->highest_degree) === 'bachelors')>Bachelor’s</option>
+                                <option value="masters" @selected(old('highest_degree', $highestDegree?->highest_degree) === 'masters')>Master’s</option>
+                                <option value="doctorate" @selected(old('highest_degree', $highestDegree?->highest_degree) === 'doctorate')>Doctorate</option>
+                            </select>
+                            @error('highest_degree')
                                 <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
                             @enderror
                         </div>

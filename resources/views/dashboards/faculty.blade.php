@@ -64,36 +64,46 @@
                 </div>
             </div>
 
-            {{-- QUICK ACTION --}}
-            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
-                <h3 class="text-lg font-semibold text-gray-800 mb-2">
-                    Reclassification
-                </h3>
+            {{-- ACTION NAV --}}
+            @php
+                $latest = $applications->first();
+                $isEditable = $latest && in_array($latest->status, ['draft', 'returned_to_faculty'], true);
+                $actionLabel = 'Start Reclassification';
+                $actionRoute = route('reclassification.show');
 
-                @php
-                    $latest = $applications->first();
-                    $isEditable = $latest && in_array($latest->status, ['draft', 'returned_to_faculty'], true);
-                    $actionLabel = 'Start Reclassification';
-                    $actionRoute = route('reclassification.show');
-
-                    if ($latest) {
-                        if ($isEditable) {
-                            $actionLabel = 'Continue Reclassification';
-                            $actionRoute = route('reclassification.show');
-                        } else {
-                            $actionLabel = 'View Submitted';
-                            $actionRoute = route('reclassification.submitted');
-                        }
+                if ($latest) {
+                    if ($isEditable) {
+                        $actionLabel = 'Continue Reclassification';
+                        $actionRoute = route('reclassification.show');
+                    } else {
+                        $actionLabel = 'View Submitted';
+                        $actionRoute = route('reclassification.submitted');
                     }
-                @endphp
+                }
 
-                <p class="text-sm text-gray-500 mb-4">
-                    Submit a reclassification application for the current term.
-                </p>
-                <a href="{{ $actionRoute }}"
-                   class="px-6 py-3 rounded-xl bg-bu text-white shadow">
-                    {{ $actionLabel }}
-                </a>
+                $submittedApp = $applications->firstWhere('status', 'finalized')
+                    ?? $applications->first(fn ($app) => !in_array($app->status, ['draft','returned_to_faculty'], true));
+            @endphp
+
+            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-4">
+                <div class="flex flex-wrap items-center gap-3">
+                    <a href="{{ $actionRoute }}"
+                       class="px-5 py-2.5 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
+                        {{ $actionLabel }}
+                    </a>
+
+                    @if($submittedApp)
+                        <a href="{{ route('reclassification.submitted-summary.show', $submittedApp) }}"
+                           class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                            View Submitted Paper
+                        </a>
+                    @endif
+
+                    <a href="{{ route('profile.edit') }}"
+                       class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                        My Profile / Reset Password
+                    </a>
+                </div>
             </div>
 
             {{-- APPLICATION HISTORY --}}
@@ -142,10 +152,17 @@
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-right">
-                                        <a href="{{ route('reclassification.show') }}"
-                                           class="text-bu hover:underline font-medium">
-                                            View
-                                        </a>
+                                        @if(in_array($app->status, ['draft','returned_to_faculty'], true))
+                                            <a href="{{ route('reclassification.show') }}"
+                                               class="text-bu hover:underline font-medium">
+                                                Continue
+                                            </a>
+                                        @else
+                                            <a href="{{ route('reclassification.submitted-summary.show', $app) }}"
+                                               class="text-bu hover:underline font-medium">
+                                                View
+                                            </a>
+                                        @endif
                                     </td>
                                 </tr>
                             @empty

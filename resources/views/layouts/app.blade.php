@@ -17,6 +17,7 @@
         <!-- ✅ AlpineJS (load ONCE globally) -->
         <script defer src="https://unpkg.com/alpinejs@3.x.x/dist/cdn.min.js"></script>
         <script defer src="https://unpkg.com/@alpinejs/collapse@3.x.x/dist/cdn.min.js"></script>
+        <style>[x-cloak]{display:none !important;}</style>
     </head>
     <body class="font-sans antialiased">
         <div class="min-h-screen bg-gray-100">
@@ -39,9 +40,12 @@
 
         <script>
             function isFieldFilled(el) {
-                if (el.disabled || el.type === 'hidden') return false;
+                if (!el || el.disabled || el.type === 'hidden') return false;
                 if (el.type === 'checkbox' || el.type === 'radio') return el.checked;
-                if (el.tagName === 'SELECT') return el.value !== '';
+                if (el.tagName === 'SELECT') {
+                    if (el.multiple) return el.selectedOptions.length > 0;
+                    return el.value !== '';
+                }
                 return (el.value || '').trim() !== '';
             }
 
@@ -62,22 +66,29 @@
                         .filter(el => el.type !== 'hidden' && !el.disabled);
 
                     const nonEvidenceFields = fields.filter(el => el !== select);
+                    const proxy = row.querySelector('[data-evidence-proxy]');
 
-                    const started = nonEvidenceFields.some(isFieldFilled) || isFieldFilled(select);
+                    const hiddenEvidenceInputs = row.querySelectorAll('input[type="hidden"][name*="[evidence]"]');
+                    const hasHiddenEvidence = hiddenEvidenceInputs.length > 0;
+                    const hasSelectEvidence = isFieldFilled(select);
+                    const started = nonEvidenceFields.some(isFieldFilled) || hasSelectEvidence || hasHiddenEvidence;
                     if (!started) {
                         select.classList.remove('border-red-500');
                         nonEvidenceFields.forEach(el => el.classList.remove('border-red-500'));
+                        if (proxy) proxy.classList.remove('ring-1', 'ring-red-500');
                         return;
                     }
 
                     let rowInvalid = false;
 
                     // Require evidence when row is started
-                    if (!isFieldFilled(select)) {
+                    if (!hasSelectEvidence && !hasHiddenEvidence) {
                         rowInvalid = true;
                         select.classList.add('border-red-500');
+                        if (proxy) proxy.classList.add('ring-1', 'ring-red-500', 'rounded-lg');
                     } else {
                         select.classList.remove('border-red-500');
+                        if (proxy) proxy.classList.remove('ring-1', 'ring-red-500');
                     }
 
                     // Require other fields to be filled when row is started
@@ -112,6 +123,12 @@
             document.addEventListener('DOMContentLoaded', () => {
                 document.querySelectorAll('form[data-validate-evidence]').forEach((form) => {
                     form.addEventListener('submit', (event) => {
+                        const submitter = event.submitter || document.activeElement;
+                        if (submitter) {
+                            const skip = submitter.getAttribute('data-skip-validate') === 'true';
+                            const isDraft = submitter.name === 'action' && submitter.value === 'draft';
+                            if (skip || isDraft) return;
+                        }
                         if (!validateFormRows(form)) {
                             event.preventDefault();
                         }

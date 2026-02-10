@@ -43,6 +43,16 @@ class ReclassificationEvidence extends Model
         return $this->belongsTo(ReclassificationSectionEntry::class, 'reclassification_section_entry_id');
     }
 
+    public function entries()
+    {
+        return $this->belongsToMany(
+            ReclassificationSectionEntry::class,
+            'reclassification_evidence_links',
+            'reclassification_evidence_id',
+            'reclassification_section_entry_id'
+        )->withTimestamps();
+    }
+
     public function application()
     {
         return $this->belongsTo(ReclassificationApplication::class, 'reclassification_application_id');

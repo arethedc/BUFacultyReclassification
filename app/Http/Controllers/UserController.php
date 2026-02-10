@@ -5,8 +5,11 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\Department;
 use App\Models\FacultyProfile;
+use App\Models\FacultyHighestDegree;
+use App\Models\RankLevel;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -60,10 +63,26 @@ class UserController extends Controller
     public function create()
     {
         $context = request('context'); // 'faculty' or null
+        $viewer = request()->user();
+        $isDean = $viewer && $viewer->role === 'dean';
+        $defaultDepartmentId = $isDean ? $viewer->department_id : null;
+        $forceRole = $isDean ? 'faculty' : null;
+        $lockDepartment = $isDean;
+        $actionRoute = $isDean ? route('dean.users.store') : route('users.store');
+        $departments = $isDean && $defaultDepartmentId
+            ? Department::where('id', $defaultDepartmentId)->get()
+            : Department::orderBy('name')->get();
 
         return view('users.create', [
             'context' => $context,
-            'departments' => Department::orderBy('name')->get(),
+            'departments' => $departments,
+            'rankLevels' => Schema::hasTable('rank_levels')
+                ? RankLevel::orderBy('order_no')->get()
+                : collect(),
+            'forceRole' => $forceRole,
+            'lockDepartment' => $lockDepartment,
+            'defaultDepartmentId' => $defaultDepartmentId,
+            'actionRoute' => $actionRoute,
         ]);
     }
 
@@ -72,6 +91,16 @@ class UserController extends Controller
     ===================================================== */
     public function store(Request $request)
     {
+        $isDean = $request->user()->role === 'dean';
+        if ($isDean) {
+            $departmentId = $request->user()->department_id;
+            abort_unless($departmentId, 422);
+            $request->merge([
+                'role' => 'faculty',
+                'department_id' => $departmentId,
+            ]);
+        }
+
         $data = $request->validate([
             'role' => ['required', Rule::in(['faculty', 'dean', 'hr', 'vpaa', 'president'])],
             'status' => ['nullable', Rule::in(['active', 'inactive'])],
@@ -89,11 +118,12 @@ class UserController extends Controller
             'department_id' => 'nullable|exists:departments,id|required_if:role,faculty,dean',
 
             // faculty-only
-            'employee_no' => 'nullable|string|max:50|required_if:role,faculty|unique:faculty_profiles,employee_no',
+            'employee_no' => ['nullable', 'string', 'max:50', 'required_if:role,faculty', 'unique:faculty_profiles,employee_no', 'regex:/^\d{4}-\d{3}$/'],
             'employment_type' => 'nullable|in:full_time,part_time',
+            'rank_level_id' => 'nullable|exists:rank_levels,id|required_if:role,faculty',
             'teaching_rank' => 'nullable|string|max:100',
-            'rank_step' => 'nullable|string|max:10',
             'original_appointment_date' => 'nullable|date',
+            'highest_degree' => ['nullable', Rule::in(['bachelors', 'masters', 'doctorate'])],
         ]);
 
         $fullName = trim(
@@ -114,18 +144,29 @@ class UserController extends Controller
 
         // Create faculty profile ONLY if faculty
         if ($user->role === 'faculty') {
+            $rankTitle = null;
+            if (!empty($data['rank_level_id'])) {
+                $rankTitle = RankLevel::where('id', $data['rank_level_id'])->value('title');
+            }
             FacultyProfile::create([
                 'user_id' => $user->id,
                 'employee_no' => $data['employee_no'],
                 'employment_type' => $data['employment_type'] ?? 'full_time',
-                'teaching_rank' => $data['teaching_rank'] ?? 'Instructor',
-                'rank_step' => $data['rank_step'] ?? null,
+                'rank_level_id' => $data['rank_level_id'] ?? null,
+                'teaching_rank' => $rankTitle ?? ($data['teaching_rank'] ?? 'Instructor'),
                 'original_appointment_date' => $data['original_appointment_date'] ?? null,
             ]);
+
+            if (!empty($data['highest_degree'])) {
+                FacultyHighestDegree::create([
+                    'user_id' => $user->id,
+                    'highest_degree' => $data['highest_degree'],
+                ]);
+            }
         }
 
         return redirect()
-            ->route('users.index')
+            ->route($isDean ? 'dean.faculty.index' : 'users.index')
             ->with('success', 'User created successfully.');
     }
 
@@ -136,6 +177,7 @@ class UserController extends Controller
     {
         $departments = Department::orderBy('name')->get();
         $user->load(['department', 'facultyProfile']);
+        $nameParts = $this->splitName($user->name ?? '');
 
         // remember back location
         $back = url()->previous();
@@ -145,7 +187,7 @@ class UserController extends Controller
             $back = $fallback;
         }
 
-        return view('users.edit', compact('user', 'departments', 'back'));
+        return view('users.edit', compact('user', 'departments', 'back', 'nameParts'));
     }
 
     /* =====================================================
@@ -156,7 +198,10 @@ class UserController extends Controller
         $needsDepartment = in_array($user->role, ['faculty', 'dean']);
 
         $rules = [
-            'name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:100',
+            'last_name' => 'required|string|max:100',
+            'middle_name' => 'nullable|string|max:100',
+            'suffix' => 'nullable|string|max:20',
             'email' => 'required|email|unique:users,email,' . $user->id,
             'status' => ['required', Rule::in(['active', 'inactive'])],
         ];
@@ -167,17 +212,65 @@ class UserController extends Controller
             $rules['department_id'] = 'nullable';
         }
 
+        if ($user->role === 'faculty') {
+            $rules['employee_no'] = ['required', 'string', 'max:50', 'regex:/^\d{4}-\d{3}$/'];
+        }
+
         $data = $request->validate($rules);
 
+        $fullName = trim(
+            $data['first_name'] . ' ' .
+            ($data['middle_name'] ? $data['middle_name'] . ' ' : '') .
+            $data['last_name'] . ' ' .
+            ($data['suffix'] ?? '')
+        );
+
         $user->update([
-            'name' => $data['name'],
+            'name' => $fullName,
             'email' => $data['email'],
             'status' => $data['status'],
             'department_id' => $needsDepartment ? $data['department_id'] : null,
         ]);
 
+        if ($user->role === 'faculty' && $user->facultyProfile) {
+            $user->facultyProfile->update([
+                'employee_no' => $data['employee_no'],
+            ]);
+        }
+
         return redirect()
             ->route('users.edit', $user)
             ->with('success', 'User updated successfully.');
+    }
+
+    private function splitName(string $name): array
+    {
+        $parts = preg_split('/\s+/', trim($name));
+        if (!$parts || count($parts) === 1) {
+            return [
+                'first_name' => $name,
+                'middle_name' => '',
+                'last_name' => '',
+                'suffix' => '',
+            ];
+        }
+
+        $suffixes = ['jr', 'sr', 'ii', 'iii', 'iv', 'v'];
+        $suffix = '';
+        $last = strtolower(end($parts));
+        if (in_array($last, $suffixes, true)) {
+            $suffix = array_pop($parts);
+        }
+
+        $first = array_shift($parts) ?? '';
+        $last = array_pop($parts) ?? '';
+        $middle = trim(implode(' ', $parts));
+
+        return [
+            'first_name' => $first,
+            'middle_name' => $middle,
+            'last_name' => $last,
+            'suffix' => $suffix,
+        ];
     }
 }

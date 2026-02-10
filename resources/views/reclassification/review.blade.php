@@ -1,12 +1,22 @@
 {{-- resources/views/reclassification/review.blade.php --}}
 <x-app-layout>
-    <nav>
-  @for ($i = 1; $i <= 5; $i++)
-    <a href="{{ route('reclassification.section', $i) }}">
-      Section {{ $i }}
-    </a>
-  @endfor
-</nav>
+    <nav class="sticky top-16 z-30 bg-white/95 backdrop-blur border-b border-gray-200">
+      <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-3">
+        <div class="flex flex-wrap items-center gap-2">
+          @for ($i = 1; $i <= 5; $i++)
+            <a href="{{ route('reclassification.section', $i) }}"
+               class="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+              Section {{ $i }}
+            </a>
+          @endfor
+          <span class="mx-2 h-4 w-px bg-gray-200 hidden sm:inline-flex"></span>
+          <a href="{{ route('reclassification.review') }}"
+             class="px-3 py-1.5 rounded-lg bg-bu text-white text-xs font-semibold shadow-soft">
+            Review Summary
+          </a>
+        </div>
+      </div>
+    </nav>
 
 <x-slot name="header">
     <div class="flex flex-col gap-1">
@@ -19,7 +29,7 @@
     </div>
 </x-slot>
 
-<form method="POST">
+<form method="POST" action="{{ route('reclassification.review.save') }}">
 @csrf
 
 {{-- ✅ Backend should provide COUNTED/CAPPED totals per section (already validated by section pages) --}}
@@ -75,6 +85,55 @@
   class="py-12 bg-bu-muted min-h-screen"
 >
   <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
+    {{-- =======================
+    MY INFORMATION
+    ======================== --}}
+    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+      <div class="px-6 py-4 border-b">
+        <h3 class="text-lg font-semibold text-gray-800">My Information</h3>
+      </div>
+      <div class="p-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="space-y-3">
+          <div>
+            <div class="text-xs text-gray-500">Name</div>
+            <div class="text-sm font-semibold text-gray-800">{{ $facultyName ?? (auth()->user()->name ?? 'Faculty') }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">Date of Original Appointment</div>
+            <div class="text-sm font-semibold text-gray-800">{{ $appointmentDate ?? '—' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">Total Years of Service (BU)</div>
+            <div class="text-sm font-semibold text-gray-800">
+              {{ $yearsService !== null ? $yearsService . ' years' : '—' }}
+            </div>
+          </div>
+        </div>
+
+        <div class="space-y-3">
+          <div>
+            <div class="text-xs text-gray-500">Current Teaching Rank</div>
+            <div class="text-sm font-semibold text-gray-800">{{ $currentRank ?? 'Instructor' }}</div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">Rank Based on Points</div>
+            <div class="text-sm font-semibold text-gray-800" x-text="pointsRankLabel() || '—'"></div>
+          </div>
+          <div>
+            <div class="text-xs text-gray-500">Allowed Rank (Rules Applied)</div>
+            <div class="text-sm font-semibold text-gray-800" x-text="allowedRankLabel() || 'Not eligible'"></div>
+          </div>
+        </div>
+
+        <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 space-y-1">
+          <div class="font-semibold text-amber-800">Rank rules applied</div>
+          <div>• Must have Master’s degree.</div>
+          <div>• Must have at least one research output/equivalent.</div>
+          <div>• Full Professor requires Doctorate + accepted research output.</div>
+          <div>• Only one rank step per cycle.</div>
+        </div>
+      </div>
+    </div>
 
     {{-- =======================
     STICKY FINAL SUMMARY
@@ -403,7 +462,7 @@
     ACTIONS
     ======================== --}}
     <div class="flex justify-end gap-4">
-      <button type="submit" name="action" value="draft"
+      <button type="submit" name="action" value="draft" data-skip-validate="true"
               class="px-6 py-2.5 rounded-xl border border-gray-300">
         Save Draft
       </button>
@@ -411,8 +470,7 @@
       {{-- Optional: block submit if key requirements missing --}}
       <button
         type="submit"
-        name="action"
-        value="submit"
+        formaction="{{ route('reclassification.submit', $application->id) }}"
         class="px-6 py-2.5 rounded-xl bg-bu text-white"
         :disabled="!canFinalSubmit()"
         :class="!canFinalSubmit() ? 'opacity-60 cursor-not-allowed' : ''"
@@ -507,6 +565,76 @@ function reviewSummary(init) {
       return `${trackLabel} – ${hit.letter}`;
     },
 
+    pointsRank() {
+      const p = this.eqPercent();
+      const ranges = {
+        full: [
+          { letter:'A', min:95.87, max:100.00 },
+          { letter:'B', min:91.50, max:95.86 },
+          { letter:'C', min:87.53, max:91.49 },
+        ],
+        associate: [
+          { letter:'A', min:83.34, max:87.52 },
+          { letter:'B', min:79.19, max:83.33 },
+          { letter:'C', min:75.02, max:79.18 },
+        ],
+        assistant: [
+          { letter:'A', min:70.85, max:75.01 },
+          { letter:'B', min:66.68, max:70.84 },
+          { letter:'C', min:62.51, max:66.67 },
+        ],
+        instructor: [
+          { letter:'A', min:58.34, max:62.50 },
+          { letter:'B', min:54.14, max:58.33 },
+          { letter:'C', min:50.00, max:54.16 },
+        ],
+      };
+      const order = ['full','associate','assistant','instructor'];
+      for (const key of order) {
+        const list = ranges[key];
+        const hit = list.find(r => p >= r.min && p <= r.max);
+        if (hit) return { track: key, letter: hit.letter };
+      }
+      return null;
+    },
+
+    pointsRankLabel() {
+      const hit = this.pointsRank();
+      if (!hit) return '';
+      const labels = {
+        full: 'Full Professor',
+        associate: 'Associate Professor',
+        assistant: 'Assistant Professor',
+        instructor: 'Instructor',
+      };
+      return `${labels[hit.track]} – ${hit.letter}`;
+    },
+
+    allowedRankLabel() {
+      if (!this.hasMasters || !this.hasResearchEquivalent) return '';
+      const labels = {
+        full: 'Full Professor',
+        associate: 'Associate Professor',
+        assistant: 'Assistant Professor',
+        instructor: 'Instructor',
+      };
+      const order = { instructor: 1, assistant: 2, associate: 3, full: 4 };
+      const nextRank = (key) => {
+        const target = order[key] + 1;
+        const hit = Object.keys(order).find((k) => order[k] === target);
+        return hit || key;
+      };
+
+      let desired = this.pointsRank()?.track || this.track;
+      const maxAllowed = (this.hasDoctorate && this.hasAcceptedResearchOutput) ? 'full' : 'associate';
+      if (order[desired] > order[maxAllowed]) desired = maxAllowed;
+
+      const oneStep = nextRank(this.track);
+      if (order[desired] > order[oneStep]) desired = oneStep;
+
+      return labels[desired] || '';
+    },
+
     // ✅ minimum submit gate (based on your notes)
     // - must have Masters
     // - must have Research or equivalent
@@ -532,3 +660,4 @@ function reviewSummary(init) {
 
 </form>
 </x-app-layout>
+

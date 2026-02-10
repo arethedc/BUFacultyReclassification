@@ -12,6 +12,8 @@
     @php
         $q = request('q');
         $status = request('status', 'active'); // active | inactive | all
+        $departmentId = request('department_id');
+        $rankLevelId = request('rank_level_id');
     @endphp
 
     {{-- ✅ Outside click clears selection --}}
@@ -44,7 +46,7 @@
                     {{-- Search --}}
                     <form method="GET"
                           action="{{ route('faculty.index') }}"
-                          class="flex items-center gap-2 w-full sm:w-auto">
+                          class="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
                         <input type="text"
                                name="q"
                                value="{{ $q }}"
@@ -56,6 +58,28 @@
                         {{-- keep status when searching --}}
                         <input type="hidden" name="status" value="{{ $status }}">
 
+                        <select name="department_id"
+                                class="h-11 w-full sm:w-56 rounded-xl border border-gray-300 bg-white px-3 text-sm
+                                       focus:border-bu focus:ring-bu">
+                            <option value="">All Departments</option>
+                            @foreach($departments as $dept)
+                                <option value="{{ $dept->id }}" @selected((string) $departmentId === (string) $dept->id)>
+                                    {{ $dept->name }}
+                                </option>
+                            @endforeach
+                        </select>
+
+                        <select name="rank_level_id"
+                                class="h-11 w-full sm:w-56 rounded-xl border border-gray-300 bg-white px-3 text-sm
+                                       focus:border-bu focus:ring-bu">
+                            <option value="">All Ranks</option>
+                            @foreach($rankLevels as $level)
+                                <option value="{{ $level->id }}" @selected((string) $rankLevelId === (string) $level->id)>
+                                    {{ $level->title }}
+                                </option>
+                            @endforeach
+                        </select>
+
                         <button type="submit"
                                 class="h-11 px-5 rounded-xl
                                        bg-bu text-white text-sm font-medium
@@ -64,7 +88,7 @@
                             Search
                         </button>
 
-                        @if(request()->filled('q'))
+                        @if(request()->filled('q') || request()->filled('department_id') || request()->filled('rank_level_id'))
                             <a href="{{ route('faculty.index', ['status' => $status]) }}"
                                class="h-11 px-5 rounded-xl
                                       border border-gray-300 text-gray-700 text-sm
@@ -209,11 +233,12 @@
                                     {{ $f->department?->name ?? '—' }}
                                 </td>
 
+                                                                @php
+                                    $rankLabel = $f->facultyProfile?->rankLevel?->title
+                                        ?: ($f->facultyProfile?->teaching_rank ?? '-');
+                                @endphp
                                 <td class="px-6 py-4">
-                                    {{ $f->facultyProfile?->teaching_rank ?? '—' }}
-                                    @if($f->facultyProfile?->rank_step)
-                                        – {{ $f->facultyProfile->rank_step }}
-                                    @endif
+                                    {{ $rankLabel }}
                                 </td>
 
                                 <td class="px-6 py-4">
@@ -239,3 +264,4 @@
         </div>
     </div>
 </x-app-layout>
+
