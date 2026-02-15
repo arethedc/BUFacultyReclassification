@@ -11,7 +11,9 @@ class ReclassificationRowCommentController extends Controller
 {
     public function store(Request $request, ReclassificationApplication $application, ReclassificationSectionEntry $entry)
     {
-        $request->validate([
+        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+
+        $validated = $request->validate([
             'body' => ['required', 'string', 'max:5000'],
             'visibility' => ['required', 'in:faculty_visible,internal'],
         ]);
@@ -19,14 +21,119 @@ class ReclassificationRowCommentController extends Controller
         $entry->loadMissing('section');
         abort_unless($entry->section && $entry->section->reclassification_application_id === $application->id, 404);
 
+        $body = trim((string) $validated['body']);
+        $visibility = (string) ($validated['visibility'] ?? 'faculty_visible');
+
+        $recentDuplicate = ReclassificationRowComment::query()
+            ->where('reclassification_application_id', $application->id)
+            ->where('reclassification_section_entry_id', $entry->id)
+            ->where('user_id', $request->user()->id)
+            ->whereNull('parent_id')
+            ->where('body', $body)
+            ->where('visibility', $visibility)
+            ->where('created_at', '>=', now()->subSeconds(15))
+            ->exists();
+        if ($recentDuplicate) {
+            return back()->with('success', 'Comment already saved.');
+        }
+
         ReclassificationRowComment::create([
             'reclassification_application_id' => $application->id,
             'reclassification_section_entry_id' => $entry->id,
             'user_id' => $request->user()->id,
-            'body' => $request->input('body'),
-            'visibility' => $request->input('visibility', 'faculty_visible'),
+            'body' => $body,
+            'visibility' => $visibility,
+            'parent_id' => null,
+            'status' => 'open',
         ]);
 
         return back()->with('success', 'Comment added.');
+    }
+
+    public function reply(Request $request, ReclassificationRowComment $comment)
+    {
+        $application = $comment->application()->firstOrFail();
+
+        abort_unless($request->user()->id === $application->faculty_user_id, 403);
+        abort_unless($application->status === 'returned_to_faculty', 422);
+        abort_unless($comment->parent_id === null, 422);
+        abort_unless($comment->visibility === 'faculty_visible', 422);
+        abort_unless($comment->status !== 'resolved', 422);
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+        ]);
+
+        $body = trim((string) $validated['body']);
+
+        $recentDuplicate = ReclassificationRowComment::query()
+            ->where('reclassification_application_id', $comment->reclassification_application_id)
+            ->where('reclassification_section_entry_id', $comment->reclassification_section_entry_id)
+            ->where('user_id', $request->user()->id)
+            ->where('parent_id', $comment->id)
+            ->where('body', $body)
+            ->where('created_at', '>=', now()->subSeconds(15))
+            ->exists();
+        if ($recentDuplicate) {
+            return back()->with('success', 'Reply already saved.');
+        }
+
+        ReclassificationRowComment::create([
+            'reclassification_application_id' => $comment->reclassification_application_id,
+            'reclassification_section_entry_id' => $comment->reclassification_section_entry_id,
+            'user_id' => $request->user()->id,
+            'body' => $body,
+            'visibility' => 'faculty_visible',
+            'parent_id' => $comment->id,
+            'status' => 'open',
+        ]);
+
+        $comment->update([
+            'status' => 'addressed',
+            'resolved_by_user_id' => null,
+            'resolved_at' => null,
+        ]);
+
+        return back()->with('success', 'Reply sent. Comment marked as addressed.');
+    }
+
+    public function address(Request $request, ReclassificationRowComment $comment)
+    {
+        $application = $comment->application()->firstOrFail();
+
+        abort_unless($request->user()->id === $application->faculty_user_id, 403);
+        abort_unless($application->status === 'returned_to_faculty', 422);
+        abort_unless($comment->parent_id === null, 422);
+        abort_unless($comment->visibility === 'faculty_visible', 422);
+        abort_unless($comment->status !== 'resolved', 422);
+
+        $comment->update([
+            'status' => 'addressed',
+            'resolved_by_user_id' => null,
+            'resolved_at' => null,
+        ]);
+
+        return back()->with('success', 'Comment marked as addressed.');
+    }
+
+    public function resolve(Request $request, ReclassificationRowComment $comment)
+    {
+        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+
+        $application = $comment->application()->with('faculty')->firstOrFail();
+        abort_unless($comment->parent_id === null, 422);
+
+        if ($request->user()->role === 'dean') {
+            $userDepartmentId = $request->user()->department_id;
+            abort_unless($userDepartmentId && $application->faculty?->department_id === $userDepartmentId, 403);
+        }
+
+        $comment->update([
+            'status' => 'resolved',
+            'resolved_by_user_id' => $request->user()->id,
+            'resolved_at' => now(),
+        ]);
+
+        return back()->with('success', 'Comment marked as resolved.');
     }
 }

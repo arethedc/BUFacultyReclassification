@@ -47,9 +47,9 @@
                       this.original = {
                         employee_no: $refs.employee_no?.value ?? '',
                         employment_type: $refs.employment_type?.value ?? '',
+                        rank_level_id: $refs.rank_level_id?.value ?? '',
                         teaching_rank: $refs.teaching_rank?.value ?? '',
                         highest_degree: $refs.highest_degree?.value ?? '',
-                        rank_step: $refs.rank_step?.value ?? '',
                         original_appointment_date: $refs.original_appointment_date?.value ?? ''
                       };
                     },
@@ -57,9 +57,9 @@
                     discard() {
                       if ($refs.employee_no) $refs.employee_no.value = this.original.employee_no;
                       if ($refs.employment_type) $refs.employment_type.value = this.original.employment_type;
+                      if ($refs.rank_level_id) $refs.rank_level_id.value = this.original.rank_level_id;
                       if ($refs.teaching_rank) $refs.teaching_rank.value = this.original.teaching_rank;
                       if ($refs.highest_degree) $refs.highest_degree.value = this.original.highest_degree;
-                      if ($refs.rank_step) $refs.rank_step.value = this.original.rank_step;
                       if ($refs.original_appointment_date) $refs.original_appointment_date.value = this.original.original_appointment_date;
                       this.editMode = false;
                     }
@@ -161,10 +161,7 @@
                         <div class="rounded-xl border border-gray-200 bg-gray-50 p-4">
                             <p class="text-gray-500">Current Rank (HR)</p>
                             <p class="font-semibold text-gray-800 mt-1">
-                                {{ $profile->teaching_rank ?? '—' }}
-                                @if($profile->rank_step)
-                                    <span class="text-gray-500">({{ $profile->rank_step }})</span>
-                                @endif
+                                {{ $profile->rankLevel?->title ?: ($profile->teaching_rank ?? '-') }}
                             </p>
                         </div>
                     </div>
@@ -236,25 +233,42 @@
                             @enderror
                         </div>
 
-                        {{-- Teaching Rank --}}
+                        {{-- Academic Rank Level --}}
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Teaching Rank</label>
-                            <select x-ref="teaching_rank"
-                                    :disabled="!editMode"
-                                    name="teaching_rank"
-                                    class="mt-1 w-full rounded-xl border border-gray-300 bg-white
-                                           focus:border-bu focus:ring-bu
-                                           disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed"
-                                    required>
-                                @foreach(['Instructor','Assistant Professor','Associate Professor','Full Professor'] as $r)
-                                    <option value="{{ $r }}" @selected(old('teaching_rank', $profile->teaching_rank) === $r)>
-                                        {{ $r }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('teaching_rank')
-                                <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                            @enderror
+                            @if($rankLevels->isNotEmpty())
+                                <label class="block text-sm font-medium text-gray-700">Academic Rank Level</label>
+                                <select x-ref="rank_level_id"
+                                        :disabled="!editMode"
+                                        name="rank_level_id"
+                                        class="mt-1 w-full rounded-xl border border-gray-300 bg-white
+                                               focus:border-bu focus:ring-bu
+                                               disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed"
+                                        required>
+                                    <option value="">Select Rank Level</option>
+                                    @foreach($rankLevels as $level)
+                                        <option value="{{ $level->id }}" @selected((string) old('rank_level_id', $profile->rank_level_id) === (string) $level->id)>
+                                            {{ $level->title }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('rank_level_id')
+                                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                                @enderror
+                            @else
+                                <label class="block text-sm font-medium text-gray-700">Teaching Rank</label>
+                                <input x-ref="teaching_rank"
+                                       :disabled="!editMode"
+                                       type="text"
+                                       name="teaching_rank"
+                                       value="{{ old('teaching_rank', $profile->teaching_rank) }}"
+                                       class="mt-1 w-full rounded-xl border border-gray-300 bg-white
+                                              focus:border-bu focus:ring-bu
+                                              disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed"
+                                       required>
+                                @error('teaching_rank')
+                                    <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                                @enderror
+                            @endif
                         </div>
 
                         {{-- Highest Degree --}}
@@ -274,28 +288,6 @@
                             @error('highest_degree')
                                 <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
                             @enderror
-                        </div>
-
-                        {{-- Rank Step --}}
-                        <div>
-                            <label class="block text-sm font-medium text-gray-700">Rank Step</label>
-                            <select x-ref="rank_step"
-                                    :disabled="!editMode"
-                                    name="rank_step"
-                                    class="mt-1 w-full rounded-xl border border-gray-300 bg-white
-                                           focus:border-bu focus:ring-bu
-                                           disabled:bg-gray-100 disabled:text-gray-600 disabled:cursor-not-allowed">
-                                <option value="">—</option>
-                                <option value="A" @selected(old('rank_step', $profile->rank_step) === 'A')>A</option>
-                                <option value="B" @selected(old('rank_step', $profile->rank_step) === 'B')>B</option>
-                                <option value="C" @selected(old('rank_step', $profile->rank_step) === 'C')>C</option>
-                            </select>
-                            @error('rank_step')
-                                <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
-                            @enderror
-                            <p class="text-xs text-gray-500 mt-2">
-                                Optional. Used for rank step (A/B/C).
-                            </p>
                         </div>
 
                         {{-- Original Appointment Date --}}

@@ -95,6 +95,78 @@
                 'previous_points' => 'Previous Reclassification (1/3)',
             ],
         ];
+
+        $summaryTotalPoints = array_sum($sectionTotals);
+        $summaryEqPercent = $summaryTotalPoints / 4;
+        $summaryRankLabels = [
+            'full' => 'Full Professor',
+            'associate' => 'Associate Professor',
+            'assistant' => 'Assistant Professor',
+            'instructor' => 'Instructor',
+        ];
+        $summaryRanges = [
+            'full' => [
+                ['letter' => 'A', 'min' => 95.87, 'max' => 100.00],
+                ['letter' => 'B', 'min' => 91.50, 'max' => 95.86],
+                ['letter' => 'C', 'min' => 87.53, 'max' => 91.49],
+            ],
+            'associate' => [
+                ['letter' => 'A', 'min' => 83.34, 'max' => 87.52],
+                ['letter' => 'B', 'min' => 79.19, 'max' => 83.33],
+                ['letter' => 'C', 'min' => 75.02, 'max' => 79.18],
+            ],
+            'assistant' => [
+                ['letter' => 'A', 'min' => 70.85, 'max' => 75.01],
+                ['letter' => 'B', 'min' => 66.68, 'max' => 70.84],
+                ['letter' => 'C', 'min' => 62.51, 'max' => 66.67],
+            ],
+            'instructor' => [
+                ['letter' => 'A', 'min' => 58.34, 'max' => 62.50],
+                ['letter' => 'B', 'min' => 54.14, 'max' => 58.33],
+                ['letter' => 'C', 'min' => 50.00, 'max' => 54.16],
+            ],
+        ];
+        $summaryPointsTrack = null;
+        $summaryPointsLetter = null;
+        foreach (['full', 'associate', 'assistant', 'instructor'] as $rank) {
+            foreach ($summaryRanges[$rank] as $band) {
+                if ($summaryEqPercent >= $band['min'] && $summaryEqPercent <= $band['max']) {
+                    $summaryPointsTrack = $rank;
+                    $summaryPointsLetter = $band['letter'];
+                    break 2;
+                }
+            }
+        }
+        $summaryPointsRankLabel = $summaryPointsTrack
+            ? ($summaryRankLabels[$summaryPointsTrack] . ' - ' . $summaryPointsLetter)
+            : '-';
+
+        $summaryHasMasters = (bool) ($eligibility['hasMasters'] ?? false);
+        $summaryHasDoctorate = (bool) ($eligibility['hasDoctorate'] ?? false);
+        $summaryHasResearchEquivalent = (bool) ($eligibility['hasResearchEquivalent'] ?? false);
+        $summaryHasAcceptedResearchOutput = (bool) ($eligibility['hasAcceptedResearchOutput'] ?? false);
+
+        $summaryAllowedRankLabel = 'Not eligible';
+        if ($summaryHasMasters && $summaryHasResearchEquivalent) {
+            $summaryOrder = ['instructor' => 1, 'assistant' => 2, 'associate' => 3, 'full' => 4];
+            $summaryDesired = $summaryPointsTrack ?: $trackKey;
+            $summaryMaxAllowed = ($summaryHasDoctorate && $summaryHasAcceptedResearchOutput) ? 'full' : 'associate';
+            if (($summaryOrder[$summaryDesired] ?? 0) > ($summaryOrder[$summaryMaxAllowed] ?? 0)) {
+                $summaryDesired = $summaryMaxAllowed;
+            }
+            $summaryOneStepOrder = ($summaryOrder[$trackKey] ?? 1) + 1;
+            $summaryOneStep = array_search($summaryOneStepOrder, $summaryOrder, true) ?: $trackKey;
+            if (($summaryOrder[$summaryDesired] ?? 0) > ($summaryOrder[$summaryOneStep] ?? 0)) {
+                $summaryDesired = $summaryOneStep;
+            }
+            $summaryAllowedLetter = $summaryPointsLetter;
+            if ($summaryPointsTrack && $summaryPointsTrack !== $summaryDesired) {
+                // If capped down from a higher points rank, use highest letter in the allowed rank.
+                $summaryAllowedLetter = 'A';
+            }
+            $summaryAllowedRankLabel = ($summaryRankLabels[$summaryDesired] ?? 'Not eligible')
+                . ($summaryAllowedLetter ? (' - ' . $summaryAllowedLetter) : '');
+        }
     @endphp
 
     <div class="py-10 bg-bu-muted min-h-screen">
@@ -161,16 +233,16 @@
                         <div class="space-y-2 text-sm text-gray-700">
                             <div>
                                 <div class="text-xs text-gray-500">Rank Based on Points</div>
-                                <div class="font-semibold text-gray-800" x-text="pointsRankLabel() || '"'"></div>
+                                <div class="font-semibold text-gray-800">{{ $summaryPointsRankLabel }}</div>
                             </div>
                             <div>
                                 <div class="text-xs text-gray-500">Allowed Rank (Rules Applied)</div>
-                                <div class="font-semibold text-gray-800" x-text="allowedRankLabel() || 'Not eligible'"></div>
+                                <div class="font-semibold text-gray-800">{{ $summaryAllowedRankLabel }}</div>
                             </div>
                             <div class="text-xs text-gray-500">
-                                Total points: <span class="font-semibold text-gray-800" x-text="totalPoints().toFixed(2)"></span>
+                                Total points: <span class="font-semibold text-gray-800">{{ number_format((float) $summaryTotalPoints, 2) }}</span>
                                 <span class="mx-2 text-gray-300">•</span>
-                                Equivalent %: <span class="font-semibold text-gray-800" x-text="eqPercent().toFixed(2)"></span>
+                                Equivalent %: <span class="font-semibold text-gray-800">{{ number_format((float) $summaryEqPercent, 2) }}</span>
                             </div>
                         </div>
                     </div>

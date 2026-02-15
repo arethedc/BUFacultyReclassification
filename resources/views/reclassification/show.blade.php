@@ -52,30 +52,13 @@
                         Save Draft
                     </button>
 
-                    @if($active !== 2)
-                        <form method="POST"
-                              action="{{ route('reclassification.section.reset', $active) }}"
-                              onsubmit="return confirm('Reset this section? This clears all entries and detaches evidence from this section.');">
-                            @csrf
-                            <button type="submit"
-                                    class="inline-flex items-center px-3 py-2 rounded-xl border border-amber-200 bg-amber-50 text-sm font-semibold
-                                           text-amber-700 hover:bg-amber-100 transition">
-                                Reset Section
-                            </button>
-                        </form>
-                    @endif
-
-                    <form method="POST"
-                          action="{{ route('reclassification.reset') }}"
-                          onsubmit="return confirm('Reset the entire reclassification? This clears all sections and detaches all evidence. Uploaded files remain in your library.');">
-                        @csrf
-                        <input type="hidden" name="active" value="{{ $active }}">
-                        <button type="submit"
-                                class="inline-flex items-center px-3 py-2 rounded-xl border border-red-200 bg-red-50 text-sm font-semibold
-                                       text-red-700 hover:bg-red-100 transition">
-                            Reset Reclassification
+                    @if($status === 'returned_to_faculty')
+                        <button type="button"
+                                onclick="window.reclassificationFinalSubmit && window.reclassificationFinalSubmit()"
+                                class="inline-flex items-center px-3 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft hover:bg-bu-dark transition">
+                            Resubmit
                         </button>
-                    </form>
+                    @endif
                 @endif
             </div>
         </div>
@@ -109,6 +92,146 @@
         @if ($errors->any())
             <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
                 {{ $errors->first() }}
+            </div>
+        @endif
+        @if (($application->status ?? '') === 'returned_to_faculty')
+            <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                Returned form mode: only entries with reviewer comments are editable. Other entries are locked.
+            </div>
+        @endif
+        @if (($application->status ?? '') === 'returned_to_faculty' && !empty($commentThreads) && $commentThreads->count() > 0)
+            <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+                <div class="font-semibold text-amber-800 mb-2">Reviewer comments to address</div>
+                <div class="space-y-3">
+                    @foreach($commentThreads as $thread)
+                        @php
+                            $status = $thread->status ?? 'open';
+                            $statusClass = match($status) {
+                                'resolved' => 'bg-green-50 text-green-700 border-green-200',
+                                'addressed' => 'bg-blue-50 text-blue-700 border-blue-200',
+                                default => 'bg-amber-50 text-amber-700 border-amber-200',
+                            };
+                            $statusLabel = match($status) {
+                                'resolved' => 'Resolved by reviewer',
+                                'addressed' => 'Addressed by faculty',
+                                default => 'Open',
+                            };
+                            $threadSection = $thread->entry?->section?->section_code;
+                            $threadCriterion = strtoupper((string) ($thread->entry?->criterion_key ?? ''));
+                        @endphp
+                        <div class="rounded-lg border border-amber-200 bg-white p-3">
+                            <div class="flex flex-wrap items-start justify-between gap-2">
+                                <div>
+                                    <div class="text-xs text-gray-500">
+                                        Section {{ $threadSection ?? '-' }} / {{ $threadCriterion ?: '-' }}
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ $thread->author?->name ?? 'Reviewer' }}
+                                        &middot;
+                                        {{ optional($thread->created_at)->format('M d, Y g:i A') }}
+                                    </div>
+                                </div>
+                                <span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] {{ $statusClass }}">
+                                    {{ $statusLabel }}
+                                </span>
+                            </div>
+
+                            <div class="mt-2 text-sm text-gray-800">{{ $thread->body }}</div>
+
+                            @if($thread->children->isNotEmpty())
+                                <div class="mt-2 rounded-md border border-gray-200 bg-gray-50 p-2 space-y-1">
+                                    @foreach($thread->children->sortBy('created_at') as $reply)
+                                        <div class="text-xs text-gray-700">
+                                            <span class="font-semibold">{{ $reply->author?->name ?? 'Faculty' }}:</span>
+                                            {{ $reply->body }}
+                                        </div>
+                                    @endforeach
+                                </div>
+                            @endif
+
+                            @if($status !== 'resolved')
+                                <div class="mt-3 grid grid-cols-1 md:grid-cols-6 gap-2">
+                                    <form method="POST"
+                                          action="{{ route('reclassification.row-comments.reply', $thread) }}"
+                                          class="md:col-span-5">
+                                        @csrf
+                                        <textarea name="body"
+                                                  rows="2"
+                                                  class="w-full rounded-lg border-gray-300 text-xs"
+                                                  placeholder="Reply to this comment..."></textarea>
+                                        <div class="mt-2 flex flex-wrap items-center gap-2">
+                                            <button type="submit"
+                                                    class="px-3 py-1.5 rounded-lg bg-bu text-white text-xs font-semibold">
+                                                Reply & Mark Addressed
+                                            </button>
+                                            @if($threadSection)
+                                                <button type="button"
+                                                        @click="navTo({{ (int) $threadSection }})"
+                                                        class="px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                                    Go to Section {{ $threadSection }}
+                                                </button>
+                                            @endif
+                                        </div>
+                                    </form>
+                                    <form method="POST"
+                                          action="{{ route('reclassification.row-comments.address', $thread) }}"
+                                          class="md:col-span-1 flex md:justify-end">
+                                        @csrf
+                                        <button type="submit"
+                                                class="px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100">
+                                            Mark Addressed
+                                        </button>
+                                    </form>
+                                </div>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+        @if (($application->status ?? '') === 'returned_to_faculty' && !empty($moveRequests) && $moveRequests->count() > 0)
+            <div class="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
+                <div class="font-semibold text-indigo-800 mb-2">Move requests to address</div>
+                <div class="space-y-2">
+                    @foreach($moveRequests as $move)
+                        @php
+                            $moveStatus = (string) ($move->status ?? 'pending');
+                            $moveStatusClass = match($moveStatus) {
+                                'addressed' => 'bg-blue-50 text-blue-700 border-blue-200',
+                                'resolved' => 'bg-green-50 text-green-700 border-green-200',
+                                default => 'bg-amber-50 text-amber-700 border-amber-200',
+                            };
+                            $moveStatusLabel = match($moveStatus) {
+                                'addressed' => 'Addressed by faculty',
+                                'resolved' => 'Resolved by reviewer',
+                                default => 'Pending',
+                            };
+                        @endphp
+                        <div class="rounded-lg border border-indigo-200 bg-white px-3 py-2 flex flex-wrap items-center justify-between gap-3">
+                            <div>
+                                <div class="font-medium">
+                                    Move Section {{ $move->source_section_code }} / {{ strtoupper($move->source_criterion_key) }}
+                                    &rarr; Section {{ $move->target_section_code }} / {{ strtoupper($move->target_criterion_key) }}
+                                </div>
+                                @if(!empty($move->note))
+                                    <div class="text-xs text-indigo-700 mt-1">{{ $move->note }}</div>
+                                @endif
+                                <span class="mt-2 inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] {{ $moveStatusClass }}">
+                                    {{ $moveStatusLabel }}
+                                </span>
+                            </div>
+                            @if($moveStatus === 'pending')
+                                <form method="POST" action="{{ route('reclassification.move-requests.address', $move) }}">
+                                    @csrf
+                                    <button type="submit"
+                                            class="px-3 py-1.5 rounded-lg border border-indigo-300 text-xs font-semibold text-indigo-800 hover:bg-indigo-100">
+                                        Mark as Addressed
+                                    </button>
+                                </form>
+                            @endif
+                        </div>
+                    @endforeach
+                </div>
             </div>
         @endif
 
@@ -258,7 +381,7 @@
                                     <div>
                                         <div class="text-xs text-gray-500">Total Years of Service (BU)</div>
                                         <div class="text-sm font-semibold text-gray-800">
-                                            {{ $yearsService !== null ? $yearsService . ' years' : 'â€”' }}
+                                            {{ $yearsService !== null ? (int) $yearsService . ' years' : 'â€”' }}
                                         </div>
                                     </div>
                                     <div>
@@ -276,12 +399,17 @@
                                     </div>
                                     <div>
                                         <div class="text-xs text-gray-500">Rank Based on Points</div>
-                                        <div class="text-sm font-semibold text-gray-800" x-text="pointsRankLabel() || 'â€”'"></div>
+                                        <div class="text-sm font-semibold text-gray-800" x-text="isSection2Pending() ? 'Not yet available' : (pointsRankLabel() || 'â€”')"></div>
                                     </div>
                                     <div>
                                         <div class="text-xs text-gray-500">Allowed Rank (Rules Applied)</div>
-                                        <div class="text-sm font-semibold text-gray-800" x-text="allowedRankLabel() || 'Not eligible'"></div>
+                                        <div class="text-sm font-semibold text-gray-800" x-text="isSection2Pending() ? 'Not yet available' : (allowedRankLabel() || 'Not eligible')"></div>
                                     </div>
+                                    <template x-if="isSection2Pending()">
+                                        <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+                                            Section II is not yet answered. Rank outputs are provisional and may change after Dean ratings.
+                                        </div>
+                                    </template>
                                 </div>
 
                                                                 <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 space-y-2">
@@ -388,13 +516,16 @@
                         </div>
 
                         <div class="flex justify-end">
-                            <form method="POST" action="{{ route('reclassification.submit', $application->id) }}">
+                            <form id="final-submit-form"
+                                  method="POST"
+                                  action="{{ route('reclassification.submit', $application->id) }}"
+                                  @submit.prevent="submitFinal($event)">
                                 @csrf
                                 <button type="submit"
                                         class="px-6 py-2.5 rounded-xl bg-bu text-white font-semibold"
-                                        :disabled="!canFinalSubmit()"
-                                        :class="!canFinalSubmit() ? 'opacity-60 cursor-not-allowed' : ''">
-                                    Final Submit
+                                        :disabled="!canFinalSubmit() || finalSubmitting"
+                                        :class="(!canFinalSubmit() || finalSubmitting) ? 'opacity-60 cursor-not-allowed' : ''">
+                                    {{ ($application->status ?? '') === 'returned_to_faculty' ? 'Resubmit' : 'Final Submit' }}
                                 </button>
                             </form>
                         </div>
@@ -560,6 +691,17 @@
             </div>
         </div>
 
+    @php
+        $pendingMoveRequestsPayload = collect($moveRequests ?? [])->map(function ($move) {
+            return [
+                'source_section_code' => (string) $move->source_section_code,
+                'source_criterion_key' => (string) $move->source_criterion_key,
+                'target_section_code' => (string) $move->target_section_code,
+                'target_criterion_key' => (string) $move->target_criterion_key,
+            ];
+        })->values();
+    @endphp
+
     <script>
         function reclassificationWizard() {
             const initial = @json($initialSections);
@@ -571,11 +713,13 @@
             const uploadUrl = @json(route('reclassification.evidence.upload'));
             const rankTrack = @json($trackKey ?? 'instructor');
             const rankTrackLabel = @json($currentRank ?? 'Instructor');
+            const pendingMoveRequests = @json($pendingMoveRequestsPayload);
             const eligibility = {
                 hasMasters: @json(($eligibility['hasMasters'] ?? false)),
                 hasDoctorate: @json(($eligibility['hasDoctorate'] ?? false)),
                 hasResearchEquivalent: @json(($eligibility['hasResearchEquivalent'] ?? false)),
                 hasAcceptedResearchOutput: @json(($eligibility['hasAcceptedResearchOutput'] ?? false)),
+                hasMinBuYears: @json(($eligibility['hasMinBuYears'] ?? false)),
             };
 
             return {
@@ -590,6 +734,7 @@
                  libraryToast: { show: false, message: '' },
                 pendingUploads: [],
                 savingDraft: false,
+                finalSubmitting: false,
                 uploading: false,
                 track: rankTrack,
                 trackLabel: rankTrackLabel,
@@ -597,6 +742,9 @@
                 hasDoctorate: eligibility.hasDoctorate,
                 hasResearchEquivalent: eligibility.hasResearchEquivalent,
                 hasAcceptedResearchOutput: eligibility.hasAcceptedResearchOutput,
+                hasMinBuYears: eligibility.hasMinBuYears,
+                returnedLockMode: @json(($application->status ?? '') === 'returned_to_faculty'),
+                pendingMoveRequests,
 
                 init() {
                     if (!this.sections['1']) {
@@ -618,6 +766,17 @@
                     });
 
                     window.saveDraftAll = this.saveDraftAll.bind(this);
+                    window.reclassificationFinalSubmit = () => {
+                        const form = document.getElementById('final-submit-form');
+                        if (!form) return;
+                        this.submitFinal({ target: form });
+                    };
+
+                    this.$nextTick(() => {
+                        if (this.returnedLockMode) {
+                            this.applyReturnedLocks();
+                        }
+                    });
                 },
 
                 navTo(target) {
@@ -634,6 +793,7 @@
                             window.history.replaceState({}, '', this.reviewUrl);
                         }
                         window.scrollTo({ top: 0, behavior: 'smooth' });
+                        this.$nextTick(() => this.applyReturnedLocks());
                         return;
                     }
 
@@ -642,6 +802,190 @@
                         window.history.replaceState({}, '', this.sectionUrls[this.active]);
                     }
                     window.scrollTo({ top: 0, behavior: 'smooth' });
+                    this.$nextTick(() => this.applyReturnedLocks());
+                },
+
+                isLockableControl(control) {
+                    if (!control) return false;
+                    if (control.closest('[data-return-lock-ignore]')) return false;
+                    const tag = (control.tagName || '').toLowerCase();
+                    if (tag === 'button') return true;
+                    if (!control.name) return false;
+                    if (control.matches('input[type=\"hidden\"]')) return false;
+                    if (control.name === '_token' || control.name === '_method') return false;
+                    return true;
+                },
+
+                setControlLocked(control, locked) {
+                    if (!this.isLockableControl(control)) return;
+                    control.disabled = !!locked;
+                    control.classList.toggle('bg-gray-100', !!locked);
+                    control.classList.toggle('cursor-not-allowed', !!locked);
+                    control.classList.toggle('opacity-70', !!locked);
+                    control.dataset.returnLock = locked ? '1' : '0';
+                },
+
+                findUnlockScopeFromCommentHeader(header, form) {
+                    if (!header) return null;
+                    const candidates = ['tr', '.rounded-2xl', '.rounded-xl', '.border'];
+                    for (const selector of candidates) {
+                        let node = header.closest(selector);
+                        while (node && node !== form) {
+                            if (node.querySelector('input[name], select[name], textarea[name], button[name], button[type=\"button\"]')) {
+                                return node;
+                            }
+                            node = node.parentElement ? node.parentElement.closest(selector) : null;
+                        }
+                    }
+                    return header.parentElement;
+                },
+
+                nameMatchesCriterion(name, sectionCode, criterionKey) {
+                    const section = String(sectionCode || '');
+                    const criterion = String(criterionKey || '');
+                    if (!name || !section || !criterion) return false;
+
+                    if (section === '4') {
+                        if (criterion === 'a1') return name.startsWith('section4[a][a1_');
+                        if (criterion === 'a2') return name.startsWith('section4[a][a2_');
+                        if (criterion === 'b') return name.startsWith('section4[b][');
+                    }
+
+                    return name.startsWith(`section${section}[${criterion}]`);
+                },
+
+                formSectionCode(form) {
+                    const action = String(form?.getAttribute('action') || '');
+                    const match = action.match(/\/reclassification\/section\/(\d+)/);
+                    return match ? String(match[1]) : null;
+                },
+
+                unlockButtonsForCriterion(form, criterionKey) {
+                    const key = String(criterionKey || '');
+                    if (!form || !key) return;
+                    const buttons = Array.from(form.querySelectorAll('button[type=\"button\"]'));
+                    buttons.forEach((button) => {
+                        const clickExpr = String(
+                            button.getAttribute('@click')
+                            || button.getAttribute('x-on:click')
+                            || ''
+                        );
+                        if (!clickExpr) return;
+                        if (clickExpr.includes(`'${key}'`) || clickExpr.includes(`\"${key}\"`)) {
+                            this.setControlLocked(button, false);
+                        }
+                    });
+                },
+
+                unlockEvidenceButtonsNearControl(control, form) {
+                    if (!control || !form) return;
+                    let node = control.parentElement;
+                    while (node && node !== form) {
+                        const proxies = Array.from(node.querySelectorAll('[data-evidence-proxy]'));
+                        if (proxies.length) {
+                            proxies.forEach((proxy) => {
+                                const buttons = proxy.querySelectorAll('button[type=\"button\"]');
+                                buttons.forEach((button) => this.setControlLocked(button, false));
+                            });
+                            return;
+                        }
+                        node = node.parentElement;
+                    }
+                },
+
+                unlockEvidenceButtonsForCriterion(form, sectionCode, criterionKey) {
+                    if (!form) return;
+                    const fields = Array.from(form.querySelectorAll('input[name], select[name], textarea[name]'));
+                    fields.forEach((field) => {
+                        if (!this.nameMatchesCriterion(field.name || '', sectionCode, criterionKey)) {
+                            return;
+                        }
+                        this.unlockEvidenceButtonsNearControl(field, form);
+                    });
+                },
+
+                applyReturnedLocksToForm(form) {
+                    if (!form) return;
+                    const controls = Array.from(form.querySelectorAll('input[name], select[name], textarea[name], button[name], button[type=\"button\"]'));
+                    controls.forEach((control) => this.setControlLocked(control, true));
+
+                    const commentHeaders = Array.from(form.querySelectorAll('.font-semibold.text-amber-800'))
+                        .filter((el) => ((el.textContent || '').trim().toLowerCase() === 'reviewer comments'));
+
+                    commentHeaders.forEach((header) => {
+                        const scope = this.findUnlockScopeFromCommentHeader(header, form);
+                        if (!scope) return;
+                        const scopedControls = scope.querySelectorAll('input[name], select[name], textarea[name], button[name], button[type=\"button\"]');
+                        scopedControls.forEach((control) => this.setControlLocked(control, false));
+                    });
+
+                    const requests = Array.isArray(this.pendingMoveRequests) ? this.pendingMoveRequests : [];
+                    if (requests.length) {
+                        const formSection = this.formSectionCode(form);
+                        controls.forEach((control) => {
+                            const controlName = control.name || '';
+                            const unlock = requests.some((req) => {
+                                if (formSection && req.source_section_code !== formSection && req.target_section_code !== formSection) {
+                                    return false;
+                                }
+                                return this.nameMatchesCriterion(controlName, req.source_section_code, req.source_criterion_key)
+                                    || this.nameMatchesCriterion(controlName, req.target_section_code, req.target_criterion_key);
+                            });
+                            if (unlock) {
+                                this.setControlLocked(control, false);
+                                this.unlockEvidenceButtonsNearControl(control, form);
+                            }
+                        });
+
+                        requests.forEach((req) => {
+                            if (!formSection) return;
+                            if (req.source_section_code === formSection) {
+                                this.unlockButtonsForCriterion(form, req.source_criterion_key);
+                                this.unlockEvidenceButtonsForCriterion(form, req.source_section_code, req.source_criterion_key);
+                            }
+                            if (req.target_section_code === formSection) {
+                                this.unlockButtonsForCriterion(form, req.target_criterion_key);
+                                this.unlockEvidenceButtonsForCriterion(form, req.target_section_code, req.target_criterion_key);
+                            }
+                        });
+                    }
+                },
+
+                applyReturnedLocks() {
+                    if (!this.returnedLockMode) return;
+                    const forms = Array.from(document.querySelectorAll('form[data-validate-evidence]'));
+                    forms.forEach((form) => this.applyReturnedLocksToForm(form));
+                },
+
+                appendDisabledFormValues(form, formData) {
+                    const disabledFields = Array.from(form.querySelectorAll('[name][disabled]'));
+                    disabledFields.forEach((field) => {
+                        if (!this.isLockableControl(field)) return;
+                        if (!field.name) return;
+                        const name = field.name;
+                        const tag = (field.tagName || '').toLowerCase();
+                        const type = (field.type || '').toLowerCase();
+
+                        if (tag === 'select') {
+                            if (field.multiple) {
+                                Array.from(field.selectedOptions || []).forEach((opt) => formData.append(name, opt.value));
+                            } else {
+                                formData.append(name, field.value ?? '');
+                            }
+                            return;
+                        }
+
+                        if (type === 'checkbox' || type === 'radio') {
+                            if (field.checked) {
+                                formData.append(name, field.value ?? 'on');
+                            }
+                            return;
+                        }
+
+                        if (type === 'file') return;
+
+                        formData.append(name, field.value ?? '');
+                    });
                 },
 
                 totalPoints() {
@@ -655,6 +999,10 @@
 
                 eqPercent() {
                     return this.totalPoints() / 4;
+                },
+
+                isSection2Pending() {
+                    return this.sectionPoints(2) <= 0;
                 },
 
                 pointsRank() {
@@ -724,13 +1072,20 @@
                     const oneStep = nextRank(this.track);
                     if (order[desired] > order[oneStep]) desired = oneStep;
 
-                    return labels[desired] || '';
+                    let letter = this.pointsRank()?.letter || '';
+                    if (this.pointsRank()?.track && this.pointsRank()?.track !== desired) {
+                        // If capped down from a higher points rank, show the highest letter in the allowed rank.
+                        letter = 'A';
+                    }
+
+                    return letter ? `${labels[desired]} - ${letter}` : (labels[desired] || '');
                 },
 
                 eligibilityChecklist() {
                     const needsDoctorate = (this.pointsRank()?.track || this.track) === 'full';
                     return [
                         { label: 'Masters degree required', ok: this.hasMasters },
+                        { label: 'At least 3 years of service in BU', ok: this.hasMinBuYears },
                         { label: 'At least one research output/equivalent', ok: this.hasResearchEquivalent },
                         {
                             label: 'Doctorate + accepted research output for Full Professor',
@@ -742,6 +1097,7 @@
 
                 canFinalSubmit() {
                     if (!this.hasMasters) return false;
+                    if (!this.hasMinBuYears) return false;
                     if (!this.hasResearchEquivalent) return false;
                     return true;
                 },
@@ -939,19 +1295,20 @@
                 },
 
                 saveDraftAll() {
-                    if (this.savingDraft) return;
+                    if (this.savingDraft) return Promise.resolve(false);
                     const forms = Array.from(document.querySelectorAll('form[data-validate-evidence]'))
                         .filter((form) => form.dataset.viewOnly !== 'true');
                     if (!forms.length) {
                         this.libraryToast = { show: true, message: 'Nothing to save.' };
                         setTimeout(() => { this.libraryToast.show = false; }, 2000);
-                        return;
+                        return Promise.resolve(false);
                     }
 
                     this.savingDraft = true;
                     const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
                     const requests = forms.map((form) => {
                         const formData = new FormData(form);
+                        this.appendDisabledFormValues(form, formData);
                         formData.set('action', 'draft');
                         return fetch(form.action, {
                             method: 'POST',
@@ -965,19 +1322,43 @@
                         });
                     });
 
-                    Promise.all(requests)
+                    return Promise.all(requests)
                         .then((responses) => {
                             const failed = responses.find((res) => !res.ok);
                             if (failed) throw new Error(`Save failed (HTTP ${failed.status}).`);
                             this.libraryToast = { show: true, message: 'Draft saved.' };
                             setTimeout(() => { this.libraryToast.show = false; }, 2500);
+                            return true;
                         })
                         .catch((err) => {
                             this.libraryToast = { show: true, message: err?.message || 'Draft save failed.' };
                             setTimeout(() => { this.libraryToast.show = false; }, 3000);
+                            return false;
                         })
                         .finally(() => {
                             this.savingDraft = false;
+                        });
+                },
+
+                submitFinal(event) {
+                    if (this.finalSubmitting) return;
+                    if (!this.canFinalSubmit()) return;
+
+                    const form = event?.target;
+                    if (!form) return;
+
+                    this.finalSubmitting = true;
+                    this.saveDraftAll()
+                        .then((ok) => {
+                            if (!ok) {
+                                this.libraryToast = { show: true, message: 'Please fix save errors before final submit.' };
+                                setTimeout(() => { this.libraryToast.show = false; }, 3000);
+                                return;
+                            }
+                            form.submit();
+                        })
+                        .finally(() => {
+                            this.finalSubmitting = false;
                         });
                 },
             };
@@ -999,6 +1380,7 @@
                 hasDoctorate: !!init.hasDoctorate,
                 hasResearchEquivalent: !!init.hasResearchEquivalent,
                 hasAcceptedResearchOutput: !!init.hasAcceptedResearchOutput,
+                hasMinBuYears: !!init.hasMinBuYears,
 
                 totalPoints() {
                     return Number(this.s1 + this.s2 + this.s3 + this.s4 + this.s5);
@@ -1113,11 +1495,18 @@
                     const oneStep = nextRank(this.track);
                     if (order[desired] > order[oneStep]) desired = oneStep;
 
-                    return labels[desired] || '';
+                    let letter = this.pointsRank()?.letter || '';
+                    if (this.pointsRank()?.track && this.pointsRank()?.track !== desired) {
+                        // If capped down from a higher points rank, show the highest letter in the allowed rank.
+                        letter = 'A';
+                    }
+
+                    return letter ? `${labels[desired]} - ${letter}` : (labels[desired] || '');
                 },
 
                 canFinalSubmit() {
                     if (!this.hasMasters) return false;
+                    if (!this.hasMinBuYears) return false;
                     if (!this.hasResearchEquivalent) return false;
                     return true;
                 },
@@ -1213,5 +1602,3 @@
     </div>
     </div>
 </x-app-layout>
-
-

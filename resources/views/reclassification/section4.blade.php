@@ -1,4 +1,9 @@
 {{-- resources/views/reclassification/section4.blade.php --}}
+@php
+    $employmentType = auth()->user()->facultyProfile?->employment_type
+        ?? (auth()->user()->employment_type ?? 'full_time');
+    $isPartTimeFaculty = $employmentType === 'part_time';
+@endphp
 <div class="flex flex-col gap-1 mb-4">
     <h2 class="text-2xl font-semibold text-gray-800">Reclassification - Section IV</h2>
     <p class="text-sm text-gray-500">Teaching Experience / Professional / Administrative Experience (Max 40 pts / 10%)</p>
@@ -60,6 +65,11 @@
               <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-gray-50 text-gray-700 border">
                 Counted track:
                 <span class="ml-1 font-semibold" x-text="countedTrackLabel()"></span>
+              </span>
+
+              <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                Scoring mode:
+                <span class="ml-1 font-semibold" x-text="scoringModeLabel()"></span>
               </span>
             </div>
 
@@ -160,10 +170,10 @@
 
     <div class="text-sm font-semibold"
          @class([
-            'text-gray-800' => auth()->user()->employment_type !== 'part_time',
-            'text-amber-700' => auth()->user()->employment_type === 'part_time',
+            'text-gray-800' => !$isPartTimeFaculty,
+            'text-amber-700' => $isPartTimeFaculty,
          ])>
-        {{ auth()->user()->employment_type === 'part_time' ? 'Part-time (50% applied)' : 'Full-time' }}
+        {{ $isPartTimeFaculty ? 'Part-time (50% applied)' : 'Full-time (100% applied)' }}
     </div>
 </div>
 
@@ -188,6 +198,7 @@
 
                         <div class="mt-3 flex items-end justify-between gap-3">
                             <div class="flex-1">
+                                <input type="hidden" name="section4[a][a1_id]" :value="a1Id || ''">
                                 <label class="block text-xs text-gray-600">Years</label>
                                 <input
                                     x-model.number="a1Years"
@@ -273,6 +284,7 @@
 
                         <div class="mt-3 flex items-end justify-between gap-3">
                             <div class="flex-1">
+                                <input type="hidden" name="section4[a][a2_id]" :value="a2Id || ''">
                                 <label class="block text-xs text-gray-600">Years</label>
                                 <input
                                     x-model.number="a2Years"
@@ -379,6 +391,7 @@
                     </p>
                     <div class="mt-1 flex items-end justify-between gap-3">
                         <div class="flex-1">
+                            <input type="hidden" name="section4[b][id]" :value="bId || ''">
                             <label class="block text-xs text-gray-600">Years</label>
                             <input
                                 x-model.number="bYears"
@@ -489,7 +502,7 @@
 
 </div>
 {{-- EVIDENCE MODAL --}}
-<div x-cloak x-show="evidenceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+<div x-cloak x-show="evidenceModalOpen" data-return-lock-ignore class="fixed inset-0 z-50 flex items-center justify-center">
   <div class="absolute inset-0 bg-black/40" @click="closeEvidenceModal()"></div>
 
   <div class="relative bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-xl border"
@@ -680,7 +693,7 @@
 <script>
 function sectionFour(initial = {}, globalEvidence = []) {
   return {
-    isPartTime: {{ auth()->user()->employment_type === 'part_time' ? 'true' : 'false' }},
+    isPartTime: {{ $isPartTimeFaculty ? 'true' : 'false' }},
     globalEvidence: globalEvidence || [],
     evidenceModalOpen: false,
     evidenceModalMode: 'select',
@@ -692,6 +705,9 @@ function sectionFour(initial = {}, globalEvidence = []) {
     toast: { show: false, message: '', type: 'success' },
     toastTimer: null,
 
+    a1Id: initial.a1_id ? Number(initial.a1_id) : '',
+    a2Id: initial.a2_id ? Number(initial.a2_id) : '',
+    bId: initial.b_id ? Number(initial.b_id) : '',
     a1Years: Number(initial.a1_years || 0),
     a2Years: Number(initial.a2_years || 0),
     bYears: Number(initial.b_years || 0),
@@ -969,6 +985,10 @@ function sectionFour(initial = {}, globalEvidence = []) {
       const b = this.halfIfPartTime(this.industryRawCapped());
       if (a === 0 && b === 0) return 'None yet';
       return (a >= b) ? 'A. Teaching Experience' : 'B. Industry/Admin Experience';
+    },
+
+    scoringModeLabel() {
+      return this.isPartTime ? 'Part-time (50%)' : 'Full-time (100%)';
     },
 
     emitScore(points) {

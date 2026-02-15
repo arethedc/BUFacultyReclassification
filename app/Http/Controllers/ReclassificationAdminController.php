@@ -185,4 +185,65 @@ class ReclassificationAdminController extends Controller
             'rankLevelId'
         ));
     }
+
+    public function approved(Request $request)
+    {
+        $q = trim((string) $request->get('q', ''));
+        $departmentId = $request->get('department_id');
+        $cycleYear = $request->get('cycle_year');
+
+        $query = ReclassificationApplication::query()
+            ->with([
+                'faculty.department',
+                'approvedBy',
+            ])
+            ->where('status', 'finalized');
+
+        if (!empty($departmentId)) {
+            $query->whereHas('faculty', function ($builder) use ($departmentId) {
+                $builder->where('department_id', $departmentId);
+            });
+        }
+
+        if (!empty($cycleYear)) {
+            $query->where('cycle_year', $cycleYear);
+        }
+
+        if ($q !== '') {
+            $query->where(function ($builder) use ($q) {
+                $builder->whereHas('faculty', function ($faculty) use ($q) {
+                    $faculty->where('name', 'like', "%{$q}%")
+                        ->orWhere('email', 'like', "%{$q}%");
+                });
+            });
+        }
+
+        $applications = $query
+            ->orderByDesc('approved_at')
+            ->orderByDesc('finalized_at')
+            ->orderByDesc('updated_at')
+            ->paginate(20)
+            ->appends([
+                'q' => $q,
+                'department_id' => $departmentId,
+                'cycle_year' => $cycleYear,
+            ]);
+
+        $departments = Department::orderBy('name')->get();
+        $cycleYears = ReclassificationApplication::query()
+            ->select('cycle_year')
+            ->whereNotNull('cycle_year')
+            ->distinct()
+            ->orderByDesc('cycle_year')
+            ->pluck('cycle_year');
+
+        return view('reclassification.admin.approved', compact(
+            'applications',
+            'departments',
+            'cycleYears',
+            'q',
+            'departmentId',
+            'cycleYear'
+        ));
+    }
 }

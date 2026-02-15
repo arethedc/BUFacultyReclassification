@@ -64,6 +64,10 @@
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.admin.submissions') ? 'font-semibold text-gray-900' : '' }}">
                                             All Submissions
                                         </a>
+                                        <a href="{{ route('reclassification.admin.approved') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.admin.approved') ? 'font-semibold text-gray-900' : '' }}">
+                                            Approved Reclassification
+                                        </a>
                                         <a href="{{ route('reclassification.periods') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.periods') ? 'font-semibold text-gray-900' : '' }}">
                                             Submission Periods
@@ -260,6 +264,9 @@
                                             {{ __('Faculty Records') }}
                                         </x-dropdown-link>
                                     @endif
+                                    <x-dropdown-link :href="route('reclassification.admin.approved')">
+                                        {{ __('Approved Reclassification') }}
+                                    </x-dropdown-link>
                                 </div>
                             @elseif(Auth::user()->role === 'dean')
                                 <div class="py-2 border-b border-gray-100">
@@ -351,6 +358,9 @@
                         {{ __('Faculty Records') }}
                     </x-responsive-nav-link>
                 @endif
+                <x-responsive-nav-link :href="route('reclassification.admin.approved')" :active="request()->routeIs('reclassification.admin.approved')">
+                    {{ __('Approved Reclassification') }}
+                </x-responsive-nav-link>
             @elseif(in_array(Auth::user()->role, ['vpaa','president'], true))
                 <div class="px-4 pt-3 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">
                     Reclassification

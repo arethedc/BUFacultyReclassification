@@ -12,6 +12,14 @@ class ReclassificationRowComment extends Model
         'user_id',
         'body',
         'visibility',
+        'parent_id',
+        'status',
+        'resolved_by_user_id',
+        'resolved_at',
+    ];
+
+    protected $casts = [
+        'resolved_at' => 'datetime',
     ];
 
     public function application()
@@ -27,5 +35,20 @@ class ReclassificationRowComment extends Model
     public function author()
     {
         return $this->belongsTo(User::class, 'user_id');
+    }
+
+    public function parent()
+    {
+        return $this->belongsTo(self::class, 'parent_id');
+    }
+
+    public function children()
+    {
+        return $this->hasMany(self::class, 'parent_id');
+    }
+
+    public function resolver()
+    {
+        return $this->belongsTo(User::class, 'resolved_by_user_id');
     }
 }

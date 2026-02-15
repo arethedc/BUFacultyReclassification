@@ -10,6 +10,7 @@ use App\Http\Controllers\ReclassificationReviewController;
 use App\Http\Controllers\ReclassificationWorkflowController;
 use App\Http\Controllers\ReclassificationEvidenceReviewController;
 use App\Http\Controllers\ReclassificationRowCommentController;
+use App\Http\Controllers\ReclassificationMoveRequestController;
 use App\Http\Controllers\ReclassificationAdminController;
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
@@ -31,9 +32,18 @@ Route::get('/', function () {
 */
 Route::middleware(['auth'])->group(function () {
 
-    // Generic dashboard (optional)
+    // Generic dashboard entrypoint: redirect to role dashboard
     Route::get('/dashboard', function () {
-        return view('dashboard');
+        $role = strtolower((string) (request()->user()->role ?? ''));
+
+        return match ($role) {
+            'faculty' => redirect()->route('faculty.dashboard'),
+            'dean' => redirect()->route('dean.dashboard'),
+            'hr' => redirect()->route('hr.dashboard'),
+            'vpaa' => redirect()->route('vpaa.dashboard'),
+            'president' => redirect()->route('president.dashboard'),
+            default => view('dashboard'),
+        };
     })->name('dashboard');
 
     /*
@@ -161,6 +171,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('reclassification.periods.toggle');
         Route::get('/submissions', [ReclassificationAdminController::class, 'index'])
             ->name('reclassification.admin.submissions');
+        Route::get('/approved', [ReclassificationAdminController::class, 'approved'])
+            ->name('reclassification.admin.approved');
     });
 
     Route::middleware(['role:vpaa'])->get('/vpaa/dashboard', function () {
@@ -287,6 +299,14 @@ Route::middleware(['auth'])->group(function () {
 
         Route::delete('/evidences/{evidence}', [ReclassificationFormController::class, 'deleteEvidence'])
             ->name('reclassification.evidence.delete');
+
+        Route::post('/move-requests/{moveRequest}/address', [ReclassificationMoveRequestController::class, 'address'])
+            ->name('reclassification.move-requests.address');
+
+        Route::post('/row-comments/{comment}/reply', [ReclassificationRowCommentController::class, 'reply'])
+            ->name('reclassification.row-comments.reply');
+        Route::post('/row-comments/{comment}/address', [ReclassificationRowCommentController::class, 'address'])
+            ->name('reclassification.row-comments.address');
     });
 
     /*
@@ -312,6 +332,15 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('/{application}/entries/{entry}/comments', [ReclassificationRowCommentController::class, 'store'])
             ->name('reclassification.row-comments.store');
+
+        Route::post('/row-comments/{comment}/resolve', [ReclassificationRowCommentController::class, 'resolve'])
+            ->name('reclassification.row-comments.resolve');
+
+        Route::post('/{application}/entries/{entry}/move-request', [ReclassificationMoveRequestController::class, 'store'])
+            ->name('reclassification.move-requests.store');
+
+        Route::post('/move-requests/{moveRequest}/resolve', [ReclassificationMoveRequestController::class, 'resolve'])
+            ->name('reclassification.move-requests.resolve');
     });
 
     /*

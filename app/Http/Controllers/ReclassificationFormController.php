@@ -22,17 +22,52 @@ class ReclassificationFormController extends Controller
     private function getOrCreateDraft(Request $request): ReclassificationApplication
     {
         $user = $request->user();
+        $cycleYear = $this->currentCycleYear();
+        $sameCycle = function ($query) use ($cycleYear) {
+            $query->where('cycle_year', $cycleYear)
+                ->orWhereNull('cycle_year');
+        };
+
+        // If there is an active review in this cycle, do NOT auto-create a new draft.
+        $activeReview = ReclassificationApplication::where('faculty_user_id', $user->id)
+            ->where($sameCycle)
+            ->whereIn('status', ['dean_review', 'hr_review', 'vpaa_review', 'president_review'])
+            ->latest()
+            ->first();
+        if ($activeReview) {
+            if (!$activeReview->cycle_year) {
+                $activeReview->update(['cycle_year' => $cycleYear]);
+            }
+            return $activeReview->load('sections');
+        }
 
         // get latest editable application (draft/returned)
         $app = ReclassificationApplication::where('faculty_user_id', $user->id)
+            ->where($sameCycle)
             ->whereIn('status', ['draft', 'returned_to_faculty'])
             ->latest()
             ->first();
 
+        // If this cycle already has a finalized app, do NOT auto-create a new draft.
+        if (!$app) {
+            $finalized = ReclassificationApplication::where('faculty_user_id', $user->id)
+                ->where($sameCycle)
+                ->where('status', 'finalized')
+                ->latest()
+                ->first();
+
+            if ($finalized) {
+                if (!$finalized->cycle_year) {
+                    $finalized->update(['cycle_year' => $cycleYear]);
+                }
+                return $finalized->load('sections');
+            }
+        }
+
         if (!$app) {
             $app = ReclassificationApplication::create([
                 'faculty_user_id' => $user->id,
-                'cycle_year' => $this->currentCycleYear(),
+                'cycle_year' => $cycleYear,
                 'status' => 'draft',
                 'current_step' => 'faculty',
                 'returned_from' => null,
@@ -61,7 +96,7 @@ class ReclassificationFormController extends Controller
         }
 
         if (!$app->cycle_year) {
-            $app->update(['cycle_year' => $this->currentCycleYear()]);
+            $app->update(['cycle_year' => $cycleYear]);
         }
 
         return $app->load('sections');
@@ -96,6 +131,9 @@ class ReclassificationFormController extends Controller
     public function show(Request $request)
     {
         $application = $this->getOrCreateDraft($request);
+        if (!in_array($application->status, ['draft', 'returned_to_faculty'], true)) {
+            return redirect()->route('reclassification.submitted');
+        }
 
         $active = (int) $request->route('number', 1);
         if ($active < 1 || $active > 5) $active = 1;
@@ -112,6 +150,18 @@ class ReclassificationFormController extends Controller
         $globalEvidence = $this->buildGlobalEvidence($application);
 
         $initialSections = $this->buildInitialSections($application);
+        $moveRequests = $application->moveRequests()
+            ->whereIn('status', ['pending', 'addressed'])
+            ->orderBy('created_at')
+            ->get();
+        $commentThreadsQuery = $application->rowComments()
+            ->where('visibility', 'faculty_visible')
+            ->with(['author', 'entry.section', 'children.author'])
+            ->orderBy('created_at');
+        if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
+            $commentThreadsQuery->whereNull('parent_id');
+        }
+        $commentThreads = $commentThreadsQuery->get();
 
         $user = $request->user()->load('facultyProfile');
         $profile = $user->facultyProfile;
@@ -130,6 +180,8 @@ class ReclassificationFormController extends Controller
             'eligibility',
             'globalEvidence',
             'initialSections',
+            'moveRequests',
+            'commentThreads',
             'appointmentDate',
             'yearsService',
             'currentRankLabel',
@@ -142,6 +194,9 @@ class ReclassificationFormController extends Controller
         abort_unless($number >= 1 && $number <= 5, 404);
 
         $application = $this->getOrCreateDraft($request);
+        if (!in_array($application->status, ['draft', 'returned_to_faculty'], true)) {
+            return redirect()->route('reclassification.submitted');
+        }
 
         $section = $application->sections
             ->firstWhere('section_code', (string) $number);
@@ -157,6 +212,18 @@ class ReclassificationFormController extends Controller
         $globalEvidence = $this->buildGlobalEvidence($application);
 
         $initialSections = $this->buildInitialSections($application);
+        $moveRequests = $application->moveRequests()
+            ->whereIn('status', ['pending', 'addressed'])
+            ->orderBy('created_at')
+            ->get();
+        $commentThreadsQuery = $application->rowComments()
+            ->where('visibility', 'faculty_visible')
+            ->with(['author', 'entry.section', 'children.author'])
+            ->orderBy('created_at');
+        if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
+            $commentThreadsQuery->whereNull('parent_id');
+        }
+        $commentThreads = $commentThreadsQuery->get();
 
         $user = $request->user()->load('facultyProfile');
         $profile = $user->facultyProfile;
@@ -175,6 +242,8 @@ class ReclassificationFormController extends Controller
             'eligibility',
             'globalEvidence',
             'initialSections',
+            'moveRequests',
+            'commentThreads',
             'appointmentDate',
             'yearsService',
             'currentRankLabel',
@@ -523,6 +592,8 @@ class ReclassificationFormController extends Controller
                         'id' => $comment->id,
                         'body' => $comment->body,
                         'author' => $comment->author?->name ?? 'Reviewer',
+                        'parent_id' => $comment->parent_id,
+                        'status' => $comment->status ?? 'open',
                         'created_at' => optional($comment->created_at)->toDateTimeString(),
                     ];
                 })
@@ -532,7 +603,7 @@ class ReclassificationFormController extends Controller
 
         if ($code === '1') {
             $data = [
-                'a1' => ['honors' => null, 'evidence' => [], 'comments' => []],
+                'a1' => ['id' => null, 'honors' => null, 'evidence' => [], 'comments' => []],
                 'a2' => [],
                 'a3' => [],
                 'a4' => [],
@@ -550,9 +621,13 @@ class ReclassificationFormController extends Controller
 
             foreach ($section->entries as $entry) {
                 $row = is_array($entry->data) ? $entry->data : [];
+                if ($this->isRowRemoved($row)) {
+                    continue;
+                }
                 $row['id'] = $entry->id;
 
                 if ($entry->criterion_key === 'a1') {
+                    $data['a1']['id'] = $entry->id;
                     $data['a1']['honors'] = $row['honors'] ?? null;
                     $data['a1']['evidence'] = $resolveEvidence($entry->id);
                     $data['a1']['comments'] = $resolveComments($entry);
@@ -610,6 +685,9 @@ class ReclassificationFormController extends Controller
 
             foreach ($section->entries as $entry) {
                 $row = is_array($entry->data) ? $entry->data : [];
+                if ($this->isRowRemoved($row)) {
+                    continue;
+                }
                 $row['id'] = $entry->id;
 
                 if ($entry->criterion_key === 'previous_points') {
@@ -646,6 +724,9 @@ class ReclassificationFormController extends Controller
                 'a1_years' => 0,
                 'a2_years' => 0,
                 'b_years' => 0,
+                'a1_id' => null,
+                'a2_id' => null,
+                'b_id' => null,
                 'a1_evidence' => [],
                 'a2_evidence' => [],
                 'b_evidence' => [],
@@ -657,20 +738,26 @@ class ReclassificationFormController extends Controller
 
             foreach ($section->entries as $entry) {
                 $row = is_array($entry->data) ? $entry->data : [];
+                if ($this->isRowRemoved($row)) {
+                    continue;
+                }
                 $row['id'] = $entry->id;
                 if ($entry->criterion_key === 'a1') {
+                    $data['a1_id'] = $entry->id;
                     $data['a1_years'] = $row['years'] ?? 0;
                     $data['a1_evidence'] = $resolveEvidence($entry->id);
                     $data['a1_comments'] = $resolveComments($entry);
                     continue;
                 }
                 if ($entry->criterion_key === 'a2') {
+                    $data['a2_id'] = $entry->id;
                     $data['a2_years'] = $row['years'] ?? 0;
                     $data['a2_evidence'] = $resolveEvidence($entry->id);
                     $data['a2_comments'] = $resolveComments($entry);
                     continue;
                 }
                 if ($entry->criterion_key === 'b') {
+                    $data['b_id'] = $entry->id;
                     $data['b_years'] = $row['years'] ?? 0;
                     $data['b_evidence'] = $resolveEvidence($entry->id);
                     $data['b_comments'] = $resolveComments($entry);
@@ -712,6 +799,9 @@ class ReclassificationFormController extends Controller
 
             foreach ($section->entries as $entry) {
                 $row = is_array($entry->data) ? $entry->data : [];
+                if ($this->isRowRemoved($row)) {
+                    continue;
+                }
                 $row['id'] = $entry->id;
 
                 if ($entry->criterion_key === 'b_prev') {
@@ -944,9 +1034,6 @@ class ReclassificationFormController extends Controller
             'section1.evidence_files.*' => ['file', 'max:20480'],
         ]);
 
-        $section->entries()->delete();
-        $this->detachSectionEvidence($section);
-
         $uploaded = $this->storeEvidenceFiles($request, $application, $section, 1, $request->user()->id, 'section1.evidence_files');
 
         $input = $request->input('section1', []);
@@ -961,6 +1048,8 @@ class ReclassificationFormController extends Controller
         $a1Honors = data_get($input, 'a1.honors');
         $a1Evidence = data_get($input, 'a1.evidence', []);
 
+        $touchedIds = [];
+
         if ($a1Honors && $a1Honors !== 'none') {
             if ($action === 'submit') {
                 $this->ensureEvidence([['evidence' => $a1Evidence]], 'section1.a1', $uploaded, $section, $application);
@@ -968,10 +1057,13 @@ class ReclassificationFormController extends Controller
 
             $points = $this->pointsA1($a1Honors);
             $aBase += $points;
-            $this->createEntry($section, $application, 'a1', [
+            $a1Id = (int) data_get($input, 'a1.id', 0);
+            $entryId = $this->createEntry($section, $application, 'a1', [
+                'id' => $a1Id,
                 'honors' => $a1Honors,
                 'evidence' => $a1Evidence,
             ], $points, $a1Evidence, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $rowsA2 = $this->normalizeRows($input['a2'] ?? []);
@@ -1012,72 +1104,91 @@ class ReclassificationFormController extends Controller
         foreach ($rowsA2 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $aBase += $points;
-            $this->createEntry($section, $application, 'a2', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a2', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsA3 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $aBase += $points;
-            $this->createEntry($section, $application, 'a3', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a3', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsA4 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $aBase += $points;
-            $this->createEntry($section, $application, 'a4', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a4', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsA5 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $aBase += $points;
-            $this->createEntry($section, $application, 'a5', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a5', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsA6 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $aBase += $points;
-            $this->createEntry($section, $application, 'a6', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a6', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsA7 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $aBase += $points;
-            $this->createEntry($section, $application, 'a7', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a7', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsA8 as $row) {
             $points = min((float) ($row['points'] ?? 0), 5);
             $a8Sum += $points;
-            $this->createEntry($section, $application, 'a8', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a8', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsA9 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $a9Sum += $points;
-            $this->createEntry($section, $application, 'a9', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a9', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsB as $row) {
             $points = (float) ($row['points'] ?? 0);
             $bSum += $points;
-            $this->createEntry($section, $application, 'b', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'b', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         foreach ($rowsC as $row) {
             $points = (float) ($row['points'] ?? 0);
             $cSum += $points;
-            $this->createEntry($section, $application, 'c', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $bPrev = (float) ($input['b_prev'] ?? 0);
         $cPrev = (float) ($input['c_prev'] ?? 0);
 
         if ($bPrev > 0) {
-            $this->createEntry($section, $application, 'b_prev', ['value' => $bPrev], $bPrev / 3, null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'b_prev', ['value' => $bPrev], $bPrev / 3, null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         if ($cPrev > 0) {
-            $this->createEntry($section, $application, 'c_prev', ['value' => $cPrev], $cPrev / 3, null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c_prev', ['value' => $cPrev], $cPrev / 3, null, $uploaded);
+            $touchedIds[] = $entryId;
         }
+
+        $this->reconcileMissingEntries(
+            $section,
+            $touchedIds,
+            ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'b', 'c', 'b_prev', 'c_prev'],
+            (string) $application->status
+        );
 
         $aTotal = $aBase + min($a8Sum, 15) + min($a9Sum, 10);
         $bTotal = min($bSum + ($bPrev / 3), 20);
@@ -1098,12 +1209,10 @@ class ReclassificationFormController extends Controller
             'section3.evidence_files.*' => ['file', 'max:20480'],
         ]);
 
-        $section->entries()->delete();
-        $this->detachSectionEvidence($section);
-
         $uploaded = $this->storeEvidenceFiles($request, $application, $section, 3, $request->user()->id, 'section3.evidence_files');
         $input = $request->input('section3', []);
         $action = $request->input('action', 'draft');
+        $touchedIds = [];
 
         $rowsC1 = $this->normalizeRows($input['c1'] ?? []);
         $rowsC2 = $this->normalizeRows($input['c2'] ?? []);
@@ -1141,53 +1250,70 @@ class ReclassificationFormController extends Controller
         foreach ($rowsC1 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sum += $points;
-            $this->createEntry($section, $application, 'c1', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c1', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         foreach ($rowsC2 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sum += $points;
-            $this->createEntry($section, $application, 'c2', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c2', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         foreach ($rowsC3 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sum += $points;
-            $this->createEntry($section, $application, 'c3', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c3', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         foreach ($rowsC4 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sum += $points;
-            $this->createEntry($section, $application, 'c4', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c4', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         foreach ($rowsC5 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sum += $points;
-            $this->createEntry($section, $application, 'c5', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c5', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         foreach ($rowsC6 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sum += $points;
-            $this->createEntry($section, $application, 'c6', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c6', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         foreach ($rowsC7 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sum += $points;
-            $this->createEntry($section, $application, 'c7', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c7', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         foreach ($rowsC8 as $row) {
             $points = 5;
             $sum += $points;
-            $this->createEntry($section, $application, 'c8', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c8', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         foreach ($rowsC9 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sum += $points;
-            $this->createEntry($section, $application, 'c9', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c9', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $prev = (float) ($input['previous_points'] ?? 0);
         if ($prev > 0) {
-            $this->createEntry($section, $application, 'previous_points', ['value' => $prev], $prev / 3, null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'previous_points', ['value' => $prev], $prev / 3, null, $uploaded);
+            $touchedIds[] = $entryId;
         }
+
+        $this->reconcileMissingEntries(
+            $section,
+            $touchedIds,
+            ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'previous_points'],
+            (string) $application->status
+        );
 
         $total = $sum + ($prev / 3);
         if ($total > 70) $total = 70;
@@ -1205,9 +1331,6 @@ class ReclassificationFormController extends Controller
             'section4.evidence_files.*' => ['file', 'max:20480'],
         ]);
 
-        $section->entries()->delete();
-        $this->detachSectionEvidence($section);
-
         $uploaded = $this->storeEvidenceFiles($request, $application, $section, 4, $request->user()->id, 'section4.evidence_files');
 
         $input = $request->input('section4', []);
@@ -1216,6 +1339,10 @@ class ReclassificationFormController extends Controller
         $a1Years = (float) ($input['a']['a1_years'] ?? 0);
         $a2Years = (float) ($input['a']['a2_years'] ?? 0);
         $bYears = (float) ($input['b']['years'] ?? 0);
+        $a1Id = (int) ($input['a']['a1_id'] ?? 0);
+        $a2Id = (int) ($input['a']['a2_id'] ?? 0);
+        $bId = (int) ($input['b']['id'] ?? 0);
+        $touchedIds = [];
 
         $a1Evidence = $input['a']['a1_evidence'] ?? [];
         $a2Evidence = $input['a']['a2_evidence'] ?? [];
@@ -1244,7 +1371,9 @@ class ReclassificationFormController extends Controller
         $bRaw = $bYears * 2;
         $bCapped = min($bRaw, 20);
 
-        $isPartTime = $request->user()->facultyProfile?->employment_type === 'part_time';
+        $employmentType = $request->user()->facultyProfile?->employment_type
+            ?? data_get($request->user(), 'employment_type', 'full_time');
+        $isPartTime = $employmentType === 'part_time';
         if ($isPartTime) {
             $a1Capped = $a1Capped / 2;
             $a2Capped = $a2Capped / 2;
@@ -1255,20 +1384,28 @@ class ReclassificationFormController extends Controller
         $final = max($aTotal, $bCapped);
         if ($final > 40) $final = 40;
 
-        $this->createEntry($section, $application, 'a1', [
+        $entryId = $this->createEntry($section, $application, 'a1', [
+            'id' => $a1Id,
             'years' => $a1Years,
             'evidence' => $a1Evidence,
         ], $a1Capped, $a1Evidence, $uploaded);
+        $touchedIds[] = $entryId;
 
-        $this->createEntry($section, $application, 'a2', [
+        $entryId = $this->createEntry($section, $application, 'a2', [
+            'id' => $a2Id,
             'years' => $a2Years,
             'evidence' => $a2Evidence,
         ], $a2Capped, $a2Evidence, $uploaded);
+        $touchedIds[] = $entryId;
 
-        $this->createEntry($section, $application, 'b', [
+        $entryId = $this->createEntry($section, $application, 'b', [
+            'id' => $bId,
             'years' => $bYears,
             'evidence' => $bEvidence,
         ], $bUnlocked ? $bCapped : 0, $bEvidence, $uploaded);
+        $touchedIds[] = $entryId;
+
+        $this->reconcileMissingEntries($section, $touchedIds, ['a1', 'a2', 'b'], (string) $application->status);
 
         $section->update([
             'points_total' => $final,
@@ -1283,12 +1420,10 @@ class ReclassificationFormController extends Controller
             'section5.evidence_files.*' => ['file', 'max:20480'],
         ]);
 
-        $section->entries()->delete();
-        $this->detachSectionEvidence($section);
-
         $uploaded = $this->storeEvidenceFiles($request, $application, $section, 5, $request->user()->id, 'section5.evidence_files');
         $input = $request->input('section5', []);
         $action = $request->input('action', 'draft');
+        $touchedIds = [];
 
         $rowsA = $this->normalizeRows($input['a'] ?? []);
         $rowsB = $this->normalizeRows($input['b'] ?? []);
@@ -1317,42 +1452,48 @@ class ReclassificationFormController extends Controller
         foreach ($rowsA as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sumA += $points;
-            $this->createEntry($section, $application, 'a', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'a', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $sumB = 0;
         foreach ($rowsB as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sumB += $points;
-            $this->createEntry($section, $application, 'b', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'b', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $sumC1 = 0;
         foreach ($rowsC1 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sumC1 += $points;
-            $this->createEntry($section, $application, 'c1', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c1', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $sumC2 = 0;
         foreach ($rowsC2 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sumC2 += $points;
-            $this->createEntry($section, $application, 'c2', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c2', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $sumC3 = 0;
         foreach ($rowsC3 as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sumC3 += $points;
-            $this->createEntry($section, $application, 'c3', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c3', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $sumD = 0;
         foreach ($rowsD as $row) {
             $points = (float) ($row['points'] ?? 0);
             $sumD += $points;
-            $this->createEntry($section, $application, 'd', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'd', $row, $points, $row['evidence'] ?? null, $uploaded);
+            $touchedIds[] = $entryId;
         }
 
         $bPrev = (float) ($input['b_prev'] ?? 0);
@@ -1361,17 +1502,28 @@ class ReclassificationFormController extends Controller
         $prev = (float) ($input['previous_points'] ?? 0);
 
         if ($bPrev > 0) {
-            $this->createEntry($section, $application, 'b_prev', ['value' => $bPrev], $bPrev / 3, null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'b_prev', ['value' => $bPrev], $bPrev / 3, null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         if ($cPrev > 0) {
-            $this->createEntry($section, $application, 'c_prev', ['value' => $cPrev], $cPrev / 3, null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'c_prev', ['value' => $cPrev], $cPrev / 3, null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         if ($dPrev > 0) {
-            $this->createEntry($section, $application, 'd_prev', ['value' => $dPrev], $dPrev / 3, null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'd_prev', ['value' => $dPrev], $dPrev / 3, null, $uploaded);
+            $touchedIds[] = $entryId;
         }
         if ($prev > 0) {
-            $this->createEntry($section, $application, 'previous_points', ['value' => $prev], $prev / 3, null, $uploaded);
+            $entryId = $this->createEntry($section, $application, 'previous_points', ['value' => $prev], $prev / 3, null, $uploaded);
+            $touchedIds[] = $entryId;
         }
+
+        $this->reconcileMissingEntries(
+            $section,
+            $touchedIds,
+            ['a', 'b', 'c1', 'c2', 'c3', 'd', 'b_prev', 'c_prev', 'd_prev', 'previous_points'],
+            (string) $application->status
+        );
 
         $sumA = min($sumA, 5);
         $sumB = min($sumB + ($bPrev / 3), 10);
@@ -1471,19 +1623,70 @@ class ReclassificationFormController extends Controller
         float $points,
         $evidenceIndex,
         array $uploaded
-    ): void {
-        $row['points'] = $points;
+    ): int {
+        $entryId = isset($row['id']) ? (int) $row['id'] : 0;
+        $isRemoved = $this->isRowRemoved($row);
+        $points = $isRemoved ? 0.0 : $points;
 
-        $entry = ReclassificationSectionEntry::create([
-            'reclassification_section_id' => $section->id,
+        $payloadRow = $row;
+        unset($payloadRow['id'], $payloadRow['comments']);
+        $payloadRow['is_removed'] = $isRemoved;
+        $payloadRow['points'] = $points;
+
+        $entry = null;
+        if ($entryId > 0) {
+            $entry = ReclassificationSectionEntry::where('id', $entryId)
+                ->where('reclassification_section_id', $section->id)
+                ->first();
+        }
+
+        $entryPayload = [
             'criterion_key' => $key,
-            'title' => $row['title'] ?? $row['text'] ?? null,
+            'title' => $payloadRow['title'] ?? $payloadRow['text'] ?? null,
             'description' => null,
             'evidence_note' => null,
             'points' => $points,
             'is_validated' => false,
-            'data' => $row,
-        ]);
+            'data' => $payloadRow,
+        ];
+
+        if ($entry) {
+            $entry->update($entryPayload);
+        } else {
+            $entry = ReclassificationSectionEntry::create([
+                'reclassification_section_id' => $section->id,
+                ...$entryPayload,
+            ]);
+        }
+
+        $this->syncEntryEvidence($entry, $section, $application, $key, $evidenceIndex, $uploaded, $isRemoved);
+
+        return $entry->id;
+    }
+
+    private function syncEntryEvidence(
+        ReclassificationSectionEntry $entry,
+        ReclassificationSection $section,
+        ReclassificationApplication $application,
+        string $key,
+        $evidenceIndex,
+        array $uploaded,
+        bool $isRemoved
+    ): void {
+        DB::table('reclassification_evidence_links')
+            ->where('reclassification_section_entry_id', $entry->id)
+            ->delete();
+
+        ReclassificationEvidence::where('reclassification_application_id', $application->id)
+            ->where('reclassification_section_entry_id', $entry->id)
+            ->update([
+                'reclassification_section_entry_id' => null,
+                'reclassification_section_id' => null,
+            ]);
+
+        if ($isRemoved) {
+            return;
+        }
 
         $values = $this->parseEvidenceValues($evidenceIndex);
         if (count($values) === 0) {
@@ -1510,6 +1713,75 @@ class ReclassificationFormController extends Controller
                 $this->attachExistingEvidence($uploaded[$index]->id, $entry, $section, $application, $key);
             }
         }
+    }
+
+    private function reconcileMissingEntries(
+        ReclassificationSection $section,
+        array $touchedIds,
+        array $criterionKeys,
+        string $applicationStatus
+    ): void
+    {
+        $criteria = array_values(array_unique($criterionKeys));
+        if (count($criteria) === 0) {
+            return;
+        }
+
+        $query = $section->entries()->whereIn('criterion_key', $criteria);
+        if (count($touchedIds) > 0) {
+            $query->whereNotIn('id', array_values(array_unique(array_map('intval', $touchedIds))));
+        }
+
+        $missingEntries = $query->get();
+        if ($missingEntries->isEmpty()) {
+            return;
+        }
+
+        // Draft flow: hard remove omitted rows.
+        if ($applicationStatus !== 'returned_to_faculty') {
+            $this->hardDeleteEntries($section, $missingEntries->pluck('id')->all());
+            return;
+        }
+
+        // Returned flow: preserve commented rows (soft remove), hard delete rows without comments.
+        $hardDeleteIds = [];
+        $missingEntries->each(function (ReclassificationSectionEntry $entry) use (&$hardDeleteIds) {
+            if ($entry->rowComments()->exists()) {
+                $data = is_array($entry->data) ? $entry->data : [];
+                $data['is_removed'] = true;
+                $data['points'] = 0;
+                $entry->update([
+                    'points' => 0,
+                    'data' => $data,
+                ]);
+                return;
+            }
+
+            $hardDeleteIds[] = $entry->id;
+        });
+
+        $this->hardDeleteEntries($section, $hardDeleteIds);
+    }
+
+    private function hardDeleteEntries(ReclassificationSection $section, array $entryIds): void
+    {
+        $ids = array_values(array_unique(array_map('intval', $entryIds)));
+        if (count($ids) === 0) {
+            return;
+        }
+
+        DB::table('reclassification_evidence_links')
+            ->whereIn('reclassification_section_entry_id', $ids)
+            ->delete();
+
+        ReclassificationEvidence::where('reclassification_section_id', $section->id)
+            ->whereIn('reclassification_section_entry_id', $ids)
+            ->update([
+                'reclassification_section_entry_id' => null,
+                'reclassification_section_id' => null,
+            ]);
+
+        ReclassificationSectionEntry::whereIn('id', $ids)->delete();
     }
 
     private function parseEvidenceValues($value): array
@@ -1587,6 +1859,12 @@ class ReclassificationFormController extends Controller
         $out = [];
         foreach ($rows as $row) {
             if (!is_array($row)) continue;
+            if (array_key_exists('id', $row)) {
+                $row['id'] = (int) $row['id'];
+            }
+            if (array_key_exists('is_removed', $row)) {
+                $row['is_removed'] = $this->isRowRemoved($row);
+            }
             if (array_key_exists('evidence', $row)) {
                 if (is_array($row['evidence'])) {
                     $row['evidence'] = array_values(array_filter(array_map('strval', $row['evidence']), fn ($v) => $v !== ''));
@@ -1624,6 +1902,10 @@ class ReclassificationFormController extends Controller
         $existingSet = array_flip($existingIds);
 
         foreach ($rows as $index => $row) {
+            if ($this->isRowRemoved($row)) {
+                continue;
+            }
+
             $hasEvidence = false;
             if (array_key_exists('evidence', $row)) {
                 $values = $this->parseEvidenceValues($row['evidence']);
@@ -1673,9 +1955,24 @@ class ReclassificationFormController extends Controller
         }
     }
 
+    private function isRowRemoved(array $row): bool
+    {
+        $value = $row['is_removed'] ?? false;
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
+    }
+
     private function isRowEmpty(array $row): bool
     {
-        foreach ($row as $value) {
+        foreach ($row as $key => $value) {
+            if (in_array((string) $key, ['id', 'comments', 'is_removed', 'points', 'counted'], true)) {
+                continue;
+            }
             if (is_string($value) && trim($value) !== '') return false;
             if (is_numeric($value) && (float) $value !== 0.0) return false;
             if (is_array($value) && !empty($value)) return false;
@@ -1817,6 +2114,11 @@ class ReclassificationFormController extends Controller
     {
         $seen = [];
         return array_map(function ($row) use ($keyFn, $pointsFn, &$seen) {
+            if ($this->isRowRemoved($row)) {
+                $row['points'] = 0;
+                $row['counted'] = false;
+                return $row;
+            }
             $key = (string) $keyFn($row);
             $points = (float) $pointsFn($row);
             if ($key === '' || $points <= 0) {

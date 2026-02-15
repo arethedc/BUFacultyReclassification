@@ -59,6 +59,7 @@
   $hasDoctorate = $hasDoctorate ?? (bool)($hasDoctorate ?? false);
   $hasResearchEquivalent = $hasResearchEquivalent ?? (bool)($hasResearchEquivalent ?? false); // e.g., Section III criteria met >=2 or other allowed equivalent
   $hasAcceptedResearchOutput = $hasAcceptedResearchOutput ?? (bool)($hasAcceptedResearchOutput ?? false); // for Full Prof note
+  $hasMinBuYears = $hasMinBuYears ?? (bool)($hasMinBuYears ?? false);
 @endphp
 
 <div
@@ -78,6 +79,7 @@
     hasDoctorate: {{ $hasDoctorate ? 'true' : 'false' }},
     hasResearchEquivalent: {{ $hasResearchEquivalent ? 'true' : 'false' }},
     hasAcceptedResearchOutput: {{ $hasAcceptedResearchOutput ? 'true' : 'false' }},
+    hasMinBuYears: {{ $hasMinBuYears ? 'true' : 'false' }},
 
     // OPTIONAL: if you pass these from Section III backend:
     // criteriaMet3: {{ $criteriaMet3 ?? 0 }},
@@ -105,7 +107,7 @@
           <div>
             <div class="text-xs text-gray-500">Total Years of Service (BU)</div>
             <div class="text-sm font-semibold text-gray-800">
-              {{ $yearsService !== null ? $yearsService . ' years' : '—' }}
+              {{ $yearsService !== null ? (int) $yearsService . ' years' : '—' }}
             </div>
           </div>
         </div>
@@ -117,12 +119,17 @@
           </div>
           <div>
             <div class="text-xs text-gray-500">Rank Based on Points</div>
-            <div class="text-sm font-semibold text-gray-800" x-text="pointsRankLabel() || '—'"></div>
+            <div class="text-sm font-semibold text-gray-800" x-text="isSection2Pending() ? 'Not yet available' : (pointsRankLabel() || '—')"></div>
           </div>
           <div>
             <div class="text-xs text-gray-500">Allowed Rank (Rules Applied)</div>
-            <div class="text-sm font-semibold text-gray-800" x-text="allowedRankLabel() || 'Not eligible'"></div>
+            <div class="text-sm font-semibold text-gray-800" x-text="isSection2Pending() ? 'Not yet available' : (allowedRankLabel() || 'Not eligible')"></div>
           </div>
+          <template x-if="isSection2Pending()">
+            <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+              Section II is not yet answered. Rank outputs are provisional and may change after Dean ratings.
+            </div>
+          </template>
         </div>
 
         <div class="rounded-xl border border-amber-200 bg-amber-50 p-4 text-xs text-amber-900 space-y-1">
@@ -225,9 +232,16 @@
                         x-text="hasMasters ? 'OK' : 'Missing'"></span>
                 </li>
 
-                <li class="flex items-center justify-between">
-                  <span>Research / equivalent requirement</span>
-                  <span class="text-xs font-semibold"
+                  <li class="flex items-center justify-between">
+                    <span>At least 3 years service in BU</span>
+                    <span class="text-xs font-semibold"
+                        :class="hasMinBuYears ? 'text-green-700' : 'text-red-700'"
+                        x-text="hasMinBuYears ? 'OK' : 'Missing'"></span>
+                  </li>
+
+                  <li class="flex items-center justify-between">
+                    <span>Research / equivalent requirement</span>
+                    <span class="text-xs font-semibold"
                         :class="hasResearchEquivalent ? 'text-green-700' : 'text-red-700'"
                         x-text="hasResearchEquivalent ? 'OK' : 'Missing'"></span>
                 </li>
@@ -514,6 +528,7 @@ function reviewSummary(init) {
     hasDoctorate: !!init.hasDoctorate,
     hasResearchEquivalent: !!init.hasResearchEquivalent,
     hasAcceptedResearchOutput: !!init.hasAcceptedResearchOutput,
+    hasMinBuYears: !!init.hasMinBuYears,
 
     totalPoints() {
       return Number(this.s1 + this.s2 + this.s3 + this.s4 + this.s5);
@@ -522,6 +537,10 @@ function reviewSummary(init) {
     // PAPER: equivalent percentage = total points divided by 4
     eqPercent() {
       return this.totalPoints() / 4;
+    },
+
+    isSection2Pending() {
+      return Number(this.s2 || 0) <= 0;
     },
 
     // Determine A/B/C based on CURRENT user rank track (auto)
@@ -610,10 +629,10 @@ function reviewSummary(init) {
       return `${labels[hit.track]} – ${hit.letter}`;
     },
 
-    allowedRankLabel() {
-      if (!this.hasMasters || !this.hasResearchEquivalent) return '';
-      const labels = {
-        full: 'Full Professor',
+	    allowedRankLabel() {
+	      if (!this.hasMasters || !this.hasResearchEquivalent) return '';
+	      const labels = {
+	        full: 'Full Professor',
         associate: 'Associate Professor',
         assistant: 'Assistant Professor',
         instructor: 'Instructor',
@@ -629,11 +648,17 @@ function reviewSummary(init) {
       const maxAllowed = (this.hasDoctorate && this.hasAcceptedResearchOutput) ? 'full' : 'associate';
       if (order[desired] > order[maxAllowed]) desired = maxAllowed;
 
-      const oneStep = nextRank(this.track);
-      if (order[desired] > order[oneStep]) desired = oneStep;
+	      const oneStep = nextRank(this.track);
+	      if (order[desired] > order[oneStep]) desired = oneStep;
 
-      return labels[desired] || '';
-    },
+	      let letter = this.pointsRank()?.letter || '';
+	      if (this.pointsRank()?.track && this.pointsRank()?.track !== desired) {
+	        // If capped down from a higher points rank, show the highest letter in the allowed rank.
+	        letter = 'A';
+	      }
+
+	      return letter ? `${labels[desired]} - ${letter}` : (labels[desired] || '');
+	    },
 
     // ✅ minimum submit gate (based on your notes)
     // - must have Masters
@@ -641,6 +666,7 @@ function reviewSummary(init) {
     // For Full Professor note: doctorate + accepted research output required (if you want strict gate)
     canFinalSubmit() {
       if (!this.hasMasters) return false;
+      if (!this.hasMinBuYears) return false;
       if (!this.hasResearchEquivalent) return false;
 
       // OPTIONAL strict gate for Full Professor:

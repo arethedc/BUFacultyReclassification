@@ -10,6 +10,91 @@
             'finalized' => 'Finalized',
             default => ucfirst(str_replace('_',' ', $application->status)),
         };
+        $sectionsByCode = $sections->keyBy('section_code');
+        $sectionTotals = [
+            '1' => (float) optional($sectionsByCode->get('1'))->points_total,
+            '2' => (float) optional($sectionsByCode->get('2'))->points_total,
+            '3' => (float) optional($sectionsByCode->get('3'))->points_total,
+            '4' => (float) optional($sectionsByCode->get('4'))->points_total,
+            '5' => (float) optional($sectionsByCode->get('5'))->points_total,
+        ];
+        $totalPoints = array_sum($sectionTotals);
+        $eqPercent = $totalPoints / 4;
+        $trackKey = match (strtolower(trim((string) ($currentRankLabel ?? 'Instructor')))) {
+            'full professor', 'full' => 'full',
+            'associate professor', 'associate' => 'associate',
+            'assistant professor', 'assistant' => 'assistant',
+            default => 'instructor',
+        };
+        $rankLabels = [
+            'full' => 'Full Professor',
+            'associate' => 'Associate Professor',
+            'assistant' => 'Assistant Professor',
+            'instructor' => 'Instructor',
+        ];
+        $ranges = [
+            'full' => [
+                ['letter' => 'A', 'min' => 95.87, 'max' => 100.00],
+                ['letter' => 'B', 'min' => 91.50, 'max' => 95.86],
+                ['letter' => 'C', 'min' => 87.53, 'max' => 91.49],
+            ],
+            'associate' => [
+                ['letter' => 'A', 'min' => 83.34, 'max' => 87.52],
+                ['letter' => 'B', 'min' => 79.19, 'max' => 83.33],
+                ['letter' => 'C', 'min' => 75.02, 'max' => 79.18],
+            ],
+            'assistant' => [
+                ['letter' => 'A', 'min' => 70.85, 'max' => 75.01],
+                ['letter' => 'B', 'min' => 66.68, 'max' => 70.84],
+                ['letter' => 'C', 'min' => 62.51, 'max' => 66.67],
+            ],
+            'instructor' => [
+                ['letter' => 'A', 'min' => 58.34, 'max' => 62.50],
+                ['letter' => 'B', 'min' => 54.14, 'max' => 58.33],
+                ['letter' => 'C', 'min' => 50.00, 'max' => 54.16],
+            ],
+        ];
+        $pointsRankTrack = null;
+        $pointsRankLetter = null;
+        foreach (['full', 'associate', 'assistant', 'instructor'] as $rank) {
+            foreach ($ranges[$rank] as $band) {
+                if ($eqPercent >= $band['min'] && $eqPercent <= $band['max']) {
+                    $pointsRankTrack = $rank;
+                    $pointsRankLetter = $band['letter'];
+                    break 2;
+                }
+            }
+        }
+        $pointsRankLabel = $pointsRankTrack
+            ? ($rankLabels[$pointsRankTrack] . ' - ' . $pointsRankLetter)
+            : '-';
+
+        $hasMasters = (bool) ($eligibility['hasMasters'] ?? false);
+        $hasDoctorate = (bool) ($eligibility['hasDoctorate'] ?? false);
+        $hasResearchEquivalent = (bool) ($eligibility['hasResearchEquivalent'] ?? false);
+        $hasAcceptedResearchOutput = (bool) ($eligibility['hasAcceptedResearchOutput'] ?? false);
+
+        $allowedRankLabel = 'Not eligible';
+        if ($hasMasters && $hasResearchEquivalent) {
+            $order = ['instructor' => 1, 'assistant' => 2, 'associate' => 3, 'full' => 4];
+            $desired = $pointsRankTrack ?: $trackKey;
+            $maxAllowed = ($hasDoctorate && $hasAcceptedResearchOutput) ? 'full' : 'associate';
+            if (($order[$desired] ?? 0) > ($order[$maxAllowed] ?? 0)) {
+                $desired = $maxAllowed;
+            }
+            $oneStepOrder = ($order[$trackKey] ?? 1) + 1;
+            $oneStep = array_search($oneStepOrder, $order, true) ?: $trackKey;
+            if (($order[$desired] ?? 0) > ($order[$oneStep] ?? 0)) {
+                $desired = $oneStep;
+            }
+            $allowedLetter = $pointsRankLetter;
+            if ($pointsRankTrack && $pointsRankTrack !== $desired) {
+                // If capped down from a higher points rank, use highest letter in the allowed rank.
+                $allowedLetter = 'A';
+            }
+            $allowedRankLabel = ($rankLabels[$desired] ?? 'Not eligible')
+                . ($allowedLetter ? (' - ' . $allowedLetter) : '');
+        }
         $criterionLabels = [
             '1' => [
                 'a1' => 'A1. Bachelor’s Degree (Latin honors)',
@@ -86,6 +171,20 @@
                 'school' => [1, 1],
             ],
         ];
+        $moveTargetOptions = collect($criterionLabels)
+            ->except(['2'])
+            ->map(function ($criteria, $sectionCode) {
+                return collect($criteria)
+                    ->reject(fn ($label, $criterionKey) => str_ends_with((string) $criterionKey, '_prev') || $criterionKey === 'previous_points')
+                    ->map(fn ($label, $criterionKey) => [
+                        'section_code' => (string) $sectionCode,
+                        'criterion_key' => (string) $criterionKey,
+                        'label' => "Section {$sectionCode} - {$label}",
+                    ])
+                    ->values();
+            })
+            ->flatten(1)
+            ->values();
     @endphp
 
     <x-slot name="header">
@@ -128,8 +227,8 @@
                         $nextLabel = match($application->status) {
                             'dean_review' => 'Forward to HR',
                             'hr_review' => 'Forward to VPAA',
-                            'vpaa_review' => 'Forward to President',
-                            'president_review' => 'Finalize',
+                            'vpaa_review' => 'Approve & Finalize',
+                            'president_review' => 'Finalize (Legacy)',
                             default => 'Forward',
                         };
                     @endphp
@@ -151,6 +250,51 @@
                     @endif
                 </div>
             </div>
+
+            @php
+                $activeMoveRequests = ($application->moveRequests ?? collect())
+                    ->whereIn('status', ['pending', 'addressed'])
+                    ->values();
+            @endphp
+            @if($activeMoveRequests->isNotEmpty())
+                <div class="bg-white rounded-2xl shadow-card border border-indigo-200 p-6">
+                    <h3 class="text-lg font-semibold text-gray-800 mb-3">Move Requests</h3>
+                    <div class="space-y-2">
+                        @foreach($activeMoveRequests as $move)
+                            @php
+                                $mvStatus = (string) ($move->status ?? 'pending');
+                                $mvStatusClass = $mvStatus === 'addressed'
+                                    ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                    : 'bg-amber-50 text-amber-700 border-amber-200';
+                                $mvStatusLabel = $mvStatus === 'addressed' ? 'Addressed by faculty' : 'Pending';
+                            @endphp
+                            <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 flex flex-wrap items-center justify-between gap-3">
+                                <div class="text-sm text-indigo-900">
+                                    Section {{ $move->source_section_code }} / {{ strtoupper($move->source_criterion_key) }}
+                                    &rarr; Section {{ $move->target_section_code }} / {{ strtoupper($move->target_criterion_key) }}
+                                    @if($move->note)
+                                        <div class="text-xs text-indigo-800 mt-1">{{ $move->note }}</div>
+                                    @endif
+                                </div>
+                                <div class="flex items-center gap-2">
+                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] {{ $mvStatusClass }}">
+                                        {{ $mvStatusLabel }}
+                                    </span>
+                                    @if($mvStatus === 'addressed')
+                                        <form method="POST" action="{{ route('reclassification.move-requests.resolve', $move) }}">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-xs font-semibold text-green-700 hover:bg-green-100">
+                                                Mark Resolved
+                                            </button>
+                                        </form>
+                                    @endif
+                                </div>
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
                 <h3 class="text-lg font-semibold text-gray-800 mb-4">Faculty Information</h3>
@@ -174,12 +318,25 @@
                         <div>
                             <div class="text-xs text-gray-500">Total Years of Service (BU)</div>
                             <div class="text-sm font-semibold text-gray-800">
-                                {{ $yearsService !== null ? $yearsService . ' years' : '—' }}
+                                {{ $yearsService !== null ? (int) $yearsService . ' years' : '-' }}
                             </div>
                         </div>
                         <div>
                             <div class="text-xs text-gray-500">Current Teaching Rank</div>
                             <div class="text-sm font-semibold text-gray-800">{{ $currentRankLabel ?? 'Instructor' }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500">Rank Based on Points</div>
+                            <div class="text-sm font-semibold text-gray-800">{{ $pointsRankLabel }}</div>
+                        </div>
+                        <div>
+                            <div class="text-xs text-gray-500">Allowed Rank (Rules Applied)</div>
+                            <div class="text-sm font-semibold text-gray-800">{{ $allowedRankLabel }}</div>
+                        </div>
+                        <div class="text-xs text-gray-500">
+                            Total points: <span class="font-semibold text-gray-800">{{ number_format((float) $totalPoints, 2) }}</span>
+                            <span class="mx-2 text-gray-300">&middot;</span>
+                            Equivalent %: <span class="font-semibold text-gray-800">{{ number_format((float) $eqPercent, 2) }}</span>
                         </div>
                     </div>
 
@@ -336,30 +493,98 @@
                                                             @endif
                                                         </td>
                                                     </tr>
+                                                    @php
+                                                        $rowMoveRequests = ($application->moveRequests ?? collect())
+                                                            ->whereIn('status', ['pending', 'addressed'])
+                                                            ->where('source_section_code', (string) $section->section_code)
+                                                            ->where('source_criterion_key', (string) $criterionKey);
+                                                    @endphp
                                                     <tr class="bg-gray-50/50">
                                                         <td colspan="4" class="px-4 py-3">
                                                             <div class="space-y-3">
                                                                 <div>
                                                                     <div class="text-xs font-semibold text-gray-700">Reviewer Comments</div>
-                                                                    @if($rowComments->isEmpty())
+                                                                    @php
+                                                                        $rootComments = $rowComments
+                                                                            ->whereNull('parent_id')
+                                                                            ->sortBy('created_at')
+                                                                            ->values();
+                                                                    @endphp
+                                                                    @if($rootComments->isEmpty())
                                                                         <div class="text-xs text-gray-500 mt-1">No comments yet.</div>
                                                                     @else
                                                                         <div class="mt-2 space-y-2">
-                                                                            @foreach($rowComments as $comment)
+                                                                            @foreach($rootComments as $comment)
+                                                                                @php
+                                                                                    $visibilityClass = $comment->visibility === 'faculty_visible'
+                                                                                        ? 'bg-green-50 text-green-700 border-green-200'
+                                                                                        : 'bg-gray-50 text-gray-600 border-gray-200';
+                                                                                    $visibilityLabel = $comment->visibility === 'faculty_visible'
+                                                                                        ? 'Visible to faculty'
+                                                                                        : 'Internal';
+                                                                                    $status = $comment->status ?? 'open';
+                                                                                    $statusClass = match($status) {
+                                                                                        'resolved' => 'bg-green-50 text-green-700 border-green-200',
+                                                                                        'addressed' => 'bg-blue-50 text-blue-700 border-blue-200',
+                                                                                        default => 'bg-amber-50 text-amber-700 border-amber-200',
+                                                                                    };
+                                                                                    $statusLabel = match($status) {
+                                                                                        'resolved' => 'Resolved',
+                                                                                        'addressed' => 'Addressed',
+                                                                                        default => 'Open',
+                                                                                    };
+                                                                                    $replies = $rowComments
+                                                                                        ->where('parent_id', $comment->id)
+                                                                                        ->sortBy('created_at')
+                                                                                        ->values();
+                                                                                @endphp
                                                                                 <div class="rounded-lg border bg-white px-3 py-2 text-xs">
                                                                                     <div class="flex items-center justify-between gap-2">
                                                                                         <div class="font-medium text-gray-800">
                                                                                             {{ $comment->author?->name ?? 'Reviewer' }}
                                                                                         </div>
                                                                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border
-                                                                                            {{ $comment->visibility === 'faculty_visible' ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200' }}">
-                                                                                            {{ $comment->visibility === 'faculty_visible' ? 'Visible to faculty' : 'Internal' }}
+                                                                                            {{ $visibilityClass }}">
+                                                                                            {{ $visibilityLabel }}
                                                                                         </span>
+                                                                                    </div>
+                                                                                    <div class="mt-1 flex items-center gap-2">
+                                                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border {{ $statusClass }}">
+                                                                                            {{ $statusLabel }}
+                                                                                        </span>
+                                                                                        @if($comment->resolved_at)
+                                                                                            <span class="text-[10px] text-gray-400">
+                                                                                                {{ optional($comment->resolved_at)->format('M d, Y g:i A') }}
+                                                                                            </span>
+                                                                                        @endif
                                                                                     </div>
                                                                                     <div class="mt-1 text-gray-700">{{ $comment->body }}</div>
                                                                                     <div class="mt-1 text-[10px] text-gray-400">
                                                                                         {{ optional($comment->created_at)->format('M d, Y g:i A') }}
                                                                                     </div>
+
+                                                                                    @if($replies->isNotEmpty())
+                                                                                        <div class="mt-2 rounded-md border border-gray-200 bg-gray-50 p-2 space-y-1">
+                                                                                            @foreach($replies as $reply)
+                                                                                                <div class="text-[11px] text-gray-700">
+                                                                                                    <span class="font-semibold">{{ $reply->author?->name ?? 'Faculty' }}:</span>
+                                                                                                    {{ $reply->body }}
+                                                                                                </div>
+                                                                                            @endforeach
+                                                                                        </div>
+                                                                                    @endif
+
+                                                                                    @if($comment->visibility === 'faculty_visible' && $comment->status !== 'resolved')
+                                                                                        <div class="mt-2 flex justify-end">
+                                                                                            <form method="POST" action="{{ route('reclassification.row-comments.resolve', $comment) }}">
+                                                                                                @csrf
+                                                                                                <button type="submit"
+                                                                                                        class="px-2.5 py-1 rounded-lg border border-green-200 bg-green-50 text-[11px] font-semibold text-green-700 hover:bg-green-100">
+                                                                                                    Mark Resolved
+                                                                                                </button>
+                                                                                            </form>
+                                                                                        </div>
+                                                                                    @endif
                                                                                 </div>
                                                                             @endforeach
                                                                         </div>
@@ -388,6 +613,85 @@
                                                                         </button>
                                                                     </div>
                                                                 </form>
+
+                                                                @if(auth()->user()->role === 'dean')
+                                                                    <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3 space-y-3">
+                                                                        <div>
+                                                                            <div class="text-xs font-semibold text-indigo-800">Request move to another criterion</div>
+                                                                            <div class="text-xs text-indigo-700 mt-1">
+                                                                                Use when this entry's evidence fits a different criterion. Faculty will revise after return.
+                                                                            </div>
+                                                                        </div>
+
+                                                                        @if($rowMoveRequests->isNotEmpty())
+                                                                            <div class="space-y-1">
+                                                                                @foreach($rowMoveRequests as $move)
+                                                                                    @php
+                                                                                        $mvStatus = (string) ($move->status ?? 'pending');
+                                                                                        $mvStatusClass = $mvStatus === 'addressed'
+                                                                                            ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                                                            : 'bg-amber-50 text-amber-700 border-amber-200';
+                                                                                        $mvStatusLabel = $mvStatus === 'addressed' ? 'Addressed' : 'Pending';
+                                                                                    @endphp
+                                                                                    <div class="rounded border border-indigo-200 bg-white px-2 py-1.5 text-[11px] text-indigo-900">
+                                                                                        <div class="flex items-center justify-between gap-2">
+                                                                                            <div>
+                                                                                                Move: Section {{ $move->source_section_code }} / {{ strtoupper($move->source_criterion_key) }}
+                                                                                                &rarr; Section {{ $move->target_section_code }} / {{ strtoupper($move->target_criterion_key) }}
+                                                                                            </div>
+                                                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full border {{ $mvStatusClass }}">
+                                                                                                {{ $mvStatusLabel }}
+                                                                                            </span>
+                                                                                        </div>
+                                                                                        @if($move->note)
+                                                                                            <div class="mt-1">{{ $move->note }}</div>
+                                                                                        @endif
+                                                                                        @if($move->status === 'addressed')
+                                                                                            <div class="mt-2 flex justify-end">
+                                                                                                <form method="POST" action="{{ route('reclassification.move-requests.resolve', $move) }}">
+                                                                                                    @csrf
+                                                                                                    <button type="submit"
+                                                                                                            class="px-2.5 py-1 rounded border border-green-200 bg-green-50 text-green-700 font-semibold hover:bg-green-100">
+                                                                                                        Mark Resolved
+                                                                                                    </button>
+                                                                                                </form>
+                                                                                            </div>
+                                                                                        @endif
+                                                                                    </div>
+                                                                                @endforeach
+                                                                            </div>
+                                                                        @endif
+
+                                                                        <form method="POST" action="{{ route('reclassification.move-requests.store', [$application, $entry]) }}" class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                                                                            @csrf
+                                                                            <div class="md:col-span-4">
+                                                                                <label class="text-xs text-gray-700">Target Criterion</label>
+                                                                                <select name="target" class="mt-1 w-full rounded-lg border-gray-300 text-xs" required>
+                                                                                    <option value="">Select target criterion</option>
+                                                                                    @foreach($moveTargetOptions as $opt)
+                                                                                        <option value="{{ $opt['section_code'] }}|{{ $opt['criterion_key'] }}">
+                                                                                            {{ $opt['label'] }}
+                                                                                        </option>
+                                                                                    @endforeach
+                                                                                </select>
+                                                                            </div>
+                                                                            <div class="md:col-span-2">
+                                                                                <label class="text-xs text-gray-700">Reason</label>
+                                                                                <input type="text"
+                                                                                       name="note"
+                                                                                       maxlength="2000"
+                                                                                       class="mt-1 w-full rounded-lg border-gray-300 text-xs"
+                                                                                       placeholder="Why this should be moved">
+                                                                            </div>
+                                                                            <div class="md:col-span-6 flex justify-end">
+                                                                                <button type="submit"
+                                                                                        class="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-semibold">
+                                                                                    Save Move Request
+                                                                                </button>
+                                                                            </div>
+                                                                        </form>
+                                                                    </div>
+                                                                @endif
                                                             </div>
                                                         </td>
                                                     </tr>

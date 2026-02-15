@@ -5,7 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\User;
 use App\Models\FacultyProfile;
 use App\Models\FacultyHighestDegree;
+use App\Models\RankLevel;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Validation\Rule;
 
 class FacultyProfileController extends Controller
@@ -93,7 +95,7 @@ class FacultyProfileController extends Controller
     {
         abort_unless($user->role === 'faculty', 404);
 
-        $user->load(['facultyProfile', 'department', 'facultyHighestDegree']);
+        $user->load(['facultyProfile.rankLevel', 'department', 'facultyHighestDegree']);
 
         // ✅ Ensure profile exists
         $profile = $user->facultyProfile ?? FacultyProfile::create([
@@ -102,8 +104,11 @@ class FacultyProfileController extends Controller
         ]);
 
         $highestDegree = $user->facultyHighestDegree;
+        $rankLevels = Schema::hasTable('rank_levels')
+            ? RankLevel::orderBy('order_no')->get()
+            : collect();
 
-        return view('faculty_profiles.edit', compact('user', 'profile', 'highestDegree'));
+        return view('faculty_profiles.edit', compact('user', 'profile', 'highestDegree', 'rankLevels'));
     }
 
     public function update(Request $request, User $user)
@@ -115,20 +120,35 @@ class FacultyProfileController extends Controller
             ['employee_no' => 'TEMP-' . $user->id]
         );
 
-        $data = $request->validate([
+        $hasRankLevels = Schema::hasTable('rank_levels');
+
+        $rules = [
             'employee_no' => 'required|string|max:50|unique:faculty_profiles,employee_no,' . $profile->id,
             'employment_type' => ['required', Rule::in(['full_time', 'part_time'])],
-            'teaching_rank' => 'required|string|max:100',
-            'rank_step' => ['nullable', Rule::in(['A', 'B', 'C'])],
             'original_appointment_date' => 'nullable|date',
             'highest_degree' => ['nullable', Rule::in(['bachelors', 'masters', 'doctorate'])],
-        ]);
+        ];
+
+        if ($hasRankLevels) {
+            $rules['rank_level_id'] = ['required', 'exists:rank_levels,id'];
+        } else {
+            $rules['teaching_rank'] = 'required|string|max:100';
+            $rules['rank_step'] = ['nullable', Rule::in(['A', 'B', 'C'])];
+        }
+
+        $data = $request->validate($rules);
+
+        $rankTitle = $profile->teaching_rank;
+        if ($hasRankLevels) {
+            $rankTitle = RankLevel::whereKey($data['rank_level_id'])->value('title') ?? $rankTitle;
+        }
 
         $profile->update([
             'employee_no' => $data['employee_no'],
             'employment_type' => $data['employment_type'],
-            'teaching_rank' => $data['teaching_rank'],
-            'rank_step' => $data['rank_step'] ?? null,
+            'rank_level_id' => $hasRankLevels ? $data['rank_level_id'] : $profile->rank_level_id,
+            'teaching_rank' => $hasRankLevels ? $rankTitle : $data['teaching_rank'],
+            'rank_step' => $hasRankLevels ? null : ($data['rank_step'] ?? null),
             'original_appointment_date' => $data['original_appointment_date'] ?? null,
         ]);
 

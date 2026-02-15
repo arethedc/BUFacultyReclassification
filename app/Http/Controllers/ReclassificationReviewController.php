@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationSectionEntry;
+use App\Support\ReclassificationEligibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -48,6 +49,7 @@ class ReclassificationReviewController extends Controller
             'faculty.facultyProfile',
             'sections.entries.evidences',
             'sections.entries.rowComments.author',
+            'moveRequests.requestedBy',
         ]);
 
         if ($role === 'dean') {
@@ -60,6 +62,14 @@ class ReclassificationReviewController extends Controller
         $section2 = $application->sections->firstWhere('section_code', '2');
         $section2Data = $section2 ? $this->buildSectionTwoData($section2) : [];
         $section2Review = $section2 ? $this->buildSectionTwoReview($section2) : [];
+        $eligibility = $application->faculty
+            ? ReclassificationEligibility::evaluate($application, $application->faculty)
+            : [
+                'hasMasters' => false,
+                'hasDoctorate' => false,
+                'hasResearchEquivalent' => false,
+                'hasAcceptedResearchOutput' => false,
+            ];
 
         $facultyProfile = $application->faculty?->facultyProfile;
         $appointmentDate = $facultyProfile?->original_appointment_date
@@ -82,6 +92,7 @@ class ReclassificationReviewController extends Controller
             'application',
             'section2Data',
             'section2Review',
+            'eligibility',
             'appointmentDate',
             'yearsService',
             'currentRankLabel',

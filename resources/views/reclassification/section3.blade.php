@@ -188,6 +188,7 @@
             <template x-for="(row,i) in c1" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c1][${i}][id]`" :value="row.id || ''">
                   <input x-model="row.title"
                          :name="`section3[c1][${i}][title]`"
                          class="w-full rounded border-gray-300"
@@ -331,6 +332,7 @@
             <template x-for="(row,i) in c2" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c2][${i}][id]`" :value="row.id || ''">
                   <input x-model="row.title"
                          :name="`section3[c2][${i}][title]`"
                          class="w-full rounded border-gray-300"
@@ -474,6 +476,7 @@
             <template x-for="(row,i) in c3" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c3][${i}][id]`" :value="row.id || ''">
                   <input x-model="row.title"
                          :name="`section3[c3][${i}][title]`"
                          class="w-full rounded border-gray-300"
@@ -617,6 +620,7 @@
             <template x-for="(row,i) in c4" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c4][${i}][id]`" :value="row.id || ''">
                   <input x-model="row.title"
                          :name="`section3[c4][${i}][title]`"
                          class="w-full rounded border-gray-300"
@@ -767,6 +771,7 @@
             <template x-for="(row,i) in c5" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c5][${i}][id]`" :value="row.id || ''">
                   <input x-model="row.title"
                          :name="`section3[c5][${i}][title]`"
                          class="w-full rounded border-gray-300"
@@ -889,6 +894,7 @@
             <template x-for="(row,i) in c6" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c6][${i}][id]`" :value="row.id || ''">
                   <input x-model="row.title"
                          :name="`section3[c6][${i}][title]`"
                          class="w-full rounded border-gray-300"
@@ -1020,6 +1026,7 @@
             <template x-for="(row,i) in c7" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c7][${i}][id]`" :value="row.id || ''">
                   <input x-model="row.title"
                          :name="`section3[c7][${i}][title]`"
                          class="w-full rounded border-gray-300"
@@ -1151,6 +1158,7 @@
             <template x-for="(row,i) in c8" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c8][${i}][id]`" :value="row.id || ''">
                   <input x-model="row.title"
                          :name="`section3[c8][${i}][title]`"
                          class="w-full rounded border-gray-300"
@@ -1254,6 +1262,7 @@
             <template x-for="(row,i) in c9" :key="i">
               <tr class="border-t">
                 <td class="p-2">
+                  <input type="hidden" :name="`section3[c9][${i}][id]`" :value="row.id || ''">
                   <select x-model="row.service"
                           :name="`section3[c9][${i}][service]`"
                           class="rounded border-gray-300 w-full">
@@ -1367,7 +1376,7 @@
     <div class="flex justify-end gap-4"></div>
 
     {{-- EVIDENCE MODAL --}}
-    <div x-cloak x-show="evidenceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+    <div x-cloak x-show="evidenceModalOpen" data-return-lock-ignore class="fixed inset-0 z-50 flex items-center justify-center">
       <div class="absolute inset-0 bg-black/40" @click="closeEvidenceModal()"></div>
 
       <div class="relative bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-xl border"
@@ -1792,7 +1801,8 @@ function sectionThree(initial = {}, globalEvidence = []) {
 
     rowHasValue(row) {
       if (!row || typeof row !== 'object') return false;
-      return Object.values(row).some((val) => {
+      return Object.entries(row).some(([key, val]) => {
+        if (['id', 'comments', 'is_removed', 'points', 'counted'].includes(key)) return false;
         if (Array.isArray(val)) return val.length > 0;
         if (typeof val === 'number') return val !== 0;
         if (typeof val === 'string') return val.trim() !== '';

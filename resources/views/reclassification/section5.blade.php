@@ -153,6 +153,7 @@
               <template x-for="(row,i) in aRows" :key="i">
                 <tr class="border-t">
                   <td class="p-2">
+                    <input type="hidden" :name="`section5[a][${i}][id]`" :value="row.id || ''">
                     <input x-model="row.title"
                            :name="`section5[a][${i}][title]`"
                            class="w-full rounded border-gray-300"
@@ -325,6 +326,7 @@
               <template x-for="(row,i) in bRows" :key="i">
                 <tr class="border-t">
                   <td class="p-2">
+                    <input type="hidden" :name="`section5[b][${i}][id]`" :value="row.id || ''">
                     <input x-model="row.org"
                            :name="`section5[b][${i}][org]`"
                            class="w-full rounded border-gray-300"
@@ -491,9 +493,10 @@
                 </tr>
               </thead>
               <tbody>
-                <template x-for="(row,i) in c1" :key="i">
-                  <tr class="border-t">
-                    <td class="p-2">
+                    <template x-for="(row,i) in c1" :key="i">
+                      <tr class="border-t">
+                        <td class="p-2">
+                          <input type="hidden" :name="`section5[c1][${i}][id]`" :value="row.id || ''">
                       <input x-model="row.title"
                              :name="`section5[c1][${i}][title]`"
                              class="w-full rounded border-gray-300"
@@ -613,9 +616,10 @@
                 </tr>
               </thead>
               <tbody>
-                <template x-for="(row,i) in c2" :key="i">
-                  <tr class="border-t">
-                    <td class="p-2">
+                    <template x-for="(row,i) in c2" :key="i">
+                      <tr class="border-t">
+                        <td class="p-2">
+                          <input type="hidden" :name="`section5[c2][${i}][id]`" :value="row.id || ''">
                       <input x-model="row.title"
                              :name="`section5[c2][${i}][title]`"
                              class="w-full rounded border-gray-300"
@@ -736,9 +740,10 @@
                 </tr>
               </thead>
               <tbody>
-                <template x-for="(row,i) in c3" :key="i">
-                  <tr class="border-t">
-                    <td class="p-2">
+                    <template x-for="(row,i) in c3" :key="i">
+                      <tr class="border-t">
+                        <td class="p-2">
+                          <input type="hidden" :name="`section5[c3][${i}][id]`" :value="row.id || ''">
                       <input x-model="row.title"
                              :name="`section5[c3][${i}][title]`"
                              class="w-full rounded border-gray-300"
@@ -878,6 +883,7 @@
               <template x-for="(row,i) in dRows" :key="i">
                 <tr class="border-t">
                   <td class="p-2">
+                    <input type="hidden" :name="`section5[d][${i}][id]`" :value="row.id || ''">
                     <input x-model="row.title"
                            :name="`section5[d][${i}][title]`"
                            class="w-full rounded border-gray-300"
@@ -1010,7 +1016,7 @@
   </div>
 
 {{-- EVIDENCE MODAL --}}
-<div x-cloak x-show="evidenceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+<div x-cloak x-show="evidenceModalOpen" data-return-lock-ignore class="fixed inset-0 z-50 flex items-center justify-center">
   <div class="absolute inset-0 bg-black/40" @click="closeEvidenceModal()"></div>
 
   <div class="relative bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-xl border"
@@ -1450,7 +1456,8 @@ function sectionFive(initial = {}, globalEvidence = []) {
 
     rowHasValue(row) {
       if (!row || typeof row !== 'object') return false;
-      return Object.values(row).some((val) => {
+      return Object.entries(row).some(([key, val]) => {
+        if (['id', 'comments', 'is_removed', 'points', 'counted'].includes(key)) return false;
         if (Array.isArray(val)) return val.length > 0;
         if (typeof val === 'number') return val !== 0;
         if (typeof val === 'string') return val.trim() !== '';

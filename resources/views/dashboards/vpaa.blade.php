@@ -17,7 +17,7 @@
                             VPAA Review Stage
                         </div>
                         <div class="text-xs text-gray-500 mt-1">
-                            Review submissions, endorse, and forward to the President.
+                            Review submissions and approve final reclassification results.
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">

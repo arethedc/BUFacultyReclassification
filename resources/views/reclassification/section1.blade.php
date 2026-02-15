@@ -203,6 +203,7 @@ Instruction: Kindly check the corresponding points in the blanks and write the F
   </div>
 
   <div class="mt-3" x-show="a1Honors && a1Honors !== 'none'">
+    <input type="hidden" name="section1[a1][id]" :value="a1Id || ''">
     <label class="block text-xs text-gray-600 mb-1">Evidence for Latin honors</label>
     <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
       <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
@@ -320,6 +321,9 @@ $tables = [
         <tr>
           @foreach($cfg['cols'] as $col)
             <td class="px-3 py-2 align-top">
+              @if($loop->first)
+                <input type="hidden" :name="`section1[{{ $cfg['key'] }}][${i}][id]`" :value="row.id || ''">
+              @endif
               @if($col === 'Pts')
                 <span class="text-gray-800 font-semibold" x-text="Number(rowPoints('{{ $cfg['key'] }}', i)).toFixed(2)"></span>
                 <span class="text-gray-400 text-xs"> (Auto)</span>
@@ -510,6 +514,7 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
         <template x-for="(row,i) in b" :key="i">
           <tr>
             <td class="px-3 py-2">
+              <input type="hidden" :name="`section1[b][${i}][id]`" :value="row.id || ''">
               <input x-model="row.title"
                      :name="`section1[b][${i}][title]`"
                      class="w-full rounded border-gray-300"
@@ -666,6 +671,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
         <template x-for="(row,i) in c" :key="i">
           <tr>
             <td class="px-3 py-2">
+              <input type="hidden" :name="`section1[c][${i}][id]`" :value="row.id || ''">
               <input x-model="row.title"
                      :name="`section1[c][${i}][title]`"
                      class="w-full rounded border-gray-300"
@@ -770,7 +776,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
 </div>
 
 {{-- EVIDENCE MODAL --}}
-<div x-cloak x-show="evidenceModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+<div x-cloak x-show="evidenceModalOpen" data-return-lock-ignore class="fixed inset-0 z-50 flex items-center justify-center">
   <div class="absolute inset-0 bg-black/40" @click="closeEvidenceModal()"></div>
 
   <div class="relative bg-white w-full max-w-3xl mx-4 rounded-2xl shadow-xl border"
@@ -977,6 +983,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
     previewItem: null,
     toast: { show: false, message: '', type: 'success' },
     toastTimer: null,
+    a1Id: (initial.a1 && initial.a1.id) ? Number(initial.a1.id) : '',
     a1Honors: (initial.a1 && initial.a1.honors) ? initial.a1.honors : '',
     a1Evidence: (initial.a1 && Array.isArray(initial.a1.evidence)) ? initial.a1.evidence : [],
     a1Comments: (initial.a1 && Array.isArray(initial.a1.comments)) ? initial.a1.comments : [],
@@ -1248,7 +1255,8 @@ function sectionOne(initial = {}, globalEvidence = []) {
 
     rowHasValue(row) {
       if (!row || typeof row !== 'object') return false;
-      return Object.values(row).some((val) => {
+      return Object.entries(row).some(([key, val]) => {
+        if (['id', 'comments', 'is_removed', 'points', 'counted'].includes(key)) return false;
         if (Array.isArray(val)) return val.length > 0;
         if (typeof val === 'number') return val !== 0;
         if (typeof val === 'string') return val.trim() !== '';
@@ -1258,7 +1266,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
     },
 
     isBucketed(key) {
-      return ['a2','a3','a4','a5','a6','a7','b','c'].includes(key);
+      return ['a2','a3','a4','a5','a6','a7','a8','b','c'].includes(key);
     },
 
     bucketOnceRows(rows, keyFn, pointsFn) {
@@ -1280,9 +1288,6 @@ function sectionOne(initial = {}, globalEvidence = []) {
     bucketedRows(key) {
       const rows = this[key] || [];
       if (!this.isBucketed(key)) {
-        if (key === 'a8') {
-          return rows.map((row) => ({ ...row, points: this.ptsA('a8', row), counted: true }));
-        }
         return rows.map((row) => ({ ...row, points: this.ptsA(key, row), counted: true }));
       }
 
@@ -1293,6 +1298,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
         a5: (r) => r.category || '',
         a6: (r) => r.category || '',
         a7: (r) => r.category || '',
+        a8: (r) => r.relation || '',
         b: (r) => r.hours || '',
         c: (r) => `${r.role || ''}|${r.level || ''}`,
       };
@@ -1304,6 +1310,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
         a5: (r) => this.ptsA('a5', r),
         a6: (r) => this.ptsA('a6', r),
         a7: (r) => this.ptsA('a7', r),
+        a8: (r) => this.ptsA('a8', r),
         b: (r) => this.ptsB(r),
         c: (r) => this.ptsC(r),
       };
@@ -1319,6 +1326,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
         a5: (r) => r.category || '',
         a6: (r) => r.category || '',
         a7: (r) => r.category || '',
+        a8: (r) => r.relation || '',
         b: (r) => r.hours || '',
         c: (r) => `${r.role || ''}|${r.level || ''}`,
       };
@@ -1333,6 +1341,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
         a5: (r) => this.ptsA('a5', r),
         a6: (r) => this.ptsA('a6', r),
         a7: (r) => this.ptsA('a7', r),
+        a8: (r) => this.ptsA('a8', r),
         b: (r) => this.ptsB(r),
         c: (r) => this.ptsC(r),
       };

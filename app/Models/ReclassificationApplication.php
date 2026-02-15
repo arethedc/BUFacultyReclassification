@@ -14,11 +14,16 @@ class ReclassificationApplication extends Model
         'returned_from',
         'submitted_at',
         'finalized_at',
+        'current_rank_label_at_approval',
+        'approved_rank_label',
+        'approved_by_user_id',
+        'approved_at',
     ];
 
     protected $casts = [
         'submitted_at' => 'datetime',
         'finalized_at' => 'datetime',
+        'approved_at' => 'datetime',
     ];
 
     public function faculty()
@@ -34,5 +39,15 @@ class ReclassificationApplication extends Model
     public function rowComments()
     {
         return $this->hasMany(ReclassificationRowComment::class, 'reclassification_application_id');
+    }
+
+    public function moveRequests()
+    {
+        return $this->hasMany(ReclassificationMoveRequest::class, 'reclassification_application_id');
+    }
+
+    public function approvedBy()
+    {
+        return $this->belongsTo(User::class, 'approved_by_user_id');
     }
 }
