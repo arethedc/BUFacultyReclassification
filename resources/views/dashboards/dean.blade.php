@@ -29,6 +29,14 @@
                            class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
                             All Submissions
                         </a>
+                        <a href="{{ route('dean.approved') }}"
+                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                            Approved List
+                        </a>
+                        <a href="{{ route('reclassification.history') }}"
+                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                            Reclassification History
+                        </a>
                         <a href="{{ route('dean.faculty.index') }}"
                            class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
                             Faculty Records

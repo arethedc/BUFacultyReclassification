@@ -13,6 +13,19 @@
 
     <div class="py-12 bg-bu-muted min-h-screen">
         <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+            @if(!empty($promotionNotification))
+                @php
+                    $payload = $promotionNotification->data ?? [];
+                @endphp
+                <div class="bg-green-50 border border-green-200 rounded-2xl shadow-card p-6">
+                    <div class="text-sm font-semibold text-green-800">
+                        {{ $payload['title'] ?? 'Congratulations! You have been promoted.' }}
+                    </div>
+                    <div class="mt-1 text-sm text-green-700">
+                        {{ $payload['message'] ?? 'Your approved reclassification has been finalized.' }}
+                    </div>
+                </div>
+            @endif
 
             {{-- PROFILE SUMMARY --}}
             @php
@@ -66,19 +79,17 @@
 
             {{-- ACTION NAV --}}
             @php
-                $latest = $applications->first();
-                $isEditable = $latest && in_array($latest->status, ['draft', 'returned_to_faculty'], true);
+                $editableApp = $applications->first(fn ($app) => in_array($app->status, ['draft', 'returned_to_faculty'], true));
+                $reviewApp = $applications->first(fn ($app) => in_array($app->status, ['dean_review', 'hr_review', 'vpaa_review', 'president_review', 'finalized'], true));
                 $actionLabel = 'Start Reclassification';
                 $actionRoute = route('reclassification.show');
 
-                if ($latest) {
-                    if ($isEditable) {
-                        $actionLabel = 'Continue Reclassification';
-                        $actionRoute = route('reclassification.show');
-                    } else {
-                        $actionLabel = 'View Submitted';
-                        $actionRoute = route('reclassification.submitted');
-                    }
+                if ($editableApp) {
+                    $actionLabel = 'Continue Reclassification';
+                    $actionRoute = route('reclassification.show');
+                } elseif ($reviewApp) {
+                    $actionLabel = 'View Submission Status';
+                    $actionRoute = route('reclassification.submitted');
                 }
 
                 $submittedApp = $applications->firstWhere('status', 'finalized')
@@ -92,7 +103,7 @@
                         {{ $actionLabel }}
                     </a>
 
-                    @if($submittedApp)
+                    @if($submittedApp && !$editableApp)
                         <a href="{{ route('reclassification.submitted-summary.show', $submittedApp) }}"
                            class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
                             View Submitted Paper

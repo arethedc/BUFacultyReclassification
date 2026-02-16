@@ -12,6 +12,9 @@ use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationSection;
 use App\Models\ReclassificationSectionEntry;
 use App\Models\ReclassificationEvidence;
+use App\Models\ReclassificationPeriod;
+use App\Models\ReclassificationMoveRequest;
+use App\Models\ReclassificationRowComment;
 
 class ReclassificationFormController extends Controller
 {
@@ -22,10 +25,14 @@ class ReclassificationFormController extends Controller
     private function getOrCreateDraft(Request $request): ReclassificationApplication
     {
         $user = $request->user();
-        $cycleYear = $this->currentCycleYear();
-        $sameCycle = function ($query) use ($cycleYear) {
-            $query->where('cycle_year', $cycleYear)
-                ->orWhereNull('cycle_year');
+        $activePeriod = $this->activePeriod();
+        $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
+        $cycleYear = $this->currentCycleYear($activePeriod);
+        $sameCycle = function ($query) use ($cycleYear, $activePeriod) {
+            $query->where('cycle_year', $cycleYear);
+            if (!$activePeriod) {
+                $query->orWhereNull('cycle_year');
+            }
         };
 
         // If there is an active review in this cycle, do NOT auto-create a new draft.
@@ -35,8 +42,15 @@ class ReclassificationFormController extends Controller
             ->latest()
             ->first();
         if ($activeReview) {
+            $updates = [];
             if (!$activeReview->cycle_year) {
-                $activeReview->update(['cycle_year' => $cycleYear]);
+                $updates['cycle_year'] = $cycleYear;
+            }
+            if ($hasPeriodId && $activePeriod && !$activeReview->period_id) {
+                $updates['period_id'] = $activePeriod->id;
+            }
+            if (!empty($updates)) {
+                $activeReview->update($updates);
             }
             return $activeReview->load('sections');
         }
@@ -57,15 +71,22 @@ class ReclassificationFormController extends Controller
                 ->first();
 
             if ($finalized) {
+                $updates = [];
                 if (!$finalized->cycle_year) {
-                    $finalized->update(['cycle_year' => $cycleYear]);
+                    $updates['cycle_year'] = $cycleYear;
+                }
+                if ($hasPeriodId && $activePeriod && !$finalized->period_id) {
+                    $updates['period_id'] = $activePeriod->id;
+                }
+                if (!empty($updates)) {
+                    $finalized->update($updates);
                 }
                 return $finalized->load('sections');
             }
         }
 
         if (!$app) {
-            $app = ReclassificationApplication::create([
+            $payload = [
                 'faculty_user_id' => $user->id,
                 'cycle_year' => $cycleYear,
                 'status' => 'draft',
@@ -73,7 +94,12 @@ class ReclassificationFormController extends Controller
                 'returned_from' => null,
                 'submitted_at' => null,
                 'finalized_at' => null,
-            ]);
+            ];
+            if ($hasPeriodId) {
+                $payload['period_id'] = $activePeriod?->id;
+            }
+
+            $app = ReclassificationApplication::create($payload);
 
             // Create default sections 1..5
             $sections = [
@@ -95,15 +121,37 @@ class ReclassificationFormController extends Controller
             }
         }
 
+        $updates = [];
         if (!$app->cycle_year) {
-            $app->update(['cycle_year' => $cycleYear]);
+            $updates['cycle_year'] = $cycleYear;
+        }
+        if ($hasPeriodId && $activePeriod && !$app->period_id) {
+            $updates['period_id'] = $activePeriod->id;
+        }
+        if (!empty($updates)) {
+            $app->update($updates);
         }
 
         return $app->load('sections');
     }
 
-    private function currentCycleYear(): string
+    private function activePeriod(): ?ReclassificationPeriod
     {
+        if (!Schema::hasTable('reclassification_periods')) {
+            return null;
+        }
+
+        return ReclassificationPeriod::query()
+            ->where('is_open', true)
+            ->orderByDesc('created_at')
+            ->first();
+    }
+
+    private function currentCycleYear(?ReclassificationPeriod $period = null): string
+    {
+        if ($period && !empty($period->cycle_year)) {
+            return (string) $period->cycle_year;
+        }
         return (string) config('reclassification.cycle_year', '2023-2026');
     }
 
@@ -161,7 +209,9 @@ class ReclassificationFormController extends Controller
         if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
             $commentThreadsQuery->whereNull('parent_id');
         }
-        $commentThreads = $commentThreadsQuery->get();
+        $commentThreads = $commentThreadsQuery->get()
+            ->filter(fn ($thread) => !$this->isCommentEntryRemoved($thread->entry))
+            ->values();
 
         $user = $request->user()->load('facultyProfile');
         $profile = $user->facultyProfile;
@@ -223,7 +273,9 @@ class ReclassificationFormController extends Controller
         if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
             $commentThreadsQuery->whereNull('parent_id');
         }
-        $commentThreads = $commentThreadsQuery->get();
+        $commentThreads = $commentThreadsQuery->get()
+            ->filter(fn ($thread) => !$this->isCommentEntryRemoved($thread->entry))
+            ->values();
 
         $user = $request->user()->load('facultyProfile');
         $profile = $user->facultyProfile;
@@ -344,12 +396,6 @@ class ReclassificationFormController extends Controller
             ->first();
 
         if (!$application) {
-            $application = ReclassificationApplication::where('faculty_user_id', $user->id)
-                ->latest()
-                ->first();
-        }
-
-        if (!$application) {
             return redirect()->route('reclassification.show');
         }
 
@@ -364,12 +410,6 @@ class ReclassificationFormController extends Controller
             ->whereNotIn('status', ['draft', 'returned_to_faculty'])
             ->latest()
             ->first();
-
-        if (!$application) {
-            $application = ReclassificationApplication::where('faculty_user_id', $user->id)
-                ->latest()
-                ->first();
-        }
 
         if (!$application) {
             return redirect()->route('reclassification.show');
@@ -411,6 +451,9 @@ class ReclassificationFormController extends Controller
         $user = $request->user();
 
         abort_unless($application->faculty_user_id === $user->id, 403);
+        if (in_array((string) $application->status, ['draft', 'returned_to_faculty'], true)) {
+            return redirect()->route('reclassification.show');
+        }
 
         $application->load([
             'sections.entries',
@@ -1745,7 +1788,7 @@ class ReclassificationFormController extends Controller
 
         // Returned flow: preserve commented rows (soft remove), hard delete rows without comments.
         $hardDeleteIds = [];
-        $missingEntries->each(function (ReclassificationSectionEntry $entry) use (&$hardDeleteIds) {
+        $missingEntries->each(function (ReclassificationSectionEntry $entry) use (&$hardDeleteIds, $section) {
             if ($entry->rowComments()->exists()) {
                 $data = is_array($entry->data) ? $entry->data : [];
                 $data['is_removed'] = true;
@@ -1754,6 +1797,31 @@ class ReclassificationFormController extends Controller
                     'points' => 0,
                     'data' => $data,
                 ]);
+
+                // Auto-mark open reviewer comments as addressed when the commented entry is removed.
+                $commentQuery = ReclassificationRowComment::query()
+                    ->where('reclassification_application_id', $section->reclassification_application_id)
+                    ->where('reclassification_section_entry_id', $entry->id)
+                    ->where('status', 'open');
+                if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
+                    $commentQuery->whereNull('parent_id');
+                }
+                $commentQuery->update([
+                    'status' => 'addressed',
+                    'resolved_by_user_id' => null,
+                    'resolved_at' => null,
+                ]);
+
+                ReclassificationMoveRequest::query()
+                    ->where('reclassification_application_id', $section->reclassification_application_id)
+                    ->where('source_section_code', (string) $section->section_code)
+                    ->where('source_criterion_key', (string) $entry->criterion_key)
+                    ->where('status', 'pending')
+                    ->update([
+                        'status' => 'addressed',
+                        'resolved_by_user_id' => null,
+                        'resolved_at' => null,
+                    ]);
                 return;
             }
 
@@ -1965,6 +2033,16 @@ class ReclassificationFormController extends Controller
             return (int) $value === 1;
         }
         return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function isCommentEntryRemoved($entry): bool
+    {
+        if (!$entry) {
+            return false;
+        }
+
+        $data = is_array($entry->data) ? $entry->data : [];
+        return $this->isRowRemoved($data);
     }
 
     private function isRowEmpty(array $row): bool

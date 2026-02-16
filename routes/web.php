@@ -15,6 +15,7 @@ use App\Http\Controllers\ReclassificationAdminController;
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
 use App\Models\User;
+use Illuminate\Support\Facades\Schema;
 
 /*
 |--------------------------------------------------------------------------
@@ -56,8 +57,18 @@ Route::middleware(['auth'])->group(function () {
         $applications = ReclassificationApplication::where('faculty_user_id', $user->id)
             ->latest()
             ->get();
+        $promotionNotification = null;
+        if (Schema::hasTable('notifications')) {
+            $promotionNotification = $user->unreadNotifications()
+                ->where('type', \App\Notifications\ReclassificationPromotedNotification::class)
+                ->latest()
+                ->first();
+            if ($promotionNotification) {
+                $promotionNotification->markAsRead();
+            }
+        }
 
-        return view('dashboards.faculty', compact('user', 'applications'));
+        return view('dashboards.faculty', compact('user', 'applications', 'promotionNotification'));
     })->name('faculty.dashboard');
 
     Route::middleware(['role:dean'])->get('/dean/dashboard', function () {
@@ -112,6 +123,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('dean.faculty.index');
         Route::get('/dean/submissions', [ReclassificationAdminController::class, 'deanIndex'])
             ->name('dean.submissions');
+        Route::get('/dean/approved', [ReclassificationAdminController::class, 'deanApproved'])
+            ->name('dean.approved');
     });
 
     Route::middleware(['role:dean,hr,vpaa,president'])->prefix('reclassification')->group(function () {
@@ -228,6 +241,23 @@ Route::middleware(['auth'])->group(function () {
     Route::middleware(['role:vpaa,president'])->prefix('reclassification')->group(function () {
         Route::get('/all-submissions', [ReclassificationAdminController::class, 'index'])
             ->name('reclassification.review.submissions');
+        Route::get('/approved-list', [ReclassificationAdminController::class, 'reviewerApproved'])
+            ->name('reclassification.review.approved');
+    });
+
+    Route::middleware(['role:dean,hr,vpaa,president'])->prefix('reclassification')->group(function () {
+        Route::get('/history', [ReclassificationAdminController::class, 'history'])
+            ->name('reclassification.history');
+    });
+
+    Route::middleware(['role:vpaa'])->prefix('reclassification')->group(function () {
+        Route::post('/approved-list/forward', [ReclassificationAdminController::class, 'forwardApprovedToPresident'])
+            ->name('reclassification.review.approved.forward');
+    });
+
+    Route::middleware(['role:president'])->prefix('reclassification')->group(function () {
+        Route::post('/approved-list/finalize', [ReclassificationAdminController::class, 'finalizeApprovedByPresident'])
+            ->name('reclassification.review.approved.finalize');
     });
 
     /*
@@ -335,12 +365,16 @@ Route::middleware(['auth'])->group(function () {
 
         Route::post('/row-comments/{comment}/resolve', [ReclassificationRowCommentController::class, 'resolve'])
             ->name('reclassification.row-comments.resolve');
+        Route::delete('/row-comments/{comment}', [ReclassificationRowCommentController::class, 'destroy'])
+            ->name('reclassification.row-comments.destroy');
 
         Route::post('/{application}/entries/{entry}/move-request', [ReclassificationMoveRequestController::class, 'store'])
             ->name('reclassification.move-requests.store');
 
         Route::post('/move-requests/{moveRequest}/resolve', [ReclassificationMoveRequestController::class, 'resolve'])
             ->name('reclassification.move-requests.resolve');
+        Route::delete('/move-requests/{moveRequest}', [ReclassificationMoveRequestController::class, 'destroy'])
+            ->name('reclassification.move-requests.destroy');
     });
 
     /*

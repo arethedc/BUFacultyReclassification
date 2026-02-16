@@ -32,6 +32,12 @@
                                placeholder="AY 2026 1st Sem">
                     </div>
                     <div>
+                        <label class="block text-xs font-semibold text-gray-600 mb-1">Cycle Year</label>
+                        <input type="text" name="cycle_year" required
+                               class="w-full rounded-xl border-gray-300 focus:border-bu focus:ring-bu"
+                               placeholder="2023-2026">
+                    </div>
+                    <div>
                         <label class="block text-xs font-semibold text-gray-600 mb-1">Start (optional)</label>
                         <input type="datetime-local" name="start_at"
                                class="w-full rounded-xl border-gray-300 focus:border-bu focus:ring-bu">
@@ -58,7 +64,7 @@
                     </div>
                     @if($openPeriod)
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border bg-green-50 text-green-700 border-green-200">
-                            Open: {{ $openPeriod->name }}
+                            Open: {{ $openPeriod->name }} ({{ $openPeriod->cycle_year ?? 'No cycle' }})
                         </span>
                     @else
                         <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border bg-gray-50 text-gray-600 border-gray-200">
@@ -72,6 +78,7 @@
                         <thead class="bg-gray-50 text-left">
                             <tr>
                                 <th class="px-4 py-2">Name</th>
+                                <th class="px-4 py-2">Cycle</th>
                                 <th class="px-4 py-2">Status</th>
                                 <th class="px-4 py-2">Start</th>
                                 <th class="px-4 py-2">End</th>
@@ -82,6 +89,7 @@
                             @forelse ($periods as $period)
                                 <tr>
                                     <td class="px-4 py-2 font-medium text-gray-800">{{ $period->name }}</td>
+                                    <td class="px-4 py-2 text-gray-600">{{ $period->cycle_year ?? '-' }}</td>
                                     <td class="px-4 py-2">
                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border {{ $period->is_open ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-600 border-gray-200' }}">
                                             {{ $period->is_open ? 'Open' : 'Closed' }}
@@ -101,7 +109,7 @@
                                 </tr>
                             @empty
                                 <tr>
-                                    <td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">
+                                    <td colspan="6" class="px-4 py-6 text-center text-sm text-gray-500">
                                         No submission periods yet.
                                     </td>
                                 </tr>

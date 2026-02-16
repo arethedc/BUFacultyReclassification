@@ -9,6 +9,37 @@ use Illuminate\Http\Request;
 
 class ReclassificationRowCommentController extends Controller
 {
+    private function isEntryRemoved(?ReclassificationSectionEntry $entry): bool
+    {
+        if (!$entry) {
+            return false;
+        }
+
+        $data = is_array($entry->data) ? $entry->data : [];
+        $value = $data['is_removed'] ?? false;
+
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function respond(Request $request, string $message)
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+            ]);
+        }
+
+        return back()->with('success', $message);
+    }
+
     public function store(Request $request, ReclassificationApplication $application, ReclassificationSectionEntry $entry)
     {
         abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
@@ -20,6 +51,7 @@ class ReclassificationRowCommentController extends Controller
 
         $entry->loadMissing('section');
         abort_unless($entry->section && $entry->section->reclassification_application_id === $application->id, 404);
+        abort_unless(!$this->isEntryRemoved($entry), 422, 'This entry was removed by faculty.');
 
         $body = trim((string) $validated['body']);
         $visibility = (string) ($validated['visibility'] ?? 'faculty_visible');
@@ -34,7 +66,7 @@ class ReclassificationRowCommentController extends Controller
             ->where('created_at', '>=', now()->subSeconds(15))
             ->exists();
         if ($recentDuplicate) {
-            return back()->with('success', 'Comment already saved.');
+            return $this->respond($request, 'Comment already saved.');
         }
 
         ReclassificationRowComment::create([
@@ -47,7 +79,7 @@ class ReclassificationRowCommentController extends Controller
             'status' => 'open',
         ]);
 
-        return back()->with('success', 'Comment added.');
+        return $this->respond($request, 'Comment added.');
     }
 
     public function reply(Request $request, ReclassificationRowComment $comment)
@@ -75,7 +107,7 @@ class ReclassificationRowCommentController extends Controller
             ->where('created_at', '>=', now()->subSeconds(15))
             ->exists();
         if ($recentDuplicate) {
-            return back()->with('success', 'Reply already saved.');
+            return $this->respond($request, 'Reply already saved.');
         }
 
         ReclassificationRowComment::create([
@@ -94,7 +126,7 @@ class ReclassificationRowCommentController extends Controller
             'resolved_at' => null,
         ]);
 
-        return back()->with('success', 'Reply sent. Comment marked as addressed.');
+        return $this->respond($request, 'Reply sent. Comment marked as addressed.');
     }
 
     public function address(Request $request, ReclassificationRowComment $comment)
@@ -113,7 +145,7 @@ class ReclassificationRowCommentController extends Controller
             'resolved_at' => null,
         ]);
 
-        return back()->with('success', 'Comment marked as addressed.');
+        return $this->respond($request, 'Comment marked as addressed.');
     }
 
     public function resolve(Request $request, ReclassificationRowComment $comment)
@@ -134,6 +166,25 @@ class ReclassificationRowCommentController extends Controller
             'resolved_at' => now(),
         ]);
 
-        return back()->with('success', 'Comment marked as resolved.');
+        return $this->respond($request, 'Comment marked as resolved.');
+    }
+
+    public function destroy(Request $request, ReclassificationRowComment $comment)
+    {
+        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+
+        $application = $comment->application()->with('faculty')->firstOrFail();
+
+        if ($request->user()->role === 'dean') {
+            $userDepartmentId = $request->user()->department_id;
+            abort_unless($userDepartmentId && $application->faculty?->department_id === $userDepartmentId, 403);
+        }
+
+        abort_unless(($comment->status ?? 'open') !== 'resolved', 422, 'Resolved comments cannot be removed.');
+
+        ReclassificationRowComment::where('parent_id', $comment->id)->delete();
+        $comment->delete();
+
+        return $this->respond($request, 'Comment removed.');
     }
 }

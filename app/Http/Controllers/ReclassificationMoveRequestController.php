@@ -9,6 +9,37 @@ use Illuminate\Http\Request;
 
 class ReclassificationMoveRequestController extends Controller
 {
+    private function isEntryRemoved(?ReclassificationSectionEntry $entry): bool
+    {
+        if (!$entry) {
+            return false;
+        }
+
+        $data = is_array($entry->data) ? $entry->data : [];
+        $value = $data['is_removed'] ?? false;
+
+        if (is_bool($value)) {
+            return $value;
+        }
+        if (is_numeric($value)) {
+            return (int) $value === 1;
+        }
+
+        return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
+    }
+
+    private function respond(Request $request, string $message)
+    {
+        if ($request->expectsJson() || $request->ajax()) {
+            return response()->json([
+                'ok' => true,
+                'message' => $message,
+            ]);
+        }
+
+        return back()->with('success', $message);
+    }
+
     private function criteriaMap(): array
     {
         return [
@@ -25,6 +56,7 @@ class ReclassificationMoveRequestController extends Controller
 
         $entry->loadMissing('section');
         abort_unless($entry->section && $entry->section->reclassification_application_id === $application->id, 404);
+        abort_unless(!$this->isEntryRemoved($entry), 422, 'This entry was removed by faculty.');
 
         $validated = $request->validate([
             'target' => ['required', 'string', 'max:120'],
@@ -53,7 +85,7 @@ class ReclassificationMoveRequestController extends Controller
             ->whereIn('status', ['pending', 'addressed'])
             ->exists();
         if ($duplicate) {
-            return back()->with('success', 'Move request already exists.');
+            return $this->respond($request, 'Move request already exists.');
         }
 
         ReclassificationMoveRequest::create([
@@ -67,7 +99,7 @@ class ReclassificationMoveRequestController extends Controller
             'status' => 'pending',
         ]);
 
-        return back()->with('success', 'Move request added for faculty revision.');
+        return $this->respond($request, 'Move request added for faculty revision.');
     }
 
     public function address(Request $request, ReclassificationMoveRequest $moveRequest)
@@ -76,10 +108,10 @@ class ReclassificationMoveRequestController extends Controller
         abort_unless($request->user()->id === $application->faculty_user_id, 403);
         abort_unless(in_array($application->status, ['draft', 'returned_to_faculty'], true), 422);
         if ($moveRequest->status === 'addressed') {
-            return back()->with('success', 'Move request already addressed.');
+            return $this->respond($request, 'Move request already addressed.');
         }
         if ($moveRequest->status === 'resolved') {
-            return back()->with('success', 'Move request already resolved.');
+            return $this->respond($request, 'Move request already resolved.');
         }
         abort_unless($moveRequest->status === 'pending', 422);
 
@@ -89,7 +121,7 @@ class ReclassificationMoveRequestController extends Controller
             'resolved_at' => null,
         ]);
 
-        return back()->with('success', 'Move request marked as addressed.');
+        return $this->respond($request, 'Move request marked as addressed.');
     }
 
     public function resolve(Request $request, ReclassificationMoveRequest $moveRequest)
@@ -99,7 +131,7 @@ class ReclassificationMoveRequestController extends Controller
         $application = $moveRequest->application()->with('faculty')->firstOrFail();
         abort_unless(in_array($application->status, ['dean_review', 'hr_review', 'vpaa_review', 'president_review'], true), 422);
         if ($moveRequest->status === 'resolved') {
-            return back()->with('success', 'Move request already resolved.');
+            return $this->respond($request, 'Move request already resolved.');
         }
         abort_unless($moveRequest->status === 'addressed', 422);
 
@@ -114,6 +146,24 @@ class ReclassificationMoveRequestController extends Controller
             'resolved_at' => now(),
         ]);
 
-        return back()->with('success', 'Move request marked as resolved by reviewer.');
+        return $this->respond($request, 'Move request marked as resolved by reviewer.');
+    }
+
+    public function destroy(Request $request, ReclassificationMoveRequest $moveRequest)
+    {
+        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+
+        $application = $moveRequest->application()->with('faculty')->firstOrFail();
+
+        if ($request->user()->role === 'dean') {
+            $userDepartmentId = $request->user()->department_id;
+            abort_unless($userDepartmentId && $application->faculty?->department_id === $userDepartmentId, 403);
+        }
+
+        abort_unless(($moveRequest->status ?? 'pending') !== 'resolved', 422, 'Resolved move requests cannot be removed.');
+
+        $moveRequest->delete();
+
+        return $this->respond($request, 'Move request removed.');
     }
 }

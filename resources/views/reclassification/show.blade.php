@@ -99,6 +99,7 @@
                 Returned form mode: only entries with reviewer comments are editable. Other entries are locked.
             </div>
         @endif
+        <div id="faculty-comment-threads">
         @if (($application->status ?? '') === 'returned_to_faculty' && !empty($commentThreads) && $commentThreads->count() > 0)
             <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 <div class="font-semibold text-amber-800 mb-2">Reviewer comments to address</div>
@@ -153,6 +154,10 @@
                                 <div class="mt-3 grid grid-cols-1 md:grid-cols-6 gap-2">
                                     <form method="POST"
                                           action="{{ route('reclassification.row-comments.reply', $thread) }}"
+                                          data-async-action
+                                          data-async-refresh-target="#faculty-comment-threads,#faculty-move-requests"
+                                          data-loading-text="Saving..."
+                                          data-loading-message="Saving your reply..."
                                           class="md:col-span-5">
                                         @csrf
                                         <textarea name="body"
@@ -175,6 +180,10 @@
                                     </form>
                                     <form method="POST"
                                           action="{{ route('reclassification.row-comments.address', $thread) }}"
+                                          data-async-action
+                                          data-async-refresh-target="#faculty-comment-threads,#faculty-move-requests"
+                                          data-loading-text="Saving..."
+                                          data-loading-message="Marking comment as addressed..."
                                           class="md:col-span-1 flex md:justify-end">
                                         @csrf
                                         <button type="submit"
@@ -189,6 +198,8 @@
                 </div>
             </div>
         @endif
+        </div>
+        <div id="faculty-move-requests">
         @if (($application->status ?? '') === 'returned_to_faculty' && !empty($moveRequests) && $moveRequests->count() > 0)
             <div class="mb-4 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-900">
                 <div class="font-semibold text-indigo-800 mb-2">Move requests to address</div>
@@ -221,7 +232,12 @@
                                 </span>
                             </div>
                             @if($moveStatus === 'pending')
-                                <form method="POST" action="{{ route('reclassification.move-requests.address', $move) }}">
+                                <form method="POST"
+                                      action="{{ route('reclassification.move-requests.address', $move) }}"
+                                      data-async-action
+                                      data-async-refresh-target="#faculty-comment-threads,#faculty-move-requests"
+                                      data-loading-text="Saving..."
+                                      data-loading-message="Marking move request as addressed...">
                                     @csrf
                                     <button type="submit"
                                             class="px-3 py-1.5 rounded-lg border border-indigo-300 text-xs font-semibold text-indigo-800 hover:bg-indigo-100">
@@ -234,6 +250,7 @@
                 </div>
             </div>
         @endif
+        </div>
 
         <div class="sticky top-20 z-30">
             <div class="bg-white/95 backdrop-blur border border-gray-200 rounded-2xl shadow-card">
@@ -997,6 +1014,14 @@
                     return Number(s?.points || 0);
                 },
 
+                hasResearchEquivalentNow() {
+                    return this.hasResearchEquivalent || this.sectionPoints(3) > 0;
+                },
+
+                hasAcceptedResearchOutputNow() {
+                    return this.hasAcceptedResearchOutput || this.hasResearchEquivalentNow();
+                },
+
                 eqPercent() {
                     return this.totalPoints() / 4;
                 },
@@ -1051,7 +1076,7 @@
                 },
 
                 allowedRankLabel() {
-                    if (!this.hasMasters || !this.hasResearchEquivalent) return '';
+                    if (!this.hasMasters || !this.hasResearchEquivalentNow()) return '';
                     const labels = {
                         full: 'Full Professor',
                         associate: 'Associate Professor',
@@ -1066,7 +1091,7 @@
                     };
 
                     let desired = this.pointsRank()?.track || this.track;
-                    const maxAllowed = (this.hasDoctorate && this.hasAcceptedResearchOutput) ? 'full' : 'associate';
+                    const maxAllowed = (this.hasDoctorate && this.hasAcceptedResearchOutputNow()) ? 'full' : 'associate';
                     if (order[desired] > order[maxAllowed]) desired = maxAllowed;
 
                     const oneStep = nextRank(this.track);
@@ -1086,10 +1111,10 @@
                     return [
                         { label: 'Masters degree required', ok: this.hasMasters },
                         { label: 'At least 3 years of service in BU', ok: this.hasMinBuYears },
-                        { label: 'At least one research output/equivalent', ok: this.hasResearchEquivalent },
+                        { label: 'At least one research output/equivalent', ok: this.hasResearchEquivalentNow() },
                         {
                             label: 'Doctorate + accepted research output for Full Professor',
-                            ok: !needsDoctorate || (this.hasDoctorate && this.hasAcceptedResearchOutput),
+                            ok: !needsDoctorate || (this.hasDoctorate && this.hasAcceptedResearchOutputNow()),
                             optional: !needsDoctorate,
                         },
                     ];
@@ -1098,7 +1123,7 @@
                 canFinalSubmit() {
                     if (!this.hasMasters) return false;
                     if (!this.hasMinBuYears) return false;
-                    if (!this.hasResearchEquivalent) return false;
+                    if (!this.hasResearchEquivalentNow()) return false;
                     return true;
                 },
 
@@ -1473,8 +1498,16 @@
                     return `${labels[hit.track]} â€“ ${hit.letter}`;
                 },
 
+                hasResearchEquivalentNow() {
+                    return this.hasResearchEquivalent || Number(this.s3 || 0) > 0;
+                },
+
+                hasAcceptedResearchOutputNow() {
+                    return this.hasAcceptedResearchOutput || this.hasResearchEquivalentNow();
+                },
+
                 allowedRankLabel() {
-                    if (!this.hasMasters || !this.hasResearchEquivalent) return '';
+                    if (!this.hasMasters || !this.hasResearchEquivalentNow()) return '';
                     const labels = {
                         full: 'Full Professor',
                         associate: 'Associate Professor',
@@ -1489,7 +1522,7 @@
                     };
 
                     let desired = this.pointsRank()?.track || this.track;
-                    const maxAllowed = (this.hasDoctorate && this.hasAcceptedResearchOutput) ? 'full' : 'associate';
+                    const maxAllowed = (this.hasDoctorate && this.hasAcceptedResearchOutputNow()) ? 'full' : 'associate';
                     if (order[desired] > order[maxAllowed]) desired = maxAllowed;
 
                     const oneStep = nextRank(this.track);
@@ -1507,7 +1540,7 @@
                 canFinalSubmit() {
                     if (!this.hasMasters) return false;
                     if (!this.hasMinBuYears) return false;
-                    if (!this.hasResearchEquivalent) return false;
+                    if (!this.hasResearchEquivalentNow()) return false;
                     return true;
                 },
             }
@@ -1600,5 +1633,6 @@
             <span x-text="libraryToast.message"></span>
         </div>
     </div>
+    @include('reclassification.partials.async-actions')
     </div>
 </x-app-layout>

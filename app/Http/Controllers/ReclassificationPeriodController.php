@@ -20,6 +20,7 @@ class ReclassificationPeriodController extends Controller
     {
         $data = $request->validate([
             'name' => ['required', 'string', 'max:255'],
+            'cycle_year' => ['required', 'regex:/^\d{4}\-\d{4}$/'],
             'start_at' => ['nullable', 'date'],
             'end_at' => ['nullable', 'date', 'after_or_equal:start_at'],
         ]);

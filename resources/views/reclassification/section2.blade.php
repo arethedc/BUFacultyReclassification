@@ -12,11 +12,20 @@
   $actionRoute = $actionRoute ?? route('reclassification.section.save', 2);
   $readOnly = $readOnly ?? false;
   $embedded = $embedded ?? false;
+  $asyncRefreshTarget = $asyncRefreshTarget ?? null;
+  $useAsyncSave = !$readOnly && !empty($asyncRefreshTarget);
 @endphp
 
 <form method="POST"
       action="{{ $actionRoute }}"
       data-validate-evidence
+      @if($useAsyncSave)
+      data-async-action
+      data-async-refresh-target="{{ $asyncRefreshTarget }}"
+      data-loading-text="Saving..."
+      data-loading-message="Saving Section II..."
+      data-success-message="Section II saved."
+      @endif
       data-view-only="{{ $readOnly ? 'true' : 'false' }}">
 @csrf
 
@@ -453,8 +462,16 @@ Counted (capped):
                 </p>
             </div>
 
-            {{-- ACTIONS --}}
+{{-- ACTIONS --}}
 <div class="flex justify-end gap-4 pt-2">
+    @php
+        $section2Saved = str_contains(strtolower((string) session('success', '')), 'section ii');
+    @endphp
+    @if($section2Saved)
+        <span class="self-center text-xs font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg px-3 py-1.5">
+            Section II saved.
+        </span>
+    @endif
     <button type="button"
             @click="clearAll()"
             @if($readOnly) disabled @endif

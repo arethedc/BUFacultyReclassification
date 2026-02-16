@@ -16,6 +16,11 @@ class ReclassificationReviewController extends Controller
         $user = $request->user();
         $departmentId = $user->department_id;
         $role = strtolower((string) $user->role);
+        if ($role === 'president') {
+            return redirect()
+                ->route('reclassification.review.approved')
+                ->with('success', 'President approves the cycle list from Approved List.');
+        }
         $status = $this->statusForRole($role);
 
         $applicationsQuery = ReclassificationApplication::with(['faculty.department', 'sections'])
@@ -396,7 +401,7 @@ class ReclassificationReviewController extends Controller
             'dean' => 'dean_review',
             'hr' => 'hr_review',
             'vpaa' => 'vpaa_review',
-            'president' => 'president_review',
+            'president' => null,
             default => null,
         };
     }

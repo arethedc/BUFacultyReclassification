@@ -8,6 +8,7 @@ class ReclassificationPeriod extends Model
 {
     protected $fillable = [
         'name',
+        'cycle_year',
         'is_open',
         'start_at',
         'end_at',
@@ -19,4 +20,9 @@ class ReclassificationPeriod extends Model
         'start_at' => 'datetime',
         'end_at' => 'datetime',
     ];
+
+    public function applications()
+    {
+        return $this->hasMany(ReclassificationApplication::class, 'period_id');
+    }
 }

@@ -4,6 +4,8 @@ namespace App\Http\Controllers;
 
 use App\Models\RankLevel;
 use App\Models\ReclassificationApplication;
+use App\Models\ReclassificationPeriod;
+use App\Notifications\ReclassificationPromotedNotification;
 use App\Support\ReclassificationEligibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -11,6 +13,18 @@ use Illuminate\Support\Facades\Schema;
 
 class ReclassificationWorkflowController extends Controller
 {
+    private function activePeriod(): ?ReclassificationPeriod
+    {
+        if (!Schema::hasTable('reclassification_periods')) {
+            return null;
+        }
+
+        return ReclassificationPeriod::query()
+            ->where('is_open', true)
+            ->orderByDesc('created_at')
+            ->first();
+    }
+
     private function stepLabel(string $step): string
     {
         return match ($step) {
@@ -284,6 +298,34 @@ class ReclassificationWorkflowController extends Controller
         ]);
 
         $this->applyFacultyRankIfHigher($application, $approval['approved_rank_label']);
+        $this->notifyFacultyPromotion($application, $approval['current_rank_label'], $approval['approved_rank_label']);
+    }
+
+    public function finalizeForApproval(ReclassificationApplication $application, $approver): void
+    {
+        $this->finalizeApplication($application, $approver);
+    }
+
+    private function notifyFacultyPromotion(
+        ReclassificationApplication $application,
+        string $fromRank,
+        string $toRank
+    ): void {
+        if (!Schema::hasTable('notifications')) {
+            return;
+        }
+
+        $faculty = $application->faculty;
+        if (!$faculty) {
+            return;
+        }
+
+        $faculty->notify(new ReclassificationPromotedNotification(
+            applicationId: $application->id,
+            fromRank: $fromRank,
+            toRank: $toRank,
+            cycleYear: (string) ($application->cycle_year ?? ''),
+        ));
     }
 
     public function submit(Request $request, ReclassificationApplication $application)
@@ -293,6 +335,30 @@ class ReclassificationWorkflowController extends Controller
 
         // Only draft/returned can submit
         abort_unless(in_array($application->status, ['draft', 'returned_to_faculty'], true), 422);
+
+        $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
+        $hasPeriodsTable = Schema::hasTable('reclassification_periods');
+        $activePeriod = $this->activePeriod();
+        if ($hasPeriodsTable && !$activePeriod) {
+            return back()->withErrors([
+                'submit' => 'Submissions are currently closed. Please wait for HR to open a submission period.',
+            ]);
+        }
+
+        if (
+            $hasPeriodId
+            && $activePeriod
+            && !$application->period_id
+            && (string) $application->cycle_year === (string) $activePeriod->cycle_year
+        ) {
+            $application->update(['period_id' => $activePeriod->id]);
+        }
+
+        if ($hasPeriodId && $activePeriod && (int) ($application->period_id ?? 0) !== (int) $activePeriod->id) {
+            return back()->withErrors([
+                'submit' => 'This draft belongs to a different cycle. Please open your active-cycle draft.',
+            ]);
+        }
 
         $eligibility = ReclassificationEligibility::evaluate($application, $request->user());
         if (!($eligibility['canSubmit'] ?? false)) {
@@ -377,6 +443,7 @@ class ReclassificationWorkflowController extends Controller
         $map = [
             'dean_review' => ['next_status' => 'hr_review', 'next_step' => 'hr'],
             'hr_review' => ['next_status' => 'vpaa_review', 'next_step' => 'vpaa'],
+            'vpaa_review' => ['next_status' => 'president_review', 'next_step' => 'president'],
         ];
 
         if ($application->status === 'finalized') {
@@ -385,16 +452,17 @@ class ReclassificationWorkflowController extends Controller
                 ->with('success', 'The form is already finalized.');
         }
 
-        if (in_array($application->status, ['vpaa_review', 'president_review'], true)) {
-            $this->finalizeApplication($application, $request->user());
-
+        if ($application->status === 'president_review') {
             return redirect()
-                ->route('reclassification.review.queue')
-                ->with('success', 'The form is successfully approved and finalized.');
+                ->route('reclassification.review.approved')
+                ->withErrors([
+                    'approved_list' => 'President approval is done from Approved List (batch).',
+                ]);
         }
 
         abort_unless(isset($map[$application->status]), 422);
 
+        $fromStatus = (string) $application->status;
         $next = $map[$application->status];
 
         $application->update([
@@ -402,6 +470,12 @@ class ReclassificationWorkflowController extends Controller
             'current_step' => $next['next_step'],
             'returned_from' => null,
         ]);
+
+        if ($fromStatus === 'vpaa_review') {
+            return redirect()
+                ->route('reclassification.review.queue')
+                ->with('success', 'The form is approved by VPAA and added to the President list.');
+        }
 
         $target = $this->stepLabel($next['next_step']);
         return redirect()

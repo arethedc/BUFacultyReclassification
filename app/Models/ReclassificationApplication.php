@@ -8,6 +8,7 @@ class ReclassificationApplication extends Model
 {
     protected $fillable = [
         'faculty_user_id',
+        'period_id',
         'cycle_year',
         'status',
         'current_step',
@@ -34,6 +35,11 @@ class ReclassificationApplication extends Model
     public function sections()
     {
         return $this->hasMany(ReclassificationSection::class, 'reclassification_application_id');
+    }
+
+    public function period()
+    {
+        return $this->belongsTo(ReclassificationPeriod::class, 'period_id');
     }
 
     public function rowComments()

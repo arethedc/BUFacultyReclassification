@@ -21,13 +21,17 @@
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
-                        <a href="{{ route('reclassification.review.queue') }}"
-                           class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
-                            Review Queue
-                        </a>
                         <a href="{{ route('reclassification.review.submissions') }}"
-                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                           class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
                             All Submissions
+                        </a>
+                        <a href="{{ route('reclassification.review.approved') }}"
+                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                            Approved List
+                        </a>
+                        <a href="{{ route('reclassification.history') }}"
+                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                            Reclassification History
                         </a>
                     </div>
                 </div>

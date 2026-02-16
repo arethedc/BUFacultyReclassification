@@ -205,7 +205,7 @@
     </x-slot>
 
     <div class="py-10 bg-bu-muted min-h-screen">
-        <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div id="reviewer-content" class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
             @if (session('success'))
                 <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                     {{ session('success') }}
@@ -227,19 +227,20 @@
                         $nextLabel = match($application->status) {
                             'dean_review' => 'Forward to HR',
                             'hr_review' => 'Forward to VPAA',
-                            'vpaa_review' => 'Approve & Finalize',
-                            'president_review' => 'Finalize (Legacy)',
+                            'vpaa_review' => 'Approve for President List',
+                            'president_review' => 'Use Approved List',
                             default => 'Forward',
                         };
+                        $canForwardPerPaper = in_array($application->status, ['dean_review','hr_review','vpaa_review'], true);
                     @endphp
-                    <form method="POST" action="{{ route('reclassification.return', $application) }}">
-                        @csrf
-                        <button type="submit"
-                                class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold">
-                            Return to Faculty
-                        </button>
-                    </form>
-                    @if(in_array($application->status, ['dean_review','hr_review','vpaa_review','president_review'], true))
+                    @if($canForwardPerPaper)
+                        <form method="POST" action="{{ route('reclassification.return', $application) }}">
+                            @csrf
+                            <button type="submit"
+                                    class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold">
+                                Return to Faculty
+                            </button>
+                        </form>
                         <form method="POST" action="{{ route('reclassification.forward', $application) }}">
                             @csrf
                             <button type="submit"
@@ -280,8 +281,29 @@
                                     <span class="inline-flex items-center px-2 py-0.5 rounded-full border text-[11px] {{ $mvStatusClass }}">
                                         {{ $mvStatusLabel }}
                                     </span>
+                                    @if($mvStatus !== 'resolved')
+                                        <form method="POST"
+                                              action="{{ route('reclassification.move-requests.destroy', $move) }}"
+                                              data-async-action
+                                              data-async-refresh-target="#reviewer-content"
+                                              data-loading-text="Removing..."
+                                              data-loading-message="Removing move request..."
+                                              data-confirm="Remove this move request?">
+                                            @csrf
+                                            @method('DELETE')
+                                            <button type="submit"
+                                                    class="px-3 py-1.5 rounded-lg border border-red-200 bg-red-50 text-xs font-semibold text-red-700 hover:bg-red-100">
+                                                Remove
+                                            </button>
+                                        </form>
+                                    @endif
                                     @if($mvStatus === 'addressed')
-                                        <form method="POST" action="{{ route('reclassification.move-requests.resolve', $move) }}">
+                                        <form method="POST"
+                                              action="{{ route('reclassification.move-requests.resolve', $move) }}"
+                                              data-async-action
+                                              data-async-refresh-target="#reviewer-content"
+                                              data-loading-text="Saving..."
+                                              data-loading-message="Resolving move request...">
                                             @csrf
                                             <button type="submit"
                                                     class="px-3 py-1.5 rounded-lg border border-green-200 bg-green-50 text-xs font-semibold text-green-700 hover:bg-green-100">
@@ -398,16 +420,26 @@
                                                 @foreach($rows as $entry)
                                                     @php
                                                         $data = is_array($entry->data) ? $entry->data : [];
+                                                        $isRemoved = in_array(strtolower((string) ($data['is_removed'] ?? '')), ['1', 'true', 'yes', 'on'], true);
                                                         $title = $entry->title ?: ($data['text'] ?? $data['title'] ?? 'Entry');
                                                         $evidences = $entry->evidences ?? collect();
                                                         $rowComments = $entry->rowComments ?? collect();
                                                     @endphp
-                                                    <tr>
-                                                        <td class="px-4 py-2 font-medium text-gray-800">{{ $title }}</td>
+                                                    <tr class="{{ $isRemoved ? 'bg-gray-100/70' : '' }}">
+                                                        <td class="px-4 py-2 font-medium {{ $isRemoved ? 'text-gray-500' : 'text-gray-800' }}">
+                                                            <div class="flex items-center gap-2">
+                                                                <span>{{ $title }}</span>
+                                                                @if($isRemoved)
+                                                                    <span class="inline-flex items-center px-2 py-0.5 rounded-full border border-gray-300 bg-gray-200 text-[10px] uppercase tracking-wide text-gray-700">
+                                                                        Removed by faculty
+                                                                    </span>
+                                                                @endif
+                                                            </div>
+                                                        </td>
                                                         <td class="px-4 py-2 text-gray-600">
                                                             <div class="space-y-1">
                                                                 @foreach($data as $key => $value)
-                                                                    @if($key === 'evidence')
+                                                                    @if(in_array((string) $key, ['evidence', 'id', 'is_removed', 'points', 'counted', 'comments'], true))
                                                                         @continue
                                                                     @endif
                                                                     <div>
@@ -450,7 +482,9 @@
                                                             @endif
                                                         </td>
                                                         <td class="px-4 py-2 text-right">
-                                                            @if($section->section_code === '1' && $criterionKey === 'c')
+                                                            @if($isRemoved)
+                                                                <div class="font-semibold text-gray-500">0.00</div>
+                                                            @elseif($section->section_code === '1' && $criterionKey === 'c')
                                                                 @php
                                                                     $roleKey = $data['role'] ?? null;
                                                                     $levelKey = $data['level'] ?? null;
@@ -501,7 +535,7 @@
                                                     @endphp
                                                     <tr class="bg-gray-50/50">
                                                         <td colspan="4" class="px-4 py-3">
-                                                            <div class="space-y-3">
+                                                            <div x-data="{ actionType: '' }" class="space-y-3">
                                                                 <div>
                                                                     <div class="text-xs font-semibold text-gray-700">Reviewer Comments</div>
                                                                     @php
@@ -543,10 +577,27 @@
                                                                                         <div class="font-medium text-gray-800">
                                                                                             {{ $comment->author?->name ?? 'Reviewer' }}
                                                                                         </div>
-                                                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border
-                                                                                            {{ $visibilityClass }}">
-                                                                                            {{ $visibilityLabel }}
-                                                                                        </span>
+                                                                                        <div class="flex items-center gap-2">
+                                                                                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border {{ $visibilityClass }}">
+                                                                                                {{ $visibilityLabel }}
+                                                                                            </span>
+                                                                                            @if(($comment->status ?? 'open') !== 'resolved')
+                                                                                                <form method="POST"
+                                                                                                      action="{{ route('reclassification.row-comments.destroy', $comment) }}"
+                                                                                                      data-async-action
+                                                                                                      data-async-refresh-target="#reviewer-content"
+                                                                                                      data-loading-text="Removing..."
+                                                                                                      data-loading-message="Removing comment..."
+                                                                                                      data-confirm="Remove this comment thread?">
+                                                                                                    @csrf
+                                                                                                    @method('DELETE')
+                                                                                                    <button type="submit"
+                                                                                                            class="px-2 py-0.5 rounded border border-red-200 bg-red-50 text-[10px] font-semibold text-red-700 hover:bg-red-100">
+                                                                                                        Remove
+                                                                                                    </button>
+                                                                                                </form>
+                                                                                            @endif
+                                                                                        </div>
                                                                                     </div>
                                                                                     <div class="mt-1 flex items-center gap-2">
                                                                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border {{ $statusClass }}">
@@ -576,7 +627,12 @@
 
                                                                                     @if($comment->visibility === 'faculty_visible' && $comment->status !== 'resolved')
                                                                                         <div class="mt-2 flex justify-end">
-                                                                                            <form method="POST" action="{{ route('reclassification.row-comments.resolve', $comment) }}">
+                                                                                            <form method="POST"
+                                                                                                  action="{{ route('reclassification.row-comments.resolve', $comment) }}"
+                                                                                                  data-async-action
+                                                                                                  data-async-refresh-target="#reviewer-content"
+                                                                                                  data-loading-text="Saving..."
+                                                                                                  data-loading-message="Resolving comment...">
                                                                                                 @csrf
                                                                                                 <button type="submit"
                                                                                                         class="px-2.5 py-1 rounded-lg border border-green-200 bg-green-50 text-[11px] font-semibold text-green-700 hover:bg-green-100">
@@ -591,7 +647,32 @@
                                                                     @endif
                                                                 </div>
 
-                                                                <form method="POST" action="{{ route('reclassification.row-comments.store', [$application, $entry]) }}" class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                                                                @if($isRemoved)
+                                                                    <div class="rounded-lg border border-gray-300 bg-gray-100 px-3 py-2 text-xs text-gray-700">
+                                                                        This entry was removed by faculty. New comments and move requests are disabled.
+                                                                    </div>
+                                                                @else
+                                                                    <div class="rounded-lg border border-gray-200 bg-white px-3 py-2">
+                                                                        <label class="text-xs font-semibold text-gray-700">Add action</label>
+                                                                        <select x-model="actionType" class="mt-1 w-full rounded-lg border-gray-300 text-xs">
+                                                                            <option value="">Select action</option>
+                                                                            <option value="comment">Comment</option>
+                                                                            @if(auth()->user()->role === 'dean')
+                                                                                <option value="move">Move request</option>
+                                                                            @endif
+                                                                        </select>
+                                                                    </div>
+                                                                @endif
+
+                                                                <form x-show="!{{ $isRemoved ? 'true' : 'false' }} && actionType === 'comment'"
+                                                                      x-cloak
+                                                                      method="POST"
+                                                                      action="{{ route('reclassification.row-comments.store', [$application, $entry]) }}"
+                                                                      data-async-action
+                                                                      data-async-refresh-target="#reviewer-content"
+                                                                      data-loading-text="Saving..."
+                                                                      data-loading-message="Saving comment..."
+                                                                      class="grid grid-cols-1 md:grid-cols-6 gap-3">
                                                                     @csrf
                                                                     <div class="md:col-span-4">
                                                                         <label class="text-xs text-gray-600">Add comment</label>
@@ -646,15 +727,36 @@
                                                                                         @if($move->note)
                                                                                             <div class="mt-1">{{ $move->note }}</div>
                                                                                         @endif
-                                                                                        @if($move->status === 'addressed')
-                                                                                            <div class="mt-2 flex justify-end">
-                                                                                                <form method="POST" action="{{ route('reclassification.move-requests.resolve', $move) }}">
+                                                                                        @if($move->status !== 'resolved')
+                                                                                            <div class="mt-2 flex justify-end gap-2">
+                                                                                                <form method="POST"
+                                                                                                      action="{{ route('reclassification.move-requests.destroy', $move) }}"
+                                                                                                      data-async-action
+                                                                                                      data-async-refresh-target="#reviewer-content"
+                                                                                                      data-loading-text="Removing..."
+                                                                                                      data-loading-message="Removing move request..."
+                                                                                                      data-confirm="Remove this move request?">
+                                                                                                    @csrf
+                                                                                                    @method('DELETE')
+                                                                                                    <button type="submit"
+                                                                                                            class="px-2.5 py-1 rounded border border-red-200 bg-red-50 text-red-700 font-semibold hover:bg-red-100">
+                                                                                                        Remove
+                                                                                                    </button>
+                                                                                                </form>
+                                                                                                @if($move->status === 'addressed')
+                                                                                                <form method="POST"
+                                                                                                      action="{{ route('reclassification.move-requests.resolve', $move) }}"
+                                                                                                      data-async-action
+                                                                                                      data-async-refresh-target="#reviewer-content"
+                                                                                                      data-loading-text="Saving..."
+                                                                                                      data-loading-message="Resolving move request...">
                                                                                                     @csrf
                                                                                                     <button type="submit"
                                                                                                             class="px-2.5 py-1 rounded border border-green-200 bg-green-50 text-green-700 font-semibold hover:bg-green-100">
                                                                                                         Mark Resolved
                                                                                                     </button>
                                                                                                 </form>
+                                                                                                @endif
                                                                                             </div>
                                                                                         @endif
                                                                                     </div>
@@ -662,7 +764,15 @@
                                                                             </div>
                                                                         @endif
 
-                                                                        <form method="POST" action="{{ route('reclassification.move-requests.store', [$application, $entry]) }}" class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                                                                        <form x-show="!{{ $isRemoved ? 'true' : 'false' }} && actionType === 'move'"
+                                                                              x-cloak
+                                                                              method="POST"
+                                                                              action="{{ route('reclassification.move-requests.store', [$application, $entry]) }}"
+                                                                              data-async-action
+                                                                              data-async-refresh-target="#reviewer-content"
+                                                                              data-loading-text="Saving..."
+                                                                              data-loading-message="Saving move request..."
+                                                                              class="grid grid-cols-1 md:grid-cols-6 gap-3">
                                                                             @csrf
                                                                             <div class="md:col-span-4">
                                                                                 <label class="text-xs text-gray-700">Target Criterion</label>
@@ -713,6 +823,7 @@
                                 'sectionData' => $section2Data ?? [],
                                 'actionRoute' => route('reclassification.review.section2.save', $application),
                                 'readOnly' => false,
+                                'asyncRefreshTarget' => '#reviewer-content',
                             ])
                         @else
                             @php
@@ -780,4 +891,5 @@
             @endforeach
         </div>
     </div>
+    @include('reclassification.partials.async-actions')
 </x-app-layout>
