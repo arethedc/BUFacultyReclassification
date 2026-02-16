@@ -137,6 +137,9 @@ class ReclassificationRowCommentController extends Controller
         abort_unless($application->status === 'returned_to_faculty', 422);
         abort_unless($comment->parent_id === null, 422);
         abort_unless($comment->visibility === 'faculty_visible', 422);
+        if ($comment->status === 'addressed') {
+            return $this->respond($request, 'Comment already addressed.');
+        }
         abort_unless($comment->status !== 'resolved', 422);
 
         $comment->update([
@@ -154,6 +157,14 @@ class ReclassificationRowCommentController extends Controller
 
         $application = $comment->application()->with('faculty')->firstOrFail();
         abort_unless($comment->parent_id === null, 422);
+        if ($comment->status === 'resolved') {
+            return $this->respond($request, 'Comment already resolved.');
+        }
+        abort_unless(
+            $comment->status === 'addressed',
+            422,
+            'Cannot resolve yet. Faculty must mark this comment as addressed first.'
+        );
 
         if ($request->user()->role === 'dean') {
             $userDepartmentId = $request->user()->department_id;

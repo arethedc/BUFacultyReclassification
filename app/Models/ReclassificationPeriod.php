@@ -9,6 +9,7 @@ class ReclassificationPeriod extends Model
     protected $fillable = [
         'name',
         'cycle_year',
+        'status',
         'is_open',
         'start_at',
         'end_at',

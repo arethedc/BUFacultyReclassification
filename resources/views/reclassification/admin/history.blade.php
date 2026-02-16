@@ -17,11 +17,11 @@
             <form method="GET" action="{{ $indexRoute }}"
                   class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 grid grid-cols-1 md:grid-cols-5 gap-4">
                 <div class="md:col-span-2">
-                    <label class="block text-xs font-semibold text-gray-600">Search</label>
+                    <label class="block text-xs font-semibold text-gray-600">Search Period</label>
                     <input type="text"
                            name="q"
                            value="{{ $q }}"
-                           placeholder="Faculty name or email"
+                           placeholder="Search by period name or cycle"
                            class="mt-1 w-full rounded-xl border border-gray-300 bg-white focus:border-bu focus:ring-bu">
                 </div>
                 @if($showDepartmentFilter)
@@ -31,7 +31,7 @@
                                 class="mt-1 w-full rounded-xl border border-gray-300 bg-white focus:border-bu focus:ring-bu">
                             <option value="">All Departments</option>
                             @foreach($departments as $dept)
-                                <option value="{{ $dept->id }}" @selected((string) $departmentId === (string) $dept->id)>
+                                <option value="{{ $dept->id }}" @selected((string) $filterDepartmentId === (string) $dept->id)>
                                     {{ $dept->name }}
                                 </option>
                             @endforeach
@@ -39,105 +39,110 @@
                     </div>
                 @endif
                 <div>
-                    <label class="block text-xs font-semibold text-gray-600">Cycle Year</label>
-                    <select name="cycle_year"
+                    <label class="block text-xs font-semibold text-gray-600">Rank</label>
+                    <select name="rank_level_id"
                             class="mt-1 w-full rounded-xl border border-gray-300 bg-white focus:border-bu focus:ring-bu">
-                        <option value="">All Cycles</option>
-                        @foreach($cycleYears as $year)
-                            <option value="{{ $year }}" @selected((string) $cycleYear === (string) $year)>
-                                {{ $year }}
+                        <option value="">All Ranks</option>
+                        @foreach($rankLevels as $level)
+                            <option value="{{ $level->id }}" @selected((string) $rankLevelId === (string) $level->id)>
+                                {{ $level->title }}
                             </option>
                         @endforeach
                     </select>
                 </div>
-                <div class="md:col-span-5 flex items-center justify-end gap-2">
+                <div class="flex items-end justify-end gap-2">
                     <a href="{{ $indexRoute }}"
                        class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
                         Reset
                     </a>
                     <button type="submit"
                             class="px-4 py-2 rounded-xl bg-bu text-white shadow-soft">
-                        Apply Filters
+                        Search
                     </button>
                 </div>
             </form>
 
             @php
-                $totalPromoted = (int) $applications->count();
-                $totalCycles = (int) $cycleSummaries->count();
-                $latestCycle = $cycleSummaries->first()?->cycle_year;
+                $totalPeriods = (int) $periods->count();
+                $totalApproved = (int) $periods->sum('approved_count');
+                $openCount = (int) $periods->where('is_open', true)->count();
             @endphp
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-5">
-                    <div class="text-xs text-gray-500">Total Cycles</div>
-                    <div class="text-2xl font-semibold text-gray-800">{{ $totalCycles }}</div>
+                    <div class="text-xs text-gray-500">Total Periods</div>
+                    <div class="text-2xl font-semibold text-gray-800">{{ $totalPeriods }}</div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-5">
                     <div class="text-xs text-gray-500">Total Approved Promotions</div>
-                    <div class="text-2xl font-semibold text-gray-800">{{ $totalPromoted }}</div>
+                    <div class="text-2xl font-semibold text-gray-800">{{ $totalApproved }}</div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-5">
-                    <div class="text-xs text-gray-500">Latest Cycle</div>
-                    <div class="text-2xl font-semibold text-gray-800">{{ $latestCycle ?: '-' }}</div>
+                    <div class="text-xs text-gray-500">Open Periods</div>
+                    <div class="text-2xl font-semibold text-gray-800">{{ $openCount }}</div>
                 </div>
             </div>
 
-            @if($applicationsByCycle->isEmpty())
-                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 text-sm text-gray-500">
-                    No finalized records found.
+            <div class="bg-white rounded-2xl shadow-card border border-gray-200 overflow-hidden">
+                <div class="px-6 py-4 border-b border-gray-200">
+                    <h3 class="text-lg font-semibold text-gray-800">Period History</h3>
+                    <p class="text-sm text-gray-500">Open a period to view its approved reclassification list.</p>
                 </div>
-            @else
-                <div class="space-y-4">
-                    @foreach($applicationsByCycle as $cycle => $cycleApps)
-                        <div x-data="{ open: false }" class="bg-white rounded-2xl shadow-card border border-gray-200 overflow-hidden">
-                            <button type="button"
-                                    @click="open = !open"
-                                    class="w-full px-6 py-4 border-b border-gray-200 flex items-center justify-between text-left">
-                                <div>
-                                    <div class="text-xs text-gray-500">Cycle</div>
-                                    <div class="text-lg font-semibold text-gray-800">{{ $cycle }}</div>
-                                </div>
-                                <div class="flex items-center gap-3">
-                                    <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold border bg-green-50 text-green-700 border-green-200">
-                                        {{ $cycleApps->count() }} approved
-                                    </span>
-                                    <span class="text-sm text-gray-600" x-text="open ? 'Hide List' : 'Show List'"></span>
-                                </div>
-                            </button>
 
-                            <div x-show="open" x-collapse class="p-4">
-                                <div class="overflow-x-auto">
-                                    <table class="w-full text-sm">
-                                        <thead class="bg-gray-50 text-left">
-                                            <tr>
-                                                <th class="px-4 py-2">Faculty</th>
-                                                <th class="px-4 py-2">Department</th>
-                                                <th class="px-4 py-2">From Rank</th>
-                                                <th class="px-4 py-2">Approved Rank</th>
-                                                <th class="px-4 py-2">Approved By</th>
-                                                <th class="px-4 py-2">Approved At</th>
-                                            </tr>
-                                        </thead>
-                                        <tbody class="divide-y">
-                                            @foreach($cycleApps as $app)
-                                                <tr>
-                                                    <td class="px-4 py-2 font-medium text-gray-800">{{ $app->faculty?->name ?? 'Faculty' }}</td>
-                                                    <td class="px-4 py-2 text-gray-600">{{ $app->faculty?->department?->name ?? '-' }}</td>
-                                                    <td class="px-4 py-2 text-gray-700">{{ $app->current_rank_label_at_approval ?? '-' }}</td>
-                                                    <td class="px-4 py-2 text-gray-700 font-semibold">{{ $app->approved_rank_label ?? '-' }}</td>
-                                                    <td class="px-4 py-2 text-gray-600">{{ $app->approvedBy?->name ?? '-' }}</td>
-                                                    <td class="px-4 py-2 text-gray-600">{{ optional($app->approved_at ?? $app->finalized_at)->format('M d, Y g:i A') ?? '-' }}</td>
-                                                </tr>
-                                            @endforeach
-                                        </tbody>
-                                    </table>
-                                </div>
-                            </div>
-                        </div>
-                    @endforeach
-                </div>
-            @endif
+                @if($periods->isEmpty())
+                    <div class="p-6 text-sm text-gray-500">No periods found.</div>
+                @else
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-sm">
+                            <thead class="bg-gray-50 text-left">
+                                <tr>
+                                    <th class="px-4 py-2">Name</th>
+                                    <th class="px-4 py-2">Cycle</th>
+                                    <th class="px-4 py-2">Status</th>
+                                    <th class="px-4 py-2">Submissions</th>
+                                    <th class="px-4 py-2">Approved</th>
+                                    <th class="px-4 py-2">Created</th>
+                                    <th class="px-4 py-2 text-right">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y">
+                                @foreach($periods as $period)
+                                    @php
+                                        $periodStatus = (string) ($period->status ?? ($period->is_open ? 'active' : 'ended'));
+                                        $periodStatusClass = $periodStatus === 'active'
+                                            ? 'bg-green-50 text-green-700 border-green-200'
+                                            : ($periodStatus === 'draft'
+                                                ? 'bg-blue-50 text-blue-700 border-blue-200'
+                                                : 'bg-gray-50 text-gray-600 border-gray-200');
+                                    @endphp
+                                    <tr>
+                                        <td class="px-4 py-2 font-medium text-gray-800">{{ $period->name }}</td>
+                                        <td class="px-4 py-2 text-gray-600">{{ $period->cycle_year ?? '-' }}</td>
+                                        <td class="px-4 py-2">
+                                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] border {{ $periodStatusClass }}">
+                                                {{ ucfirst($periodStatus) }}
+                                            </span>
+                                        </td>
+                                        <td class="px-4 py-2 text-gray-600">{{ (int) ($period->submission_count ?? 0) }}</td>
+                                        <td class="px-4 py-2 text-gray-700 font-semibold">{{ (int) ($period->approved_count ?? 0) }}</td>
+                                        <td class="px-4 py-2 text-gray-600">{{ optional($period->created_at)->format('M d, Y') ?? '-' }}</td>
+                                        <td class="px-4 py-2 text-right">
+                                            <a href="{{ route('reclassification.history.period', array_filter([
+                                                'period' => $period,
+                                                'department_id' => $showDepartmentFilter ? $filterDepartmentId : null,
+                                                'rank_level_id' => $rankLevelId,
+                                            ], fn ($value) => !is_null($value) && $value !== '')) }}"
+                                               class="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold border border-bu/20 text-bu hover:bg-bu/5">
+                                                View Approved List
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
+            </div>
         </div>
     </div>
 </x-app-layout>

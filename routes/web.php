@@ -57,6 +57,22 @@ Route::middleware(['auth'])->group(function () {
         $applications = ReclassificationApplication::where('faculty_user_id', $user->id)
             ->latest()
             ->get();
+        $activePeriod = ReclassificationPeriod::query()
+            ->when(
+                Schema::hasColumn('reclassification_periods', 'status'),
+                fn ($query) => $query->where('status', 'active'),
+                fn ($query) => $query->where('is_open', true)
+            )
+            ->orderByDesc('created_at')
+            ->first();
+        $openPeriod = ReclassificationPeriod::query()
+            ->when(
+                Schema::hasColumn('reclassification_periods', 'status'),
+                fn ($query) => $query->where('status', 'active')->where('is_open', true),
+                fn ($query) => $query->where('is_open', true)
+            )
+            ->orderByDesc('created_at')
+            ->first();
         $promotionNotification = null;
         if (Schema::hasTable('notifications')) {
             $promotionNotification = $user->unreadNotifications()
@@ -68,12 +84,54 @@ Route::middleware(['auth'])->group(function () {
             }
         }
 
-        return view('dashboards.faculty', compact('user', 'applications', 'promotionNotification'));
+        return view('dashboards.faculty', compact(
+            'user',
+            'applications',
+            'promotionNotification',
+            'activePeriod',
+            'openPeriod',
+        ));
     })->name('faculty.dashboard');
 
     Route::middleware(['role:dean'])->get('/dean/dashboard', function () {
         $user = request()->user()->load('department');
         $departmentId = $user->department_id;
+        $activePeriod = ReclassificationPeriod::query()
+            ->when(
+                Schema::hasColumn('reclassification_periods', 'status'),
+                fn ($query) => $query->where('status', 'active'),
+                fn ($query) => $query->where('is_open', true)
+            )
+            ->orderByDesc('created_at')
+            ->first();
+        $hasActivePeriod = (bool) $activePeriod;
+        $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
+
+        $applyActivePeriodScope = function ($query) use ($activePeriod, $hasPeriodId) {
+            if (!$activePeriod) {
+                $query->whereRaw('1 = 0');
+                return;
+            }
+
+            if (!$hasPeriodId) {
+                if (!empty($activePeriod->cycle_year)) {
+                    $query->where('cycle_year', $activePeriod->cycle_year);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+                return;
+            }
+
+            $query->where(function ($builder) use ($activePeriod) {
+                $builder->where('period_id', $activePeriod->id);
+                if (!empty($activePeriod->cycle_year)) {
+                    $builder->orWhere(function ($fallback) use ($activePeriod) {
+                        $fallback->whereNull('period_id')
+                            ->where('cycle_year', $activePeriod->cycle_year);
+                    });
+                }
+            });
+        };
 
         $statusCounts = ReclassificationApplication::query()
             ->where('status', '!=', 'draft')
@@ -82,6 +140,7 @@ Route::middleware(['auth'])->group(function () {
                     $faculty->where('department_id', $departmentId);
                 });
             })
+            ->tap($applyActivePeriodScope)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -93,6 +152,7 @@ Route::middleware(['auth'])->group(function () {
                 });
             })
             ->where('status', '!=', 'draft')
+            ->tap($applyActivePeriodScope)
             ->with(['faculty.department'])
             ->orderByDesc('submitted_at')
             ->orderByDesc('created_at')
@@ -110,7 +170,9 @@ Route::middleware(['auth'])->group(function () {
             'statusCounts',
             'recentApplications',
             'facultyCount',
-            'departmentName'
+            'departmentName',
+            'activePeriod',
+            'hasActivePeriod',
         ));
     })->name('dean.dashboard');
 
@@ -148,17 +210,60 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware(['role:hr'])->get('/hr/dashboard', function () {
+        $activePeriod = ReclassificationPeriod::query()
+            ->when(
+                Schema::hasColumn('reclassification_periods', 'status'),
+                fn ($query) => $query->where('status', 'active'),
+                fn ($query) => $query->where('is_open', true)
+            )
+            ->orderByDesc('created_at')
+            ->first();
+        $hasActivePeriod = (bool) $activePeriod;
+        $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
+
+        $applyActivePeriodScope = function ($query) use ($activePeriod, $hasPeriodId) {
+            if (!$activePeriod) {
+                $query->whereRaw('1 = 0');
+                return;
+            }
+
+            if (!$hasPeriodId) {
+                if (!empty($activePeriod->cycle_year)) {
+                    $query->where('cycle_year', $activePeriod->cycle_year);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+                return;
+            }
+
+            $query->where(function ($builder) use ($activePeriod) {
+                $builder->where('period_id', $activePeriod->id);
+                if (!empty($activePeriod->cycle_year)) {
+                    $builder->orWhere(function ($fallback) use ($activePeriod) {
+                        $fallback->whereNull('period_id')
+                            ->where('cycle_year', $activePeriod->cycle_year);
+                    });
+                }
+            });
+        };
+
         $statusCounts = ReclassificationApplication::query()
+            ->tap($applyActivePeriodScope)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
 
         $openPeriod = ReclassificationPeriod::query()
-            ->where('is_open', true)
+            ->when(
+                Schema::hasColumn('reclassification_periods', 'status'),
+                fn ($query) => $query->where('status', 'active')->where('is_open', true),
+                fn ($query) => $query->where('is_open', true)
+            )
             ->orderByDesc('created_at')
             ->first();
 
         $recentApplications = ReclassificationApplication::query()
+            ->tap($applyActivePeriodScope)
             ->with('faculty.department')
             ->orderByDesc('submitted_at')
             ->orderByDesc('created_at')
@@ -171,7 +276,9 @@ Route::middleware(['auth'])->group(function () {
             'statusCounts',
             'openPeriod',
             'recentApplications',
-            'facultyCount'
+            'facultyCount',
+            'activePeriod',
+            'hasActivePeriod',
         ));
     })->name('hr.dashboard');
 
@@ -182,6 +289,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('reclassification.periods.store');
         Route::post('/periods/{period}/toggle', [ReclassificationPeriodController::class, 'toggle'])
             ->name('reclassification.periods.toggle');
+        Route::post('/periods/{period}/submission-toggle', [ReclassificationPeriodController::class, 'toggleSubmission'])
+            ->name('reclassification.periods.submission.toggle');
         Route::get('/submissions', [ReclassificationAdminController::class, 'index'])
             ->name('reclassification.admin.submissions');
         Route::get('/approved', [ReclassificationAdminController::class, 'approved'])
@@ -189,7 +298,45 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware(['role:vpaa'])->get('/vpaa/dashboard', function () {
+        $activePeriod = ReclassificationPeriod::query()
+            ->when(
+                Schema::hasColumn('reclassification_periods', 'status'),
+                fn ($query) => $query->where('status', 'active'),
+                fn ($query) => $query->where('is_open', true)
+            )
+            ->orderByDesc('created_at')
+            ->first();
+        $hasActivePeriod = (bool) $activePeriod;
+        $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
+
+        $applyActivePeriodScope = function ($query) use ($activePeriod, $hasPeriodId) {
+            if (!$activePeriod) {
+                $query->whereRaw('1 = 0');
+                return;
+            }
+
+            if (!$hasPeriodId) {
+                if (!empty($activePeriod->cycle_year)) {
+                    $query->where('cycle_year', $activePeriod->cycle_year);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+                return;
+            }
+
+            $query->where(function ($builder) use ($activePeriod) {
+                $builder->where('period_id', $activePeriod->id);
+                if (!empty($activePeriod->cycle_year)) {
+                    $builder->orWhere(function ($fallback) use ($activePeriod) {
+                        $fallback->whereNull('period_id')
+                            ->where('cycle_year', $activePeriod->cycle_year);
+                    });
+                }
+            });
+        };
+
         $statusCounts = ReclassificationApplication::query()
+            ->tap($applyActivePeriodScope)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -197,6 +344,7 @@ Route::middleware(['auth'])->group(function () {
         $recentApplications = ReclassificationApplication::query()
             ->with('faculty.department')
             ->where('status', '!=', 'draft')
+            ->tap($applyActivePeriodScope)
             ->orderByDesc('submitted_at')
             ->orderByDesc('created_at')
             ->limit(5)
@@ -204,17 +352,58 @@ Route::middleware(['auth'])->group(function () {
 
         $totalSubmissions = ReclassificationApplication::query()
             ->where('status', '!=', 'draft')
+            ->tap($applyActivePeriodScope)
             ->count();
 
         return view('dashboards.vpaa', compact(
             'statusCounts',
             'recentApplications',
-            'totalSubmissions'
+            'totalSubmissions',
+            'activePeriod',
+            'hasActivePeriod',
         ));
     })->name('vpaa.dashboard');
 
     Route::middleware(['role:president'])->get('/president/dashboard', function () {
+        $activePeriod = ReclassificationPeriod::query()
+            ->when(
+                Schema::hasColumn('reclassification_periods', 'status'),
+                fn ($query) => $query->where('status', 'active'),
+                fn ($query) => $query->where('is_open', true)
+            )
+            ->orderByDesc('created_at')
+            ->first();
+        $hasActivePeriod = (bool) $activePeriod;
+        $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
+
+        $applyActivePeriodScope = function ($query) use ($activePeriod, $hasPeriodId) {
+            if (!$activePeriod) {
+                $query->whereRaw('1 = 0');
+                return;
+            }
+
+            if (!$hasPeriodId) {
+                if (!empty($activePeriod->cycle_year)) {
+                    $query->where('cycle_year', $activePeriod->cycle_year);
+                } else {
+                    $query->whereRaw('1 = 0');
+                }
+                return;
+            }
+
+            $query->where(function ($builder) use ($activePeriod) {
+                $builder->where('period_id', $activePeriod->id);
+                if (!empty($activePeriod->cycle_year)) {
+                    $builder->orWhere(function ($fallback) use ($activePeriod) {
+                        $fallback->whereNull('period_id')
+                            ->where('cycle_year', $activePeriod->cycle_year);
+                    });
+                }
+            });
+        };
+
         $statusCounts = ReclassificationApplication::query()
+            ->tap($applyActivePeriodScope)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
             ->pluck('total', 'status');
@@ -222,6 +411,7 @@ Route::middleware(['auth'])->group(function () {
         $recentApplications = ReclassificationApplication::query()
             ->with('faculty.department')
             ->where('status', '!=', 'draft')
+            ->tap($applyActivePeriodScope)
             ->orderByDesc('submitted_at')
             ->orderByDesc('created_at')
             ->limit(5)
@@ -229,12 +419,15 @@ Route::middleware(['auth'])->group(function () {
 
         $totalSubmissions = ReclassificationApplication::query()
             ->where('status', '!=', 'draft')
+            ->tap($applyActivePeriodScope)
             ->count();
 
         return view('dashboards.president', compact(
             'statusCounts',
             'recentApplications',
-            'totalSubmissions'
+            'totalSubmissions',
+            'activePeriod',
+            'hasActivePeriod',
         ));
     })->name('president.dashboard');
 
@@ -246,8 +439,14 @@ Route::middleware(['auth'])->group(function () {
     });
 
     Route::middleware(['role:dean,hr,vpaa,president'])->prefix('reclassification')->group(function () {
+        Route::get('/approved/print', [ReclassificationAdminController::class, 'approvedPrint'])
+            ->name('reclassification.approved.print');
+        Route::get('/approved/export-csv', [ReclassificationAdminController::class, 'approvedExportCsv'])
+            ->name('reclassification.approved.export.csv');
         Route::get('/history', [ReclassificationAdminController::class, 'history'])
             ->name('reclassification.history');
+        Route::get('/history/{period}', [ReclassificationAdminController::class, 'historyPeriod'])
+            ->name('reclassification.history.period');
     });
 
     Route::middleware(['role:vpaa'])->prefix('reclassification')->group(function () {

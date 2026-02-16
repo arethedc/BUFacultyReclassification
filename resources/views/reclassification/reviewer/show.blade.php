@@ -5,6 +5,7 @@
             'dean_review' => 'Dean Review',
             'hr_review' => 'HR Review',
             'vpaa_review' => 'VPAA Review',
+            'vpaa_approved' => 'VPAA Approved',
             'president_review' => 'President Review',
             'returned_to_faculty' => 'Returned',
             'finalized' => 'Finalized',
@@ -171,6 +172,8 @@
                 'school' => [1, 1],
             ],
         ];
+        $reviewerRole = strtolower((string) (auth()->user()->role ?? ''));
+        $canCreateMoveRequest = in_array($reviewerRole, ['dean', 'hr', 'vpaa'], true);
         $moveTargetOptions = collect($criterionLabels)
             ->except(['2'])
             ->map(function ($criteria, $sectionCode) {
@@ -227,7 +230,7 @@
                         $nextLabel = match($application->status) {
                             'dean_review' => 'Forward to HR',
                             'hr_review' => 'Forward to VPAA',
-                            'vpaa_review' => 'Approve for President List',
+                            'vpaa_review' => 'Approve to VPAA List',
                             'president_review' => 'Use Approved List',
                             default => 'Forward',
                         };
@@ -625,7 +628,7 @@
                                                                                         </div>
                                                                                     @endif
 
-                                                                                    @if($comment->visibility === 'faculty_visible' && $comment->status !== 'resolved')
+                                                                                    @if($comment->visibility === 'faculty_visible' && $comment->status === 'addressed')
                                                                                         <div class="mt-2 flex justify-end">
                                                                                             <form method="POST"
                                                                                                   action="{{ route('reclassification.row-comments.resolve', $comment) }}"
@@ -657,7 +660,7 @@
                                                                         <select x-model="actionType" class="mt-1 w-full rounded-lg border-gray-300 text-xs">
                                                                             <option value="">Select action</option>
                                                                             <option value="comment">Comment</option>
-                                                                            @if(auth()->user()->role === 'dean')
+                                                                            @if($canCreateMoveRequest)
                                                                                 <option value="move">Move request</option>
                                                                             @endif
                                                                         </select>
@@ -695,7 +698,7 @@
                                                                     </div>
                                                                 </form>
 
-                                                                @if(auth()->user()->role === 'dean')
+                                                                @if($canCreateMoveRequest)
                                                                     <div class="rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-3 space-y-3">
                                                                         <div>
                                                                             <div class="text-xs font-semibold text-indigo-800">Request move to another criterion</div>

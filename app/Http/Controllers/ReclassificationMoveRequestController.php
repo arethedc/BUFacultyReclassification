@@ -52,7 +52,7 @@ class ReclassificationMoveRequestController extends Controller
 
     public function store(Request $request, ReclassificationApplication $application, ReclassificationSectionEntry $entry)
     {
-        abort_unless($request->user()->role === 'dean', 403);
+        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa'], true), 403);
 
         $entry->loadMissing('section');
         abort_unless($entry->section && $entry->section->reclassification_application_id === $application->id, 404);
@@ -129,7 +129,7 @@ class ReclassificationMoveRequestController extends Controller
         abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
 
         $application = $moveRequest->application()->with('faculty')->firstOrFail();
-        abort_unless(in_array($application->status, ['dean_review', 'hr_review', 'vpaa_review', 'president_review'], true), 422);
+        abort_unless(in_array($application->status, ['dean_review', 'hr_review', 'vpaa_review', 'vpaa_approved', 'president_review'], true), 422);
         if ($moveRequest->status === 'resolved') {
             return $this->respond($request, 'Move request already resolved.');
         }

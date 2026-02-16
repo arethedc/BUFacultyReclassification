@@ -17,7 +17,7 @@
                             VPAA Review Stage
                         </div>
                         <div class="text-xs text-gray-500 mt-1">
-                            Review submissions and approve final reclassification results.
+                            Review papers, approve them to VPAA list, then batch-forward to President.
                         </div>
                     </div>
                     <div class="flex flex-wrap gap-2">
@@ -55,9 +55,9 @@
                     </div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
-                    <div class="text-xs text-gray-500">Finalized</div>
+                    <div class="text-xs text-gray-500">VPAA Approved List</div>
                     <div class="text-2xl font-semibold text-gray-800">
-                        {{ $statusCounts['finalized'] ?? 0 }}
+                        {{ $statusCounts['vpaa_approved'] ?? 0 }}
                     </div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
@@ -77,8 +77,10 @@
                     </a>
                 </div>
 
-                @if($recentApplications->isEmpty())
-                    <div class="text-sm text-gray-500">No submissions yet.</div>
+                    @if($recentApplications->isEmpty())
+                    <div class="text-sm text-gray-500">
+                        {{ !empty($hasActivePeriod) ? 'No submissions yet.' : 'No active period. No recent submissions.' }}
+                    </div>
                 @else
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">

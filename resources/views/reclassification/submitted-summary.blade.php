@@ -6,13 +6,9 @@
                 <p class="text-sm text-gray-500">Read-only summary of your submitted form.</p>
             </div>
             <div class="flex items-center gap-2">
-                <a href="{{ route('reclassification.submitted') }}"
-                   class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
-                    Back
-                </a>
                 <a href="{{ route('faculty.dashboard') }}"
-                   class="px-4 py-2 rounded-xl bg-bu text-white shadow">
-                    Faculty Dashboard
+                   class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
+                    Back to Dashboard
                 </a>
             </div>
         </div>
@@ -41,10 +37,12 @@
             'dean_review' => 'Dean Review',
             'hr_review' => 'HR Review',
             'vpaa_review' => 'VPAA Review',
+            'vpaa_approved' => 'VPAA Approved',
             'president_review' => 'President Review',
             'finalized' => 'Finalized',
             default => ucfirst(str_replace('_',' ', $application->status)),
         };
+        $approvedRankLabel = trim((string) ($application->approved_rank_label ?? ''));
         $criterionLabels = [
             '1' => [
                 'a1' => "A1. Bachelor's Degree (Latin honors)",
@@ -230,6 +228,12 @@
                             <div class="text-xs text-gray-500">Current Teaching Rank</div>
                             <div class="text-sm font-semibold text-gray-800">{{ $currentRankLabel ?? 'Instructor' }}</div>
                         </div>
+                        @if($approvedRankLabel !== '')
+                            <div>
+                                <div class="text-xs text-gray-500">Approved Rank</div>
+                                <div class="text-sm font-semibold text-green-700">{{ $approvedRankLabel }}</div>
+                            </div>
+                        @endif
                         <div class="space-y-2 text-sm text-gray-700">
                             <div>
                                 <div class="text-xs text-gray-500">Rank Based on Points</div>

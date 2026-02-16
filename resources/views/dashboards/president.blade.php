@@ -73,8 +73,10 @@
                     </a>
                 </div>
 
-                @if($recentApplications->isEmpty())
-                    <div class="text-sm text-gray-500">No submissions yet.</div>
+                    @if($recentApplications->isEmpty())
+                    <div class="text-sm text-gray-500">
+                        {{ !empty($hasActivePeriod) ? 'No submissions yet.' : 'No active period. No recent submissions.' }}
+                    </div>
                 @else
                     <div class="overflow-x-auto">
                         <table class="w-full text-sm">

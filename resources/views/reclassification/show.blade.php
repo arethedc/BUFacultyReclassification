@@ -24,6 +24,7 @@
                     'dean_review' => 'Dean Review',
                     'hr_review' => 'HR Review',
                     'vpaa_review' => 'VPAA Review',
+                    'vpaa_approved' => 'VPAA Approved',
                     'president_review' => 'President Review',
                     'finalized' => 'Finalized',
                     default => ucfirst(str_replace('_',' ', $status)),
@@ -37,6 +38,7 @@
                 };
 
                 $canEdit = in_array($status, ['draft', 'returned_to_faculty'], true);
+                $canSubmitByPeriod = (bool) ($submissionWindowOpen ?? true);
             @endphp
 
             <div class="flex items-center gap-3">
@@ -54,8 +56,9 @@
 
                     @if($status === 'returned_to_faculty')
                         <button type="button"
+                                @disabled(!$canSubmitByPeriod)
                                 onclick="window.reclassificationFinalSubmit && window.reclassificationFinalSubmit()"
-                                class="inline-flex items-center px-3 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft hover:bg-bu-dark transition">
+                                class="inline-flex items-center px-3 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft transition {{ $canSubmitByPeriod ? 'hover:bg-bu-dark' : 'opacity-60 cursor-not-allowed' }}">
                             Resubmit
                         </button>
                     @endif
@@ -97,6 +100,17 @@
         @if (($application->status ?? '') === 'returned_to_faculty')
             <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
                 Returned form mode: only entries with reviewer comments are editable. Other entries are locked.
+            </div>
+        @endif
+        @if(!($submissionWindowOpen ?? true) && in_array(($application->status ?? ''), ['draft', 'returned_to_faculty'], true))
+            <div x-show="active === 'review'" x-cloak class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                <div class="font-semibold">
+                    {{ ($application->status ?? '') === 'returned_to_faculty' ? 'Resubmission is closed' : 'Final submission is closed' }}
+                </div>
+                <div>
+                    {{ $submissionWindowTitle ?? 'No ongoing reclassification submission' }}.
+                    {{ $submissionWindowMessage ?? 'You can still save your draft.' }}
+                </div>
             </div>
         @endif
         <div id="faculty-comment-threads">
@@ -178,19 +192,21 @@
                                             @endif
                                         </div>
                                     </form>
-                                    <form method="POST"
-                                          action="{{ route('reclassification.row-comments.address', $thread) }}"
-                                          data-async-action
-                                          data-async-refresh-target="#faculty-comment-threads,#faculty-move-requests"
-                                          data-loading-text="Saving..."
-                                          data-loading-message="Marking comment as addressed..."
-                                          class="md:col-span-1 flex md:justify-end">
-                                        @csrf
-                                        <button type="submit"
-                                                class="px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100">
-                                            Mark Addressed
-                                        </button>
-                                    </form>
+                                    @if($status === 'open')
+                                        <form method="POST"
+                                              action="{{ route('reclassification.row-comments.address', $thread) }}"
+                                              data-async-action
+                                              data-async-refresh-target="#faculty-comment-threads,#faculty-move-requests"
+                                              data-loading-text="Saving..."
+                                              data-loading-message="Marking comment as addressed..."
+                                              class="md:col-span-1 flex md:justify-end">
+                                            @csrf
+                                            <button type="submit"
+                                                    class="px-3 py-1.5 rounded-lg border border-blue-200 bg-blue-50 text-blue-700 text-xs font-semibold hover:bg-blue-100">
+                                                Mark Addressed
+                                            </button>
+                                        </form>
+                                    @endif
                                 </div>
                             @endif
                         </div>
@@ -533,18 +549,30 @@
                         </div>
 
                         <div class="flex justify-end">
-                            <form id="final-submit-form"
-                                  method="POST"
-                                  action="{{ route('reclassification.submit', $application->id) }}"
-                                  @submit.prevent="submitFinal($event)">
-                                @csrf
-                                <button type="submit"
-                                        class="px-6 py-2.5 rounded-xl bg-bu text-white font-semibold"
-                                        :disabled="!canFinalSubmit() || finalSubmitting"
-                                        :class="(!canFinalSubmit() || finalSubmitting) ? 'opacity-60 cursor-not-allowed' : ''">
-                                    {{ ($application->status ?? '') === 'returned_to_faculty' ? 'Resubmit' : 'Final Submit' }}
+                            <div class="flex items-center gap-3">
+                                <button type="button"
+                                        @click="saveDraftAll()"
+                                        :disabled="savingDraft"
+                                        class="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition"
+                                        :class="savingDraft ? 'opacity-60 cursor-not-allowed' : ''"
+                                        :title="savingDraft ? 'Saving draft...' : 'Save all sections as draft.'">
+                                    Save Draft
                                 </button>
-                            </form>
+
+                                <form id="final-submit-form"
+                                      method="POST"
+                                      action="{{ route('reclassification.submit', $application->id) }}"
+                                      @submit.prevent="submitFinal($event)">
+                                    @csrf
+                                    <button type="submit"
+                                            class="px-6 py-2.5 rounded-xl bg-bu text-white font-semibold"
+                                            :disabled="!canFinalSubmit() || finalSubmitting || !submissionWindowOpen"
+                                            :class="(!canFinalSubmit() || finalSubmitting || !submissionWindowOpen) ? 'opacity-60 cursor-not-allowed' : ''"
+                                            :title="finalSubmitWarning()">
+                                        {{ ($application->status ?? '') === 'returned_to_faculty' ? 'Resubmit' : 'Final Submit' }}
+                                    </button>
+                                </form>
+                            </div>
                         </div>
                     </div>
                 </section>
@@ -709,6 +737,24 @@
         </div>
 
     @php
+        $pendingCommentTargetsPayload = collect($commentThreads ?? [])
+            ->filter(function ($thread) {
+                return (string) ($thread->status ?? 'open') !== 'resolved';
+            })
+            ->map(function ($thread) {
+                return [
+                    'section_code' => (string) ($thread->entry?->section?->section_code ?? ''),
+                    'criterion_key' => (string) ($thread->entry?->criterion_key ?? ''),
+                ];
+            })
+            ->filter(function ($item) {
+                return ($item['section_code'] ?? '') !== '' && ($item['criterion_key'] ?? '') !== '';
+            })
+            ->unique(function ($item) {
+                return ($item['section_code'] ?? '') . '|' . ($item['criterion_key'] ?? '');
+            })
+            ->values();
+
         $pendingMoveRequestsPayload = collect($moveRequests ?? [])->map(function ($move) {
             return [
                 'source_section_code' => (string) $move->source_section_code,
@@ -730,6 +776,7 @@
             const uploadUrl = @json(route('reclassification.evidence.upload'));
             const rankTrack = @json($trackKey ?? 'instructor');
             const rankTrackLabel = @json($currentRank ?? 'Instructor');
+            const pendingCommentTargets = @json($pendingCommentTargetsPayload);
             const pendingMoveRequests = @json($pendingMoveRequestsPayload);
             const eligibility = {
                 hasMasters: @json(($eligibility['hasMasters'] ?? false)),
@@ -753,6 +800,7 @@
                 savingDraft: false,
                 finalSubmitting: false,
                 uploading: false,
+                submissionWindowOpen: @json($submissionWindowOpen ?? true),
                 track: rankTrack,
                 trackLabel: rankTrackLabel,
                 hasMasters: eligibility.hasMasters,
@@ -761,6 +809,7 @@
                 hasAcceptedResearchOutput: eligibility.hasAcceptedResearchOutput,
                 hasMinBuYears: eligibility.hasMinBuYears,
                 returnedLockMode: @json(($application->status ?? '') === 'returned_to_faculty'),
+                pendingCommentTargets,
                 pendingMoveRequests,
 
                 init() {
@@ -926,15 +975,29 @@
                     const controls = Array.from(form.querySelectorAll('input[name], select[name], textarea[name], button[name], button[type=\"button\"]'));
                     controls.forEach((control) => this.setControlLocked(control, true));
 
-                    const commentHeaders = Array.from(form.querySelectorAll('.font-semibold.text-amber-800'))
-                        .filter((el) => ((el.textContent || '').trim().toLowerCase() === 'reviewer comments'));
+                    const commentTargets = Array.isArray(this.pendingCommentTargets) ? this.pendingCommentTargets : [];
+                    if (commentTargets.length) {
+                        const formSection = this.formSectionCode(form);
+                        controls.forEach((control) => {
+                            const controlName = control.name || '';
+                            const unlock = commentTargets.some((target) => {
+                                if (formSection && target.section_code !== formSection) {
+                                    return false;
+                                }
+                                return this.nameMatchesCriterion(controlName, target.section_code, target.criterion_key);
+                            });
+                            if (unlock) {
+                                this.setControlLocked(control, false);
+                                this.unlockEvidenceButtonsNearControl(control, form);
+                            }
+                        });
 
-                    commentHeaders.forEach((header) => {
-                        const scope = this.findUnlockScopeFromCommentHeader(header, form);
-                        if (!scope) return;
-                        const scopedControls = scope.querySelectorAll('input[name], select[name], textarea[name], button[name], button[type=\"button\"]');
-                        scopedControls.forEach((control) => this.setControlLocked(control, false));
-                    });
+                        commentTargets.forEach((target) => {
+                            if (!formSection || target.section_code !== formSection) return;
+                            this.unlockButtonsForCriterion(form, target.criterion_key);
+                            this.unlockEvidenceButtonsForCriterion(form, target.section_code, target.criterion_key);
+                        });
+                    }
 
                     const requests = Array.isArray(this.pendingMoveRequests) ? this.pendingMoveRequests : [];
                     if (requests.length) {
@@ -1121,10 +1184,20 @@
                 },
 
                 canFinalSubmit() {
+                    if (!this.submissionWindowOpen) return false;
                     if (!this.hasMasters) return false;
                     if (!this.hasMinBuYears) return false;
                     if (!this.hasResearchEquivalentNow()) return false;
                     return true;
+                },
+
+                finalSubmitWarning() {
+                    if (this.finalSubmitting) return 'Submitting...';
+                    if (!this.submissionWindowOpen) return 'Submission window is closed. You can save as draft only.';
+                    if (!this.hasMasters) return 'Cannot submit: Master\'s degree is required.';
+                    if (!this.hasMinBuYears) return 'Cannot submit: At least 3 years of service in BU is required.';
+                    if (!this.hasResearchEquivalentNow()) return 'Cannot submit: At least one research output/equivalent is required.';
+                    return 'Ready to submit.';
                 },
 
                 evidenceCount() {
@@ -1367,6 +1440,11 @@
 
                 submitFinal(event) {
                     if (this.finalSubmitting) return;
+                    if (!this.submissionWindowOpen) {
+                        this.libraryToast = { show: true, message: 'Submission window is closed. Save draft only.' };
+                        setTimeout(() => { this.libraryToast.show = false; }, 3000);
+                        return;
+                    }
                     if (!this.canFinalSubmit()) return;
 
                     const form = event?.target;
@@ -1628,7 +1706,7 @@
         </div>
     </div>
 
-    <div x-cloak x-show="libraryToast.show" class="fixed bottom-6 right-6 z-50">
+    <div x-cloak x-show="libraryToast.show" class="fixed bottom-6 left-6 z-50">
         <div class="px-4 py-2 rounded-lg shadow-lg text-sm text-white bg-gray-800">
             <span x-text="libraryToast.message"></span>
         </div>

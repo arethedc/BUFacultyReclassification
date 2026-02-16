@@ -628,6 +628,7 @@
                 </td>
                 <td class="p-2">
                   <select x-model="row.kind"
+                          @change="row.scope = ''"
                           :name="`section3[c4][${i}][kind]`"
                           class="rounded border-gray-300 w-full">
                     <option value="" disabled selected>Select type</option>
@@ -652,7 +653,7 @@
                           class="rounded border-gray-300 w-full">
                     <template x-if="row.kind !== 'otherpub'">
                       <optgroup label="Journal / Magazine Scope">
-                          <option value="" disabled>Select scope</option>
+                          <option value="">Select scope</option>
                         <option value="international">International</option>
                         <option value="national">National</option>
                         <option value="university">University</option>
@@ -660,7 +661,7 @@
                     </template>
                     <template x-if="row.kind === 'otherpub'">
                       <optgroup label="Other publications">
-                          <option value="" disabled>Select scope</option>
+                          <option value="">Select scope</option>
                         <option value="national_periodicals">National periodicals</option>
                         <option value="local_periodicals">Local periodicals</option>
                         <option value="university_newsletters">University/department newsletters</option>

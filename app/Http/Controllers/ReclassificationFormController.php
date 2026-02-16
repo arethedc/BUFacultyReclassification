@@ -28,6 +28,53 @@ class ReclassificationFormController extends Controller
         $activePeriod = $this->activePeriod();
         $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
         $cycleYear = $this->currentCycleYear($activePeriod);
+
+        // If there is no active period, faculty can still create/edit drafts.
+        // These drafts are not tied to an active period yet.
+        if (!$activePeriod) {
+            $app = ReclassificationApplication::where('faculty_user_id', $user->id)
+                ->whereIn('status', ['draft', 'returned_to_faculty'])
+                ->latest('updated_at')
+                ->first();
+
+            if (!$app) {
+                $payload = [
+                    'faculty_user_id' => $user->id,
+                    'cycle_year' => null,
+                    'status' => 'draft',
+                    'current_step' => 'faculty',
+                    'returned_from' => null,
+                    'submitted_at' => null,
+                    'finalized_at' => null,
+                ];
+                if ($hasPeriodId) {
+                    $payload['period_id'] = null;
+                }
+
+                $app = ReclassificationApplication::create($payload);
+
+                $sections = [
+                    ['section_code' => '1', 'title' => 'Section I'],
+                    ['section_code' => '2', 'title' => 'Section II'],
+                    ['section_code' => '3', 'title' => 'Section III'],
+                    ['section_code' => '4', 'title' => 'Section IV'],
+                    ['section_code' => '5', 'title' => 'Section V'],
+                ];
+
+                foreach ($sections as $s) {
+                    ReclassificationSection::create([
+                        'reclassification_application_id' => $app->id,
+                        'section_code' => $s['section_code'],
+                        'title' => $s['title'],
+                        'is_complete' => false,
+                        'points_total' => 0,
+                    ]);
+                }
+            }
+
+            return $app->load('sections');
+        }
+
         $sameCycle = function ($query) use ($cycleYear, $activePeriod) {
             $query->where('cycle_year', $cycleYear);
             if (!$activePeriod) {
@@ -38,7 +85,7 @@ class ReclassificationFormController extends Controller
         // If there is an active review in this cycle, do NOT auto-create a new draft.
         $activeReview = ReclassificationApplication::where('faculty_user_id', $user->id)
             ->where($sameCycle)
-            ->whereIn('status', ['dean_review', 'hr_review', 'vpaa_review', 'president_review'])
+            ->whereIn('status', ['dean_review', 'hr_review', 'vpaa_review', 'vpaa_approved', 'president_review'])
             ->latest()
             ->first();
         if ($activeReview) {
@@ -55,12 +102,21 @@ class ReclassificationFormController extends Controller
             return $activeReview->load('sections');
         }
 
-        // get latest editable application (draft/returned)
+        // Prioritize returned applications over plain drafts so faculty always lands
+        // on the returned paper that must be revised.
         $app = ReclassificationApplication::where('faculty_user_id', $user->id)
             ->where($sameCycle)
-            ->whereIn('status', ['draft', 'returned_to_faculty'])
-            ->latest()
+            ->where('status', 'returned_to_faculty')
+            ->latest('updated_at')
             ->first();
+
+        if (!$app) {
+            $app = ReclassificationApplication::where('faculty_user_id', $user->id)
+                ->where($sameCycle)
+                ->where('status', 'draft')
+                ->latest('updated_at')
+                ->first();
+        }
 
         // If this cycle already has a finalized app, do NOT auto-create a new draft.
         if (!$app) {
@@ -141,10 +197,14 @@ class ReclassificationFormController extends Controller
             return null;
         }
 
-        return ReclassificationPeriod::query()
-            ->where('is_open', true)
-            ->orderByDesc('created_at')
-            ->first();
+        $query = ReclassificationPeriod::query();
+        if (Schema::hasColumn('reclassification_periods', 'status')) {
+            $query->where('status', 'active');
+        } else {
+            $query->where('is_open', true);
+        }
+
+        return $query->orderByDesc('created_at')->first();
     }
 
     private function currentCycleYear(?ReclassificationPeriod $period = null): string
@@ -153,6 +213,85 @@ class ReclassificationFormController extends Controller
             return (string) $period->cycle_year;
         }
         return (string) config('reclassification.cycle_year', '2023-2026');
+    }
+
+    private function submissionWindowInfo(ReclassificationApplication $application): array
+    {
+        if (!Schema::hasTable('reclassification_periods')) {
+            return [
+                'submissionWindowOpen' => true,
+                'submissionWindowTitle' => null,
+                'submissionWindowMessage' => null,
+            ];
+        }
+
+        $openPeriodQuery = ReclassificationPeriod::query();
+        if (Schema::hasColumn('reclassification_periods', 'status')) {
+            $openPeriodQuery->where('status', 'active');
+        } else {
+            $openPeriodQuery->where('is_open', true);
+        }
+        $openPeriod = $openPeriodQuery
+            ->orderByDesc('created_at')
+            ->first();
+
+        if (!$openPeriod) {
+            return [
+                'submissionWindowOpen' => false,
+                'submissionWindowTitle' => 'No ongoing reclassification submission',
+                'submissionWindowMessage' => 'Submissions are currently closed. You can still save your draft.',
+            ];
+        }
+
+        $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
+        $matchesOpenPeriod = true;
+
+        if ($hasPeriodId && !empty($application->period_id)) {
+            $matchesOpenPeriod = (int) $application->period_id === (int) $openPeriod->id;
+        } else {
+            $periodCycle = trim((string) ($openPeriod->cycle_year ?? ''));
+            $appCycle = trim((string) ($application->cycle_year ?? ''));
+            if ($periodCycle !== '' && $appCycle !== '' && $periodCycle !== $appCycle) {
+                $matchesOpenPeriod = false;
+            }
+        }
+
+        if (!$matchesOpenPeriod) {
+            return [
+                'submissionWindowOpen' => false,
+                'submissionWindowTitle' => 'No ongoing reclassification submission',
+                'submissionWindowMessage' => 'This draft belongs to a different cycle than the currently open submission period.',
+            ];
+        }
+
+        if ($openPeriod->end_at && now()->greaterThan($openPeriod->end_at)) {
+            return [
+                'submissionWindowOpen' => false,
+                'submissionWindowTitle' => 'Reclassification is closed',
+                'submissionWindowMessage' => 'Submission deadline has passed. You can still save your draft.',
+            ];
+        }
+
+        if ($openPeriod->end_at) {
+            $daysLeft = now()->startOfDay()->diffInDays($openPeriod->end_at->copy()->startOfDay(), false);
+            if ($daysLeft > 1) {
+                $message = "{$daysLeft} days left to submit.";
+            } elseif ($daysLeft === 1) {
+                $message = '1 day left to submit.';
+            } elseif ($daysLeft === 0) {
+                $message = 'Last day to submit.';
+            } else {
+                $message = 'Submission period is open.';
+            }
+        } else {
+            $message = 'Submission period is open.';
+        }
+
+        return [
+            'submissionWindowOpen' => true,
+            'submissionWindowTitle' => 'Reclassification is open',
+            'submissionWindowMessage' => $message,
+        ];
     }
 
     private function buildInitialSections(ReclassificationApplication $application): array
@@ -222,6 +361,10 @@ class ReclassificationFormController extends Controller
             ? $profile->original_appointment_date->diffInYears(now())
             : null;
         $currentRankLabel = $this->resolveRankLabel($profile, $eligibility['currentRank'] ?? null);
+        $submissionWindow = $this->submissionWindowInfo($application);
+        $submissionWindowOpen = (bool) ($submissionWindow['submissionWindowOpen'] ?? true);
+        $submissionWindowTitle = $submissionWindow['submissionWindowTitle'] ?? null;
+        $submissionWindowMessage = $submissionWindow['submissionWindowMessage'] ?? null;
 
         return view('reclassification.show', compact(
             'application',
@@ -235,7 +378,10 @@ class ReclassificationFormController extends Controller
             'appointmentDate',
             'yearsService',
             'currentRankLabel',
-            'profile'
+            'profile',
+            'submissionWindowOpen',
+            'submissionWindowTitle',
+            'submissionWindowMessage'
         ));
     }
 
@@ -286,6 +432,10 @@ class ReclassificationFormController extends Controller
             ? $profile->original_appointment_date->diffInYears(now())
             : null;
         $currentRankLabel = $this->resolveRankLabel($profile, $eligibility['currentRank'] ?? null);
+        $submissionWindow = $this->submissionWindowInfo($application);
+        $submissionWindowOpen = (bool) ($submissionWindow['submissionWindowOpen'] ?? true);
+        $submissionWindowTitle = $submissionWindow['submissionWindowTitle'] ?? null;
+        $submissionWindowMessage = $submissionWindow['submissionWindowMessage'] ?? null;
 
         return view('reclassification.show', compact(
             'application',
@@ -299,7 +449,10 @@ class ReclassificationFormController extends Controller
             'appointmentDate',
             'yearsService',
             'currentRankLabel',
-            'profile'
+            'profile',
+            'submissionWindowOpen',
+            'submissionWindowTitle',
+            'submissionWindowMessage'
         ));
     }
 
@@ -388,18 +541,7 @@ class ReclassificationFormController extends Controller
 
     public function submitted(Request $request)
     {
-        $user = $request->user();
-
-        $application = ReclassificationApplication::where('faculty_user_id', $user->id)
-            ->whereNotIn('status', ['draft', 'returned_to_faculty'])
-            ->latest()
-            ->first();
-
-        if (!$application) {
-            return redirect()->route('reclassification.show');
-        }
-
-        return view('reclassification.submitted', compact('application'));
+        return redirect()->route('faculty.dashboard');
     }
 
     public function submittedSummary(Request $request)
@@ -433,7 +575,10 @@ class ReclassificationFormController extends Controller
         $yearsService = $profile?->original_appointment_date
             ? $profile->original_appointment_date->diffInYears(now())
             : null;
-        $currentRankLabel = $this->resolveRankLabel($profile);
+        $currentRankLabel = trim((string) ($application->current_rank_label_at_approval ?? ''));
+        if ($currentRankLabel === '') {
+            $currentRankLabel = $this->resolveRankLabel($profile);
+        }
 
         return view('reclassification.submitted-summary', compact(
             'application',
@@ -472,7 +617,10 @@ class ReclassificationFormController extends Controller
         $yearsService = $profile?->original_appointment_date
             ? $profile->original_appointment_date->diffInYears(now())
             : null;
-        $currentRankLabel = $this->resolveRankLabel($profile, $profile?->teaching_rank);
+        $currentRankLabel = trim((string) ($application->current_rank_label_at_approval ?? ''));
+        if ($currentRankLabel === '') {
+            $currentRankLabel = $this->resolveRankLabel($profile, $profile?->teaching_rank);
+        }
 
         return view('reclassification.submitted-summary', compact(
             'application',

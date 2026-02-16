@@ -19,10 +19,14 @@ class ReclassificationWorkflowController extends Controller
             return null;
         }
 
-        return ReclassificationPeriod::query()
-            ->where('is_open', true)
-            ->orderByDesc('created_at')
-            ->first();
+        $query = ReclassificationPeriod::query();
+        if (Schema::hasColumn('reclassification_periods', 'status')) {
+            $query->where('status', 'active');
+        } else {
+            $query->where('is_open', true);
+        }
+
+        return $query->orderByDesc('created_at')->first();
     }
 
     private function stepLabel(string $step): string
@@ -195,6 +199,15 @@ class ReclassificationWorkflowController extends Controller
 
     private function buildApprovalResult(ReclassificationApplication $application): array
     {
+        $storedCurrent = trim((string) ($application->current_rank_label_at_approval ?? ''));
+        $storedApproved = trim((string) ($application->approved_rank_label ?? ''));
+        if ($storedCurrent !== '' && $storedApproved !== '') {
+            return [
+                'current_rank_label' => $storedCurrent,
+                'approved_rank_label' => $storedApproved,
+            ];
+        }
+
         $application->loadMissing([
             'sections.entries',
             'faculty.facultyProfile',
@@ -306,6 +319,11 @@ class ReclassificationWorkflowController extends Controller
         $this->finalizeApplication($application, $approver);
     }
 
+    public function previewApprovalResult(ReclassificationApplication $application): array
+    {
+        return $this->buildApprovalResult($application);
+    }
+
     private function notifyFacultyPromotion(
         ReclassificationApplication $application,
         string $fromRank,
@@ -410,9 +428,20 @@ class ReclassificationWorkflowController extends Controller
             'submitted_at' => now(),
         ]);
 
+        $application->loadMissing('period');
+        $periodLabel = trim((string) ($application->period?->name ?? ''));
+        if ($periodLabel === '') {
+            $periodLabel = trim((string) ($application->cycle_year ?? ''));
+            if ($periodLabel !== '') {
+                $periodLabel = "AY {$periodLabel}";
+            } else {
+                $periodLabel = 'the current cycle';
+            }
+        }
+
         return redirect()
-            ->route('reclassification.submitted')
-            ->with('success', 'Submitted for review.');
+            ->route('faculty.dashboard')
+            ->with('success', "You have submitted your reclassification for {$periodLabel}.");
     }
 
     public function returnToFaculty(Request $request, ReclassificationApplication $application)
@@ -443,13 +472,19 @@ class ReclassificationWorkflowController extends Controller
         $map = [
             'dean_review' => ['next_status' => 'hr_review', 'next_step' => 'hr'],
             'hr_review' => ['next_status' => 'vpaa_review', 'next_step' => 'vpaa'],
-            'vpaa_review' => ['next_status' => 'president_review', 'next_step' => 'president'],
+            'vpaa_review' => ['next_status' => 'vpaa_approved', 'next_step' => 'vpaa'],
         ];
 
         if ($application->status === 'finalized') {
             return redirect()
                 ->route('reclassification.review.queue')
                 ->with('success', 'The form is already finalized.');
+        }
+
+        if ($application->status === 'vpaa_approved') {
+            return redirect()
+                ->route('reclassification.review.approved')
+                ->with('success', 'The form is already approved by VPAA and waiting in VPAA Approved List.');
         }
 
         if ($application->status === 'president_review') {
@@ -464,17 +499,26 @@ class ReclassificationWorkflowController extends Controller
 
         $fromStatus = (string) $application->status;
         $next = $map[$application->status];
-
-        $application->update([
+        $updatePayload = [
             'status' => $next['next_status'],
             'current_step' => $next['next_step'],
             'returned_from' => null,
-        ]);
+        ];
+
+        // Freeze rank snapshots once VPAA approves to list so they remain stable
+        // until President batch approval/finalization.
+        if ($fromStatus === 'vpaa_review') {
+            $approval = $this->buildApprovalResult($application);
+            $updatePayload['current_rank_label_at_approval'] = $approval['current_rank_label'] ?? null;
+            $updatePayload['approved_rank_label'] = $approval['approved_rank_label'] ?? null;
+        }
+
+        $application->update($updatePayload);
 
         if ($fromStatus === 'vpaa_review') {
             return redirect()
                 ->route('reclassification.review.queue')
-                ->with('success', 'The form is approved by VPAA and added to the President list.');
+                ->with('success', 'The form is approved by VPAA and added to VPAA Approved List.');
         }
 
         $target = $this->stepLabel($next['next_step']);

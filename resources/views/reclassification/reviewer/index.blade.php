@@ -8,13 +8,7 @@
             'president' => 'President',
             default => 'Reviewer',
         };
-        $dashboardRoute = match($role) {
-            'dean' => route('dean.dashboard'),
-            'hr' => route('hr.dashboard'),
-            'vpaa' => route('vpaa.dashboard'),
-            'president' => route('president.dashboard'),
-            default => route('dashboard'),
-        };
+        $dashboardRoute = route('dashboard');
     @endphp
     <x-slot name="header">
         <div class="flex items-start justify-between gap-4">

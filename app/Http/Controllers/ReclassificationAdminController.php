@@ -10,16 +10,67 @@ use Illuminate\Support\Facades\Schema;
 
 class ReclassificationAdminController extends Controller
 {
+    private function applyDepartmentFilter($query, $departmentId): void
+    {
+        if ($departmentId === null || $departmentId === '') {
+            return;
+        }
+
+        $query->whereHas('faculty.department', function ($builder) use ($departmentId) {
+            if (is_numeric($departmentId)) {
+                $builder->where('id', (int) $departmentId);
+                return;
+            }
+
+            $builder->where('code', (string) $departmentId)
+                ->orWhere('name', (string) $departmentId);
+        });
+    }
+
+    private function applyRankLevelFilter($query, $rankLevelId): void
+    {
+        if ($rankLevelId === null || $rankLevelId === '') {
+            return;
+        }
+
+        $query->whereHas('faculty.facultyProfile', function ($builder) use ($rankLevelId) {
+            $builder->where('rank_level_id', $rankLevelId);
+        });
+    }
+
+    private function reviewerRole(Request $request): string
+    {
+        return strtolower((string) $request->user()->role);
+    }
+
+    private function ensureReviewerHistoryRole(Request $request): array
+    {
+        $role = $this->reviewerRole($request);
+        abort_unless(in_array($role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+
+        $departmentId = null;
+        if ($role === 'dean') {
+            $departmentId = $request->user()->department_id;
+            abort_unless($departmentId, 403);
+        }
+
+        return [$role, $departmentId];
+    }
+
     private function activePeriod(): ?ReclassificationPeriod
     {
         if (!Schema::hasTable('reclassification_periods')) {
             return null;
         }
 
-        return ReclassificationPeriod::query()
-            ->where('is_open', true)
-            ->orderByDesc('created_at')
-            ->first();
+        $query = ReclassificationPeriod::query();
+        if (Schema::hasColumn('reclassification_periods', 'status')) {
+            $query->where('status', 'active');
+        } else {
+            $query->where('is_open', true);
+        }
+
+        return $query->orderByDesc('created_at')->first();
     }
 
     private function applyPeriodScope($query, ?ReclassificationPeriod $period): void
@@ -51,17 +102,15 @@ class ReclassificationAdminController extends Controller
         });
     }
 
-    private function applyApprovedFilters($query, string $q = '', $departmentId = null, $cycleYear = null)
+    private function applyApprovedFilters($query, string $q = '', $departmentId = null, $cycleYear = null, $rankLevelId = null)
     {
-        if (!empty($departmentId)) {
-            $query->whereHas('faculty', function ($builder) use ($departmentId) {
-                $builder->where('department_id', $departmentId);
-            });
-        }
+        $this->applyDepartmentFilter($query, $departmentId);
 
         if (!empty($cycleYear)) {
             $query->where('cycle_year', $cycleYear);
         }
+
+        $this->applyRankLevelFilter($query, $rankLevelId);
 
         if ($q !== '') {
             $query->where(function ($builder) use ($q) {
@@ -73,13 +122,43 @@ class ReclassificationAdminController extends Controller
         }
     }
 
+    private function attachRankPreviews($paginator): void
+    {
+        if (!$paginator || !method_exists($paginator, 'getCollection')) {
+            return;
+        }
+
+        $workflow = app(ReclassificationWorkflowController::class);
+
+        $paginator->setCollection(
+            $paginator->getCollection()->map(function (ReclassificationApplication $app) use ($workflow) {
+                if (!empty($app->current_rank_label_at_approval) && !empty($app->approved_rank_label)) {
+                    return $app;
+                }
+
+                try {
+                    $preview = $workflow->previewApprovalResult($app);
+                    $app->current_rank_label_preview = $preview['current_rank_label'] ?? null;
+                    $app->approved_rank_label_preview = $preview['approved_rank_label'] ?? null;
+                } catch (\Throwable $e) {
+                    $app->current_rank_label_preview = $app->current_rank_label_preview ?? null;
+                    $app->approved_rank_label_preview = $app->approved_rank_label_preview ?? null;
+                }
+
+                return $app;
+            })
+        );
+    }
+
     public function index(Request $request)
     {
+        $role = strtolower((string) $request->user()->role);
         $q = trim((string) $request->get('q', ''));
         $status = $request->get('status', 'all');
         $departmentId = $request->get('department_id');
-        $cycleYear = $request->get('cycle_year');
         $rankLevelId = $request->get('rank_level_id');
+        $activePeriod = $this->activePeriod();
+        $hasActivePeriod = (bool) $activePeriod;
 
         $query = ReclassificationApplication::query()
             ->with([
@@ -92,6 +171,7 @@ class ReclassificationAdminController extends Controller
                 'dean_review',
                 'hr_review',
                 'vpaa_review',
+                'vpaa_approved',
                 'president_review',
                 'finalized',
             ]);
@@ -101,21 +181,9 @@ class ReclassificationAdminController extends Controller
             $query->where('status', $status);
         }
 
-        if (!empty($departmentId)) {
-            $query->whereHas('faculty', function ($builder) use ($departmentId) {
-                $builder->where('department_id', $departmentId);
-            });
-        }
-
-        if (!empty($cycleYear)) {
-            $query->where('cycle_year', $cycleYear);
-        }
-
-        if (!empty($rankLevelId)) {
-            $query->whereHas('faculty.facultyProfile', function ($builder) use ($rankLevelId) {
-                $builder->where('rank_level_id', $rankLevelId);
-            });
-        }
+        $this->applyDepartmentFilter($query, $departmentId);
+        $this->applyPeriodScope($query, $activePeriod);
+        $this->applyRankLevelFilter($query, $rankLevelId);
 
         if ($q !== '') {
             $query->where(function ($builder) use ($q) {
@@ -136,20 +204,17 @@ class ReclassificationAdminController extends Controller
                 'q' => $q,
                 'status' => $status,
                 'department_id' => $departmentId,
-                'cycle_year' => $cycleYear,
                 'rank_level_id' => $rankLevelId,
             ]);
 
         $departments = Department::orderBy('name')->get();
-        $cycleYears = ReclassificationApplication::query()
-            ->select('cycle_year')
-            ->whereNotNull('cycle_year')
-            ->distinct()
-            ->orderByDesc('cycle_year')
-            ->pluck('cycle_year');
+        $cycleYears = collect();
         $rankLevels = Schema::hasTable('rank_levels')
             ? \App\Models\RankLevel::orderBy('order_no')->get()
             : collect();
+        $indexRoute = $role === 'hr'
+            ? route('reclassification.admin.submissions')
+            : route('reclassification.review.submissions');
 
         return view('reclassification.admin.index', compact(
             'applications',
@@ -159,8 +224,10 @@ class ReclassificationAdminController extends Controller
             'q',
             'status',
             'departmentId',
-            'cycleYear',
-            'rankLevelId'
+            'rankLevelId',
+            'activePeriod',
+            'hasActivePeriod',
+            'indexRoute',
         ));
     }
 
@@ -168,8 +235,9 @@ class ReclassificationAdminController extends Controller
     {
         $q = trim((string) $request->get('q', ''));
         $status = $request->get('status', 'all');
-        $cycleYear = $request->get('cycle_year');
         $rankLevelId = $request->get('rank_level_id');
+        $activePeriod = $this->activePeriod();
+        $hasActivePeriod = (bool) $activePeriod;
 
         $departmentId = $request->user()->department_id;
         abort_unless($departmentId, 403);
@@ -178,16 +246,15 @@ class ReclassificationAdminController extends Controller
             ->with([
                 'faculty.department',
                 'faculty.facultyProfile' . (Schema::hasTable('rank_levels') ? '.rankLevel' : ''),
-            ])
-            ->whereHas('faculty', function ($builder) use ($departmentId) {
-                $builder->where('department_id', $departmentId);
-            });
+            ]);
+        $this->applyDepartmentFilter($query, $departmentId);
 
         if ($status === 'submitted') {
             $query->whereIn('status', [
                 'dean_review',
                 'hr_review',
                 'vpaa_review',
+                'vpaa_approved',
                 'president_review',
                 'finalized',
             ]);
@@ -196,16 +263,8 @@ class ReclassificationAdminController extends Controller
         } else {
             $query->where('status', $status);
         }
-
-        if (!empty($cycleYear)) {
-            $query->where('cycle_year', $cycleYear);
-        }
-
-        if (!empty($rankLevelId)) {
-            $query->whereHas('faculty.facultyProfile', function ($builder) use ($rankLevelId) {
-                $builder->where('rank_level_id', $rankLevelId);
-            });
-        }
+        $this->applyPeriodScope($query, $activePeriod);
+        $this->applyRankLevelFilter($query, $rankLevelId);
 
         if ($q !== '') {
             $query->where(function ($builder) use ($q) {
@@ -225,16 +284,10 @@ class ReclassificationAdminController extends Controller
             ->appends([
                 'q' => $q,
                 'status' => $status,
-                'cycle_year' => $cycleYear,
                 'rank_level_id' => $rankLevelId,
             ]);
 
-        $cycleYears = ReclassificationApplication::query()
-            ->select('cycle_year')
-            ->whereNotNull('cycle_year')
-            ->distinct()
-            ->orderByDesc('cycle_year')
-            ->pluck('cycle_year');
+        $cycleYears = collect();
         $rankLevels = Schema::hasTable('rank_levels')
             ? \App\Models\RankLevel::orderBy('order_no')->get()
             : collect();
@@ -245,8 +298,9 @@ class ReclassificationAdminController extends Controller
             'rankLevels',
             'q',
             'status',
-            'cycleYear',
-            'rankLevelId'
+            'rankLevelId',
+            'activePeriod',
+            'hasActivePeriod',
         ));
     }
 
@@ -254,7 +308,9 @@ class ReclassificationAdminController extends Controller
     {
         $q = trim((string) $request->get('q', ''));
         $departmentId = $request->get('department_id');
-        $cycleYear = $request->get('cycle_year');
+        $rankLevelId = $request->get('rank_level_id');
+        $activePeriod = $this->activePeriod();
+        $hasActivePeriod = (bool) $activePeriod;
 
         $query = ReclassificationApplication::query()
             ->with([
@@ -262,8 +318,9 @@ class ReclassificationAdminController extends Controller
                 'approvedBy',
             ])
             ->where('status', 'finalized');
+        $this->applyPeriodScope($query, $activePeriod);
 
-        $this->applyApprovedFilters($query, $q, $departmentId, $cycleYear);
+        $this->applyApprovedFilters($query, $q, $departmentId, null, $rankLevelId);
 
         $applications = $query
             ->orderByDesc('approved_at')
@@ -273,41 +330,50 @@ class ReclassificationAdminController extends Controller
             ->appends([
                 'q' => $q,
                 'department_id' => $departmentId,
-                'cycle_year' => $cycleYear,
+                'rank_level_id' => $rankLevelId,
             ]);
 
         $departments = Department::orderBy('name')->get();
-        $cycleYears = ReclassificationApplication::query()
-            ->select('cycle_year')
-            ->whereNotNull('cycle_year')
-            ->distinct()
-            ->orderByDesc('cycle_year')
-            ->pluck('cycle_year');
+        $cycleYears = collect();
+        $rankLevels = Schema::hasTable('rank_levels')
+            ? \App\Models\RankLevel::orderBy('order_no')->get()
+            : collect();
 
         $title = 'Approved Reclassifications';
-        $subtitle = 'Applications finalized after final approval.';
+        $subtitle = 'Active-period applications finalized after final approval.';
         $indexRoute = route('reclassification.admin.approved');
-        $backRoute = route('hr.dashboard');
+        $backRoute = route('dashboard');
         $showDepartmentFilter = true;
+        $showCycleFilter = false;
         $showVpaaActions = false;
         $showPresidentActions = false;
+        $enforceActivePeriod = true;
+        $exportPeriodId = null;
         $batchReadyCount = 0;
         $batchBlockingCount = 0;
+        $cycleYear = null;
 
         return view('reclassification.admin.approved', compact(
             'applications',
             'departments',
             'cycleYears',
+            'rankLevels',
             'q',
             'departmentId',
+            'rankLevelId',
             'cycleYear',
             'title',
             'subtitle',
             'indexRoute',
             'backRoute',
             'showDepartmentFilter',
+            'showCycleFilter',
             'showVpaaActions',
             'showPresidentActions',
+            'enforceActivePeriod',
+            'exportPeriodId',
+            'activePeriod',
+            'hasActivePeriod',
             'batchReadyCount',
             'batchBlockingCount'
         ));
@@ -319,14 +385,17 @@ class ReclassificationAdminController extends Controller
         abort_unless($departmentId, 403);
 
         $q = trim((string) $request->get('q', ''));
-        $cycleYear = $request->get('cycle_year');
+        $rankLevelId = $request->get('rank_level_id');
+        $activePeriod = $this->activePeriod();
+        $hasActivePeriod = (bool) $activePeriod;
 
         $query = ReclassificationApplication::query()
             ->with(['faculty.department', 'approvedBy'])
-            ->where('status', 'finalized')
-            ->whereHas('faculty', fn ($faculty) => $faculty->where('department_id', $departmentId));
+            ->where('status', 'finalized');
+        $this->applyDepartmentFilter($query, $departmentId);
+        $this->applyPeriodScope($query, $activePeriod);
 
-        $this->applyApprovedFilters($query, $q, $departmentId, $cycleYear);
+        $this->applyApprovedFilters($query, $q, $departmentId, null, $rankLevelId);
 
         $applications = $query
             ->orderByDesc('approved_at')
@@ -335,42 +404,50 @@ class ReclassificationAdminController extends Controller
             ->paginate(20)
             ->appends([
                 'q' => $q,
-                'cycle_year' => $cycleYear,
+                'rank_level_id' => $rankLevelId,
             ]);
 
         $departments = Department::where('id', $departmentId)->get();
-        $cycleYears = ReclassificationApplication::query()
-            ->whereHas('faculty', fn ($faculty) => $faculty->where('department_id', $departmentId))
-            ->select('cycle_year')
-            ->whereNotNull('cycle_year')
-            ->distinct()
-            ->orderByDesc('cycle_year')
-            ->pluck('cycle_year');
+        $cycleYears = collect();
+        $rankLevels = Schema::hasTable('rank_levels')
+            ? \App\Models\RankLevel::orderBy('order_no')->get()
+            : collect();
 
         $title = 'Approved Reclassifications';
-        $subtitle = 'Finalized applications in your assigned department.';
+        $subtitle = 'Active-period finalized applications in your assigned department.';
         $indexRoute = route('dean.approved');
-        $backRoute = route('dean.dashboard');
+        $backRoute = route('dashboard');
         $showDepartmentFilter = false;
+        $showCycleFilter = false;
         $showVpaaActions = false;
         $showPresidentActions = false;
+        $enforceActivePeriod = true;
+        $exportPeriodId = null;
         $batchReadyCount = 0;
         $batchBlockingCount = 0;
+        $cycleYear = null;
 
         return view('reclassification.admin.approved', compact(
             'applications',
             'departments',
             'cycleYears',
+            'rankLevels',
             'q',
             'departmentId',
+            'rankLevelId',
             'cycleYear',
             'title',
             'subtitle',
             'indexRoute',
             'backRoute',
             'showDepartmentFilter',
+            'showCycleFilter',
             'showVpaaActions',
             'showPresidentActions',
+            'enforceActivePeriod',
+            'exportPeriodId',
+            'activePeriod',
+            'hasActivePeriod',
             'batchReadyCount',
             'batchBlockingCount'
         ));
@@ -383,16 +460,25 @@ class ReclassificationAdminController extends Controller
 
         $q = trim((string) $request->get('q', ''));
         $departmentId = $request->get('department_id');
+        $rankLevelId = $request->get('rank_level_id');
         $activePeriod = $this->activePeriod();
 
-        $statusScope = ['president_review', 'finalized'];
+        $statusScope = $role === 'vpaa'
+            ? ['vpaa_approved']
+            : ['president_review', 'finalized'];
 
         $query = ReclassificationApplication::query()
-            ->with(['faculty.department', 'approvedBy'])
+            ->with([
+                'faculty.department',
+                'faculty.facultyProfile',
+                'faculty.facultyHighestDegree',
+                'sections.entries',
+                'approvedBy',
+            ])
             ->whereIn('status', $statusScope);
         $this->applyPeriodScope($query, $activePeriod);
 
-        $this->applyApprovedFilters($query, $q, $departmentId, null);
+        $this->applyApprovedFilters($query, $q, $departmentId, null, $rankLevelId);
 
         $applications = $query
             ->orderByDesc('approved_at')
@@ -402,37 +488,42 @@ class ReclassificationAdminController extends Controller
             ->appends([
                 'q' => $q,
                 'department_id' => $departmentId,
+                'rank_level_id' => $rankLevelId,
             ]);
+        $this->attachRankPreviews($applications);
 
         $departments = Department::orderBy('name')->get();
         $cycleYears = collect();
+        $rankLevels = Schema::hasTable('rank_levels')
+            ? \App\Models\RankLevel::orderBy('order_no')->get()
+            : collect();
 
         $title = $role === 'vpaa'
             ? 'VPAA Approved List'
             : 'President Approval List';
         $subtitle = $role === 'vpaa'
-            ? 'Gather approved submissions in the active cycle and forward the list to President.'
+            ? 'Gather VPAA-approved submissions in the active cycle and forward the list to President.'
             : 'Finalize active-cycle submissions approved by VPAA.';
         $indexRoute = route('reclassification.review.approved');
-        $backRoute = $role === 'vpaa'
-            ? route('vpaa.dashboard')
-            : route('president.dashboard');
+        $backRoute = route('dashboard');
         $showDepartmentFilter = true;
         $showCycleFilter = false;
         $showVpaaActions = $role === 'vpaa';
         $showPresidentActions = $role === 'president';
+        $enforceActivePeriod = true;
+        $exportPeriodId = null;
 
         $batchReadyCount = 0;
         $batchBlockingCount = 0;
         if ($activePeriod) {
             if ($role === 'vpaa') {
                 $readyQuery = ReclassificationApplication::query()
-                    ->where('status', 'vpaa_review');
+                    ->where('status', 'vpaa_approved');
                 $this->applyPeriodScope($readyQuery, $activePeriod);
                 $batchReadyCount = $readyQuery->count();
 
                 $blockingQuery = ReclassificationApplication::query()
-                    ->whereIn('status', ['dean_review', 'hr_review', 'returned_to_faculty']);
+                    ->whereIn('status', ['dean_review', 'hr_review', 'vpaa_review', 'returned_to_faculty']);
                 $this->applyPeriodScope($blockingQuery, $activePeriod);
                 $batchBlockingCount = $blockingQuery->count();
             } else {
@@ -452,8 +543,10 @@ class ReclassificationAdminController extends Controller
             'applications',
             'departments',
             'cycleYears',
+            'rankLevels',
             'q',
             'departmentId',
+            'rankLevelId',
             'activePeriod',
             'title',
             'subtitle',
@@ -463,6 +556,8 @@ class ReclassificationAdminController extends Controller
             'showCycleFilter',
             'showVpaaActions',
             'showPresidentActions',
+            'enforceActivePeriod',
+            'exportPeriodId',
             'batchReadyCount',
             'batchBlockingCount'
         ));
@@ -480,7 +575,7 @@ class ReclassificationAdminController extends Controller
         }
 
         $blockingQuery = ReclassificationApplication::query()
-            ->whereIn('status', ['dean_review', 'hr_review', 'returned_to_faculty']);
+            ->whereIn('status', ['dean_review', 'hr_review', 'vpaa_review', 'returned_to_faculty']);
         $this->applyPeriodScope($blockingQuery, $activePeriod);
         $blockingCount = $blockingQuery->count();
         if ($blockingCount > 0) {
@@ -490,12 +585,12 @@ class ReclassificationAdminController extends Controller
         }
 
         $readyQuery = ReclassificationApplication::query()
-            ->where('status', 'vpaa_review');
+            ->where('status', 'vpaa_approved');
         $this->applyPeriodScope($readyQuery, $activePeriod);
         $readyCount = (clone $readyQuery)->count();
         if ($readyCount === 0) {
             return back()->withErrors([
-                'approved_list' => 'No VPAA-approved submissions found to forward.',
+                'approved_list' => 'No VPAA-approved submissions found in VPAA Approved List.',
             ]);
         }
 
@@ -520,7 +615,7 @@ class ReclassificationAdminController extends Controller
         }
 
         $blockingQuery = ReclassificationApplication::query()
-            ->whereIn('status', ['dean_review', 'hr_review', 'vpaa_review', 'returned_to_faculty']);
+            ->whereIn('status', ['dean_review', 'hr_review', 'vpaa_review', 'vpaa_approved', 'returned_to_faculty']);
         $this->applyPeriodScope($blockingQuery, $activePeriod);
         $blockingCount = $blockingQuery->count();
         if ($blockingCount > 0) {
@@ -550,31 +645,236 @@ class ReclassificationAdminController extends Controller
         return back()->with('success', "{$apps->count()} active-cycle submissions finalized and promotions applied.");
     }
 
-    public function history(Request $request)
+    public function approvedExportCsv(Request $request)
     {
-        $role = strtolower((string) $request->user()->role);
-        abort_unless(in_array($role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
-
+        [$role, $departmentId] = $this->ensureReviewerHistoryRole($request);
         $q = trim((string) $request->get('q', ''));
-        $departmentId = $request->get('department_id');
-        $cycleYear = $request->get('cycle_year');
+        $requestedDepartmentId = $request->get('department_id');
+        $rankLevelId = $request->get('rank_level_id');
+        $periodId = $request->get('period_id');
 
-        if ($role === 'dean') {
-            $departmentId = $request->user()->department_id;
-            abort_unless($departmentId, 403);
+        $period = null;
+        if (!empty($periodId)) {
+            $period = ReclassificationPeriod::find($periodId);
+        }
+        if (!$period) {
+            $period = $this->activePeriod();
         }
 
         $query = ReclassificationApplication::query()
-            ->with(['faculty.department', 'approvedBy', 'period'])
+            ->with([
+                'faculty.department',
+                'faculty.facultyProfile' . (Schema::hasTable('rank_levels') ? '.rankLevel' : ''),
+            ])
             ->where('status', 'finalized');
 
-        if (!empty($departmentId)) {
-            $query->whereHas('faculty', fn ($faculty) => $faculty->where('department_id', $departmentId));
+        $this->applyPeriodScope($query, $period);
+
+        $this->applyDepartmentFilter($query, $role === 'dean' ? $departmentId : $requestedDepartmentId);
+
+        if ($q !== '') {
+            $query->whereHas('faculty', function ($faculty) use ($q) {
+                $faculty->where('name', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%");
+            });
         }
 
-        if (!empty($cycleYear)) {
-            $query->where('cycle_year', $cycleYear);
+        $this->applyRankLevelFilter($query, $rankLevelId);
+
+        $rows = $query
+            ->orderBy('approved_at')
+            ->orderBy('id')
+            ->get();
+
+        $filenameCycle = trim((string) ($period?->cycle_year ?? 'no-active-period'));
+        $filenameDate = now()->format('Ymd_His');
+        $filename = "approved_reclassifications_{$filenameCycle}_{$filenameDate}.csv";
+
+        return response()->streamDownload(function () use ($rows) {
+            $handle = fopen('php://output', 'w');
+            fputcsv($handle, [
+                'Name',
+                'Department',
+                'Current Rank',
+                'Approved Rank',
+            ]);
+
+            foreach ($rows as $app) {
+                $profile = $app->faculty?->facultyProfile;
+                $fallbackCurrentRank = $profile?->rankLevel?->title
+                    ?: trim((string) (($profile?->teaching_rank ?? '') . (($profile?->rank_step ?? '') !== '' ? ' - ' . $profile->rank_step : '')));
+                $currentRank = $app->current_rank_label_at_approval ?: ($fallbackCurrentRank ?: '-');
+                $approvedRank = $app->approved_rank_label ?: $currentRank;
+
+                fputcsv($handle, [
+                    (string) ($app->faculty?->name ?? 'Faculty'),
+                    (string) ($app->faculty?->department?->name ?? '-'),
+                    (string) $currentRank,
+                    (string) $approvedRank,
+                ]);
+            }
+
+            fclose($handle);
+        }, $filename, [
+            'Content-Type' => 'text/csv',
+        ]);
+    }
+
+    public function approvedPrint(Request $request)
+    {
+        [$role, $departmentId] = $this->ensureReviewerHistoryRole($request);
+        $q = trim((string) $request->get('q', ''));
+        $requestedDepartmentId = $request->get('department_id');
+        $rankLevelId = $request->get('rank_level_id');
+        $periodId = $request->get('period_id');
+
+        $period = null;
+        if (!empty($periodId)) {
+            $period = ReclassificationPeriod::find($periodId);
         }
+        if (!$period) {
+            $period = $this->activePeriod();
+        }
+
+        $query = ReclassificationApplication::query()
+            ->with([
+                'faculty.department',
+                'faculty.facultyProfile' . (Schema::hasTable('rank_levels') ? '.rankLevel' : ''),
+            ])
+            ->where('status', 'finalized');
+
+        $this->applyPeriodScope($query, $period);
+
+        $this->applyDepartmentFilter($query, $role === 'dean' ? $departmentId : $requestedDepartmentId);
+
+        if ($q !== '') {
+            $query->whereHas('faculty', function ($faculty) use ($q) {
+                $faculty->where('name', 'like', "%{$q}%")
+                    ->orWhere('email', 'like', "%{$q}%");
+            });
+        }
+
+        $this->applyRankLevelFilter($query, $rankLevelId);
+
+        $applications = $query
+            ->orderBy('approved_at')
+            ->orderBy('id')
+            ->get();
+        $filterDepartmentId = $role === 'dean' ? $departmentId : $requestedDepartmentId;
+        $filterDepartmentLabel = null;
+        if (!empty($filterDepartmentId)) {
+            $filterDepartmentLabel = Department::where('id', $filterDepartmentId)->value('name');
+        }
+        $filterRankLabel = null;
+        if (!empty($rankLevelId) && Schema::hasTable('rank_levels')) {
+            $filterRankLabel = \App\Models\RankLevel::where('id', $rankLevelId)->value('title');
+        }
+
+        return view('reclassification.admin.approved-print', compact(
+            'applications',
+            'period',
+            'filterDepartmentLabel',
+            'filterRankLabel',
+            'q'
+        ));
+    }
+
+    public function history(Request $request)
+    {
+        [$role, $departmentId] = $this->ensureReviewerHistoryRole($request);
+        $q = trim((string) $request->get('q', ''));
+        $requestedDepartmentId = $request->get('department_id');
+        $rankLevelId = $request->get('rank_level_id');
+        $filterDepartmentId = $role === 'dean' ? $departmentId : $requestedDepartmentId;
+        $periods = collect();
+        if (Schema::hasTable('reclassification_periods')) {
+            $hasCycleYear = Schema::hasColumn('reclassification_periods', 'cycle_year');
+            $periods = ReclassificationPeriod::query()
+                ->when($q !== '', function ($query) use ($q, $hasCycleYear) {
+                    $query->where(function ($builder) use ($q, $hasCycleYear) {
+                        $builder->where('name', 'like', "%{$q}%");
+                        if ($hasCycleYear) {
+                            $builder->orWhere('cycle_year', 'like', "%{$q}%");
+                        }
+                    });
+                })
+                ->orderByDesc('created_at')
+                ->get()
+                ->map(function (ReclassificationPeriod $period) use ($filterDepartmentId, $rankLevelId) {
+                    $approvedQuery = ReclassificationApplication::query()
+                        ->where('status', 'finalized');
+                    $this->applyPeriodScope($approvedQuery, $period);
+                    $this->applyDepartmentFilter($approvedQuery, $filterDepartmentId);
+                    $this->applyRankLevelFilter($approvedQuery, $rankLevelId);
+                    $approvedCount = (clone $approvedQuery)->count();
+
+                    $submissionQuery = ReclassificationApplication::query()
+                        ->where('status', '!=', 'draft');
+                    $this->applyPeriodScope($submissionQuery, $period);
+                    $this->applyDepartmentFilter($submissionQuery, $filterDepartmentId);
+                    $this->applyRankLevelFilter($submissionQuery, $rankLevelId);
+                    $submissionCount = (clone $submissionQuery)->count();
+
+                    $period->approved_count = $approvedCount;
+                    $period->submission_count = $submissionCount;
+                    return $period;
+                });
+
+            if (!$hasCycleYear) {
+                $periods = $periods->map(function (ReclassificationPeriod $period) {
+                    if (empty($period->cycle_year)) {
+                        $period->cycle_year = '-';
+                    }
+                    return $period;
+                });
+            }
+        }
+
+        $departments = $role === 'dean'
+            ? Department::where('id', $departmentId)->get()
+            : Department::orderBy('name')->get();
+        $rankLevels = Schema::hasTable('rank_levels')
+            ? \App\Models\RankLevel::orderBy('order_no')->get()
+            : collect();
+        $showDepartmentFilter = $role !== 'dean';
+
+        $title = 'Reclassification History';
+        $subtitle = $role === 'dean'
+            ? 'Period history for your department.'
+            : 'All reclassification periods and approved outputs.';
+        $indexRoute = route('reclassification.history');
+        $backRoute = route('dashboard');
+
+        return view('reclassification.admin.history', compact(
+            'periods',
+            'q',
+            'title',
+            'subtitle',
+            'indexRoute',
+            'backRoute',
+            'departments',
+            'rankLevels',
+            'filterDepartmentId',
+            'rankLevelId',
+            'showDepartmentFilter',
+        ));
+    }
+
+    public function historyPeriod(Request $request, ReclassificationPeriod $period)
+    {
+        [$role, $departmentId] = $this->ensureReviewerHistoryRole($request);
+        $q = trim((string) $request->get('q', ''));
+        $requestedDepartmentId = $request->get('department_id');
+        $rankLevelId = $request->get('rank_level_id');
+        $filterDepartmentId = $role === 'dean' ? $departmentId : $requestedDepartmentId;
+
+        $query = ReclassificationApplication::query()
+            ->with(['faculty.department', 'approvedBy'])
+            ->where('status', 'finalized');
+        $this->applyPeriodScope($query, $period);
+
+        $this->applyDepartmentFilter($query, $filterDepartmentId);
+        $this->applyRankLevelFilter($query, $rankLevelId);
 
         if ($q !== '') {
             $query->whereHas('faculty', function ($faculty) use ($q) {
@@ -590,58 +890,57 @@ class ReclassificationAdminController extends Controller
             ->paginate(20)
             ->appends([
                 'q' => $q,
-                'department_id' => $departmentId,
-                'cycle_year' => $cycleYear,
+                'department_id' => $requestedDepartmentId,
+                'rank_level_id' => $rankLevelId,
             ]);
 
-        $cyclesQuery = ReclassificationApplication::query()
-            ->where('status', 'finalized');
-        if (!empty($departmentId)) {
-            $cyclesQuery->whereHas('faculty', fn ($faculty) => $faculty->where('department_id', $departmentId));
-        }
-
-        $cycleSummaries = $cyclesQuery
-            ->selectRaw('cycle_year, COUNT(*) as total')
-            ->whereNotNull('cycle_year')
-            ->groupBy('cycle_year')
-            ->orderByDesc('cycle_year')
-            ->get();
-
-        $cycleYears = $cycleSummaries->pluck('cycle_year')->values();
-        $applicationsByCycle = $applications
-            ->groupBy(fn ($app) => (string) ($app->cycle_year ?: 'No Cycle'))
-            ->sortKeysDesc();
+        $title = 'Approved List by Period';
+        $cycleLabel = trim((string) ($period->cycle_year ?? '')) !== '' ? $period->cycle_year : 'No cycle set';
+        $subtitle = "{$period->name} ({$cycleLabel})";
+        $indexRoute = route('reclassification.history.period', $period);
+        $backRoute = route('reclassification.history');
+        $showDepartmentFilter = false;
+        $showCycleFilter = false;
+        $showVpaaActions = false;
+        $showPresidentActions = false;
+        $enforceActivePeriod = false;
+        $exportPeriodId = $period->id;
+        $batchReadyCount = 0;
+        $batchBlockingCount = 0;
         $departments = $role === 'dean'
             ? Department::where('id', $departmentId)->get()
             : Department::orderBy('name')->get();
-
-        $title = 'Reclassification History';
-        $subtitle = $role === 'dean'
-            ? 'Finalized reclassifications in your department, grouped by cycle.'
-            : 'Finalized reclassifications by cycle.';
-        $indexRoute = route('reclassification.history');
-        $backRoute = match ($role) {
-            'dean' => route('dean.dashboard'),
-            'hr' => route('hr.dashboard'),
-            'vpaa' => route('vpaa.dashboard'),
-            default => route('president.dashboard'),
-        };
+        $rankLevels = Schema::hasTable('rank_levels')
+            ? \App\Models\RankLevel::orderBy('order_no')->get()
+            : collect();
+        $cycleYears = collect();
         $showDepartmentFilter = $role !== 'dean';
+        $departmentId = $requestedDepartmentId;
+        $cycleYear = null;
+        $activePeriod = null;
 
-        return view('reclassification.admin.history', compact(
+        return view('reclassification.admin.approved', compact(
             'applications',
-            'applicationsByCycle',
-            'cycleSummaries',
-            'cycleYears',
             'departments',
+            'rankLevels',
+            'cycleYears',
             'q',
             'departmentId',
+            'rankLevelId',
             'cycleYear',
             'title',
             'subtitle',
             'indexRoute',
             'backRoute',
-            'showDepartmentFilter'
+            'showDepartmentFilter',
+            'showCycleFilter',
+            'showVpaaActions',
+            'showPresidentActions',
+            'enforceActivePeriod',
+            'exportPeriodId',
+            'batchReadyCount',
+            'batchBlockingCount',
+            'activePeriod'
         ));
     }
 }
