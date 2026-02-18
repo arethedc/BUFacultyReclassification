@@ -65,7 +65,7 @@
             @php
                 $totalPeriods = (int) $periods->count();
                 $totalApproved = (int) $periods->sum('approved_count');
-                $openCount = (int) $periods->where('is_open', true)->count();
+                $endedCount = (int) $periods->count();
             @endphp
 
             <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -78,15 +78,15 @@
                     <div class="text-2xl font-semibold text-gray-800">{{ $totalApproved }}</div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-5">
-                    <div class="text-xs text-gray-500">Open Periods</div>
-                    <div class="text-2xl font-semibold text-gray-800">{{ $openCount }}</div>
+                    <div class="text-xs text-gray-500">Ended Periods</div>
+                    <div class="text-2xl font-semibold text-gray-800">{{ $endedCount }}</div>
                 </div>
             </div>
 
             <div class="bg-white rounded-2xl shadow-card border border-gray-200 overflow-hidden">
                 <div class="px-6 py-4 border-b border-gray-200">
                     <h3 class="text-lg font-semibold text-gray-800">Period History</h3>
-                    <p class="text-sm text-gray-500">Open a period to view its approved reclassification list.</p>
+                    <p class="text-sm text-gray-500">Only ended periods are listed here.</p>
                 </div>
 
                 @if($periods->isEmpty())

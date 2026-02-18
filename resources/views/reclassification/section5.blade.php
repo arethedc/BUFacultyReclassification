@@ -13,17 +13,7 @@
     STICKY HEADER (Score + Caps)
     ======================== --}}
     <div
-      x-data="{ open:true, stuck:false, userOverride:false }"
-      x-init="
-        const onScroll = () => {
-          const nowStuck = window.scrollY > 140;
-          if (!stuck && nowStuck) { stuck = true; if (!userOverride) open = false; return; }
-          if (stuck && !nowStuck) { stuck = false; if (!userOverride) open = true; return; }
-          stuck = nowStuck;
-        };
-        window.addEventListener('scroll', onScroll, { passive:true });
-        onScroll();
-      "
+      x-data="{ open:true }"
       class="sticky top-20 z-20"
     >
       <div class="bg-white/95 backdrop-blur rounded-2xl border shadow-card">
@@ -31,7 +21,7 @@
           <div class="min-w-0">
             <div class="flex items-center gap-3">
               <h3 class="text-sm sm:text-base font-semibold text-gray-800 truncate">
-                Section V Summary
+                Section V Score Summary
               </h3>
 
               <template x-if="Number(rawTotal()) <= 30">
@@ -56,7 +46,7 @@
 
           <button
             type="button"
-            @click="userOverride = true; open = !open"
+            @click="open = !open"
             class="px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
             <span x-text="open ? 'Hide details' : 'Show details'"></span>
@@ -118,6 +108,31 @@
             Professional and community leadership service within the last three (3) years.
             Section total is capped at 30 pts. Previous reclassification points are applied as 1/3 within B, C, and D caps.
           </p>
+      </div>
+    </div>
+
+    {{-- ===============================
+    PREVIOUS RECLASSIFICATION
+    =============================== --}}
+    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+      <div class="p-6">
+        <p class="text-sm text-gray-600">
+          Previous reclassification points are entered per section (B, C, and D) and are applied as one-third
+          to the respective caps.
+        </p>
+        <div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <label class="block text-xs text-gray-500">Previous Reclassification (Whole Section V) Points</label>
+          <input
+            x-model.number="previous"
+            name="section5[previous_points]"
+            type="number" step="0.01"
+            class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
+            placeholder="Enter previous total points"
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Counted: <span class="font-medium text-gray-700" x-text="prevThird()"></span>
+          </p>
+        </div>
       </div>
     </div>
 
@@ -982,31 +997,6 @@
       </div>
     </div>
 
-    {{-- ===============================
-    PREVIOUS RECLASSIFICATION
-    =============================== --}}
-      <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-        <div class="p-6">
-          <p class="text-sm text-gray-600">
-            Previous reclassification points are entered per section (B, C, and D) and are applied as one-third
-            to the respective caps.
-          </p>
-          <div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <label class="block text-xs text-gray-500">Previous Reclassification (Whole Section V) Points</label>
-            <input
-              x-model.number="previous"
-              name="section5[previous_points]"
-              type="number" step="0.01"
-              class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-              placeholder="Enter previous total points"
-            >
-            <p class="text-xs text-gray-500 mt-1">
-              Counted: <span class="font-medium text-gray-700" x-text="prevThird()"></span>
-            </p>
-          </div>
-        </div>
-      </div>
-
     <div class="hidden" x-effect="emitScore(cappedTotal())"></div>
 
     {{-- ACTIONS --}}
@@ -1194,7 +1184,7 @@
 </div>
 
 {{-- TOAST --}}
-<div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 right-6 z-50">
+<div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 left-6 z-50">
   <div class="px-4 py-2 rounded-lg shadow-lg text-sm text-white"
        :class="toast.type === 'success' ? 'bg-green-600' : 'bg-gray-800'">
     <span x-text="toast.message"></span>
@@ -1493,6 +1483,17 @@ function sectionFive(initial = {}, globalEvidence = []) {
       };
       const rows = rowsByKey[key] || [];
 
+      if (key === 'c1') {
+        return rows.map((row) => {
+          const points = Number(this.ptsC1(row) || 0);
+          return {
+            ...row,
+            points,
+            counted: points > 0,
+          };
+        });
+      }
+
       const keyFns = {
         a: (r) => `${r.kind || ''}|${(r.kind || '') === 'scholarship' ? (r.grant || '') : (r.level || '')}`,
         b: (r) => `${r.role || ''}|${r.level || ''}`,
@@ -1549,6 +1550,7 @@ function sectionFive(initial = {}, globalEvidence = []) {
     },
 
     rowDuplicate(key, index) {
+      if (key === 'c1') return false;
       const rowsByKey = {
         a: this.aRows,
         b: this.bRows,
@@ -1698,6 +1700,3 @@ function sectionFive(initial = {}, globalEvidence = []) {
 </script>
 
 </form>
-
-
-

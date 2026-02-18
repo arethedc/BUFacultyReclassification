@@ -373,9 +373,9 @@
                 <td class="px-4 py-3"></td>
               </tr>
 
-              <tr>
-                <td class="px-4 py-3 font-semibold">EQUIVALENT PERCENTAGE (Total ÷ 4)</td>
-                <td class="px-4 py-3 text-right font-semibold text-gray-900" x-text="eqPercent().toFixed(2)"></td>
+              <tr class="bg-green-600 text-white">
+                <td class="px-4 py-3 font-semibold">EQUIVALENT PERCENTAGE (Total / 4)</td>
+                <td class="px-4 py-3 text-right font-semibold" x-text="eqPercent().toFixed(2)"></td>
                 <td class="px-4 py-3"></td>
               </tr>
             </tbody>
@@ -488,6 +488,7 @@
         class="px-6 py-2.5 rounded-xl bg-bu text-white"
         :disabled="!canFinalSubmit()"
         :class="!canFinalSubmit() ? 'opacity-60 cursor-not-allowed' : ''"
+        @click="if (!canFinalSubmit()) { $event.preventDefault(); return; } if (!window.confirm(finalSubmitConfirmMessage())) { $event.preventDefault(); }"
       >
         Final Submit
       </button>
@@ -677,6 +678,10 @@ function reviewSummary(init) {
 
       return true;
     },
+
+    finalSubmitConfirmMessage() {
+      return "Are you sure you want to final submit this reclassification?\n\nPlease make sure all required documents are complete.\n\nOnly one submission is allowed per period, and you cannot fully revise after final submit unless a reviewer returns the form.";
+    },
   }
 }
 </script>
@@ -686,4 +691,3 @@ function reviewSummary(init) {
 
 </form>
 </x-app-layout>
-

@@ -132,15 +132,27 @@ class ReclassificationReviewController extends Controller
             'section2.ratings.dean' => ['array'],
             'section2.ratings.chair' => ['array'],
             'section2.ratings.student' => ['array'],
+            'section2.ratings.dean.i1' => ['nullable', 'numeric'],
+            'section2.ratings.dean.i2' => ['nullable', 'numeric'],
+            'section2.ratings.dean.i3' => ['nullable', 'numeric'],
+            'section2.ratings.dean.i4' => ['nullable', 'numeric'],
+            'section2.ratings.chair.i1' => ['nullable', 'numeric'],
+            'section2.ratings.chair.i2' => ['nullable', 'numeric'],
+            'section2.ratings.chair.i3' => ['nullable', 'numeric'],
+            'section2.ratings.chair.i4' => ['nullable', 'numeric'],
+            'section2.ratings.student.i1' => ['nullable', 'numeric'],
+            'section2.ratings.student.i2' => ['nullable', 'numeric'],
+            'section2.ratings.student.i3' => ['nullable', 'numeric'],
+            'section2.ratings.student.i4' => ['nullable', 'numeric'],
             'section2.previous_points' => ['nullable', 'numeric'],
         ]);
 
         $ratings = $data['section2']['ratings'] ?? [];
         $previous = (float) ($data['section2']['previous_points'] ?? 0);
 
-        $dean = $ratings['dean'] ?? [];
-        $chair = $ratings['chair'] ?? [];
-        $student = $ratings['student'] ?? [];
+        $dean = $this->normalizeSectionTwoRater($ratings['dean'] ?? []);
+        $chair = $this->normalizeSectionTwoRater($ratings['chair'] ?? []);
+        $student = $this->normalizeSectionTwoRater($ratings['student'] ?? []);
 
         $deanPts = $this->sumRaterPoints($dean);
         $chairPts = $this->sumRaterPoints($chair);
@@ -149,6 +161,12 @@ class ReclassificationReviewController extends Controller
         $weighted = ($deanPts * 0.4) + ($chairPts * 0.3) + ($studentPts * 0.3);
         $total = $weighted + ($previous / 3);
         if ($total > 120) $total = 120;
+
+        $isComplete = $this->isSectionTwoRatingsComplete([
+            'dean' => $dean,
+            'chair' => $chair,
+            'student' => $student,
+        ]);
 
         $section->entries()->delete();
 
@@ -179,10 +197,51 @@ class ReclassificationReviewController extends Controller
 
         $section->update([
             'points_total' => $total,
-            'is_complete' => true,
+            'is_complete' => $isComplete,
         ]);
 
         return back()->with('success', 'Section II saved.');
+    }
+
+    private function normalizeSectionTwoRater(array $rater): array
+    {
+        $normalized = [];
+        foreach (['i1', 'i2', 'i3', 'i4'] as $key) {
+            $value = $rater[$key] ?? null;
+            if ($value === null || $value === '') {
+                $normalized[$key] = null;
+                continue;
+            }
+
+            $numeric = (float) $value;
+            if ($numeric <= 0) {
+                $normalized[$key] = null;
+                continue;
+            }
+            if ($numeric < 1) {
+                $numeric = 1;
+            }
+            if ($numeric > 4) {
+                $numeric = 4;
+            }
+            $normalized[$key] = round($numeric, 2);
+        }
+
+        return $normalized;
+    }
+
+    private function isSectionTwoRatingsComplete(array $ratings): bool
+    {
+        foreach (['dean', 'chair', 'student'] as $rater) {
+            foreach (['i1', 'i2', 'i3', 'i4'] as $item) {
+                $value = $ratings[$rater][$item] ?? null;
+                if ($value === null || $value === '') {
+                    return false;
+                }
+            }
+        }
+
+        return true;
     }
 
     public function updateSectionOneC(Request $request, ReclassificationApplication $application, ReclassificationSectionEntry $entry)

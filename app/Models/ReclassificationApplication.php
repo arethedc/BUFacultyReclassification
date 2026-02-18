@@ -19,12 +19,20 @@ class ReclassificationApplication extends Model
         'approved_rank_label',
         'approved_by_user_id',
         'approved_at',
+        'rejection_recommended_by_user_id',
+        'rejection_recommendation_reason',
+        'rejection_recommended_at',
+        'rejection_finalized_by_user_id',
+        'rejection_final_reason',
+        'rejection_finalized_at',
     ];
 
     protected $casts = [
         'submitted_at' => 'datetime',
         'finalized_at' => 'datetime',
         'approved_at' => 'datetime',
+        'rejection_recommended_at' => 'datetime',
+        'rejection_finalized_at' => 'datetime',
     ];
 
     public function faculty()
@@ -55,5 +63,15 @@ class ReclassificationApplication extends Model
     public function approvedBy()
     {
         return $this->belongsTo(User::class, 'approved_by_user_id');
+    }
+
+    public function rejectionRecommendedBy()
+    {
+        return $this->belongsTo(User::class, 'rejection_recommended_by_user_id');
+    }
+
+    public function rejectionFinalizedBy()
+    {
+        return $this->belongsTo(User::class, 'rejection_finalized_by_user_id');
     }
 }

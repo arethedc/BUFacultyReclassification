@@ -9,40 +9,65 @@
     <div class="py-12 bg-bu-muted min-h-screen">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
-            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
-                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <div>
+            @php
+                $currentPeriod = $activePeriod ?? $openPeriod ?? null;
+                $periodStateLabel = $openPeriod?->is_open
+                    ? 'Open for submissions'
+                    : ($currentPeriod ? 'Closed for submissions' : 'No active period');
+                $periodStateClass = $openPeriod?->is_open
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : ($currentPeriod ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-100 text-gray-700 border-gray-200');
+            @endphp
+            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 space-y-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2">
                         <div class="text-sm text-gray-500">Current Submission Period</div>
-                        <div class="text-lg font-semibold text-gray-800">
-                            {{ $openPeriod?->name ?? 'No open period' }}
+                        <div class="mt-1 flex flex-wrap items-center gap-2">
+                            <div class="text-lg font-semibold text-gray-800">
+                                {{ $currentPeriod?->name ?? 'No active period' }}
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] border {{ $periodStateClass }}">
+                                {{ $periodStateLabel }}
+                            </span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">
-                            {{ $openPeriod?->is_open ? 'Open for submissions' : 'Closed' }}
-                            @if($openPeriod?->start_at || $openPeriod?->end_at)
-                                • {{ optional($openPeriod?->start_at)->format('M d, Y') ?? '—' }}
-                                to {{ optional($openPeriod?->end_at)->format('M d, Y') ?? '—' }}
+                            @if($currentPeriod?->start_at || $currentPeriod?->end_at)
+                                {{ optional($currentPeriod?->start_at)->format('M d, Y') ?? '-' }}
+                                to {{ optional($currentPeriod?->end_at)->format('M d, Y') ?? '-' }}
+                            @else
+                                No configured date range
+                            @endif
+                            @if(!empty($currentPeriod?->cycle_year))
+                                • Cycle {{ $currentPeriod->cycle_year }}
                             @endif
                         </div>
                     </div>
-                    <div class="flex flex-wrap gap-2">
+
+                    <div class="flex flex-col gap-2">
                         <a href="{{ route('reclassification.review.queue') }}"
-                           class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
-                            Review Queue
+                           class="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
+                            Open Review Queue
                         </a>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-gray-100">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Other Reclassification Actions</div>
+                    <div class="flex flex-wrap gap-2">
                         <a href="{{ route('reclassification.admin.submissions') }}"
-                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                           class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
                             All Submissions
                         </a>
                         <a href="{{ route('reclassification.admin.approved') }}"
-                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                           class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
                             Approved Reclassification
                         </a>
                         <a href="{{ route('reclassification.history') }}"
-                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                           class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
                             Reclassification History
                         </a>
                         <a href="{{ route('reclassification.periods') }}"
-                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                           class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
                             Manage Periods
                         </a>
                     </div>

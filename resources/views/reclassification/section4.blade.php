@@ -18,29 +18,7 @@
     STICKY SCORE SUMMARY (Section IV)
     ======================== --}}
     <div
-      x-data="{ open:true, stuck:false, userOverride:false }"
-      x-init="
-        const onScroll = () => {
-          const nowStuck = window.scrollY > 140;
-
-          if (!stuck && nowStuck) {
-            stuck = true;
-            if (!userOverride) open = false;
-            return;
-          }
-
-          if (stuck && !nowStuck) {
-            stuck = false;
-            if (!userOverride) open = true;
-            return;
-          }
-
-          stuck = nowStuck;
-        };
-
-        window.addEventListener('scroll', onScroll, { passive:true });
-        onScroll();
-      "
+      x-data="{ open:true }"
       class="sticky top-20 z-20"
     >
       <div class="bg-white/95 backdrop-blur rounded-2xl border shadow-card">
@@ -48,7 +26,7 @@
           <div class="min-w-0">
             <div class="flex items-center gap-3">
               <h3 class="text-sm sm:text-base font-semibold text-gray-800 truncate">
-                Section IV Summary
+                Section IV Score Summary
               </h3>
 
 <template x-if="Number(finalCapped()) <= 40">
@@ -74,7 +52,7 @@
             </div>
 
             <p class="text-xs text-gray-600 mt-1">
-              Teaching (A) counted: <span class="font-semibold text-gray-800" x-text="teachingTotalCapped()"></span>
+              Teaching (A) capped: <span class="font-semibold text-gray-800" x-text="teachingTotalCapped()"></span>
               <span class="mx-2 text-gray-300">•</span>
               Industry/Admin (B) capped: <span class="font-semibold text-gray-800" x-text="industryCapped()"></span>
               <span class="mx-2 text-gray-300">•</span>
@@ -85,7 +63,7 @@
 
           <button
             type="button"
-            @click="userOverride = true; open = !open"
+            @click="open = !open"
             class="px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
             <span x-text="open ? 'Hide details' : 'Show details'"></span>
@@ -95,7 +73,8 @@
         <div x-show="open" x-collapse class="px-5 pb-4">
           <p class="text-xs text-gray-500">
             Rule: credit is given only for Teaching Experience (A) OR Industry/Professional/Admin Experience (B),
-            whichever is higher in points. Part-time faculty receives 1/2 points. Subject to validation.
+            whichever is higher in points. For part-time faculty, deduction (50%) is applied on the final counted track.
+            Subject to validation.
           </p>
 
           <div class="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
@@ -138,7 +117,7 @@
 
           <template x-if="isPartTime">
             <p class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-              Part-time selected: all computed points are shown at 1/2 value (display only; subject to validation).
+              Part-time selected: entry points are shown in full; 50% deduction is applied on the final counted score.
             </p>
           </template>
         </div>
@@ -164,7 +143,7 @@
     <div>
         <p class="text-sm font-medium text-gray-800">Employment Type</p>
         <p class="text-xs text-gray-500">
-            Points are automatically adjusted based on your employment status.
+            Entry points are shown in full; part-time deduction is applied on final counted score.
         </p>
     </div>
 
@@ -486,10 +465,15 @@
                     </div>
                 </div>
 
-                <p class="mt-3 text-xs text-gray-500">
-                    Counted track: <span class="font-medium text-gray-700" x-text="countedTrackLabel()"></span>
-                </p>
-            </div>
+	                <p class="mt-3 text-xs text-gray-500">
+	                    Counted track: <span class="font-medium text-gray-700" x-text="countedTrackLabel()"></span>
+	                </p>
+                    <template x-if="isPartTime">
+                        <p class="mt-2 text-xs text-amber-700">
+                            Part-time deduction applied: final score is 50% of the counted track after cap.
+                        </p>
+                    </template>
+	            </div>
 
             <div class="hidden" x-effect="emitScore(finalCapped())"></div>
 
@@ -680,7 +664,7 @@
 </div>
 
 {{-- TOAST --}}
-<div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 right-6 z-50">
+<div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 left-6 z-50">
   <div class="px-4 py-2 rounded-lg shadow-lg text-sm text-white"
        :class="toast.type === 'success' ? 'bg-green-600' : 'bg-gray-800'">
     <span x-text="toast.message"></span>
@@ -934,16 +918,12 @@ function sectionFour(initial = {}, globalEvidence = []) {
       v = Number(v || 0);
       return v > max ? max : v;
     },
-    halfIfPartTime(v) {
-      return this.isPartTime ? (Number(v) / 2) : Number(v);
-    },
-
     a1Raw() {
       return this.n(this.a1Years) * 2;
     },
     a1Capped() {
       const v = this.cap(this.a1Raw(), 20);
-      return this.halfIfPartTime(v).toFixed(2);
+      return Number(v).toFixed(2);
     },
 
     a2Raw() {
@@ -951,7 +931,7 @@ function sectionFour(initial = {}, globalEvidence = []) {
     },
     a2Capped() {
       const v = this.cap(this.a2Raw(), 40);
-      return this.halfIfPartTime(v).toFixed(2);
+      return Number(v).toFixed(2);
     },
 
     teachingTotalRawCapped() {
@@ -960,7 +940,7 @@ function sectionFour(initial = {}, globalEvidence = []) {
       return this.cap(a1 + a2, 40);
     },
     teachingTotalCapped() {
-      return this.halfIfPartTime(this.teachingTotalRawCapped()).toFixed(2);
+      return Number(this.teachingTotalRawCapped()).toFixed(2);
     },
 
     industryRawCapped() {
@@ -968,21 +948,25 @@ function sectionFour(initial = {}, globalEvidence = []) {
       return this.cap(this.n(this.bYears) * 2, 20);
     },
     industryCapped() {
-      return this.halfIfPartTime(this.industryRawCapped()).toFixed(2);
+      return Number(this.industryRawCapped()).toFixed(2);
     },
 
     rawCountedNumber() {
-      const a = this.halfIfPartTime(this.teachingTotalRawCapped());
-      const b = this.halfIfPartTime(this.industryRawCapped());
+      const a = this.teachingTotalRawCapped();
+      const b = this.industryRawCapped();
       return Math.max(a, b);
     },
+    deductionRate() {
+      return this.isPartTime ? 0.5 : 1;
+    },
     finalCapped() {
-      return this.cap(this.rawCountedNumber(), 40).toFixed(2);
+      const adjusted = this.rawCountedNumber() * this.deductionRate();
+      return this.cap(adjusted, 40).toFixed(2);
     },
 
     countedTrackLabel() {
-      const a = this.halfIfPartTime(this.teachingTotalRawCapped());
-      const b = this.halfIfPartTime(this.industryRawCapped());
+      const a = this.teachingTotalRawCapped();
+      const b = this.industryRawCapped();
       if (a === 0 && b === 0) return 'None yet';
       return (a >= b) ? 'A. Teaching Experience' : 'B. Industry/Admin Experience';
     },

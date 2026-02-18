@@ -27,6 +27,7 @@
                     'vpaa_approved' => 'VPAA Approved',
                     'president_review' => 'President Review',
                     'finalized' => 'Finalized',
+                    'rejected_final' => 'Rejected',
                     default => ucfirst(str_replace('_',' ', $status)),
                 };
 
@@ -34,6 +35,7 @@
                     'draft' => 'bg-gray-100 text-gray-700 border-gray-200',
                     'returned_to_faculty' => 'bg-amber-50 text-amber-700 border-amber-200',
                     'finalized' => 'bg-green-50 text-green-700 border-green-200',
+                    'rejected_final' => 'bg-red-50 text-red-700 border-red-200',
                     default => 'bg-blue-50 text-blue-700 border-blue-200',
                 };
 
@@ -48,10 +50,11 @@
 
                 @if($canEdit)
                     <button type="button"
+                            id="header-save-draft-btn"
                             onclick="window.saveDraftAll && window.saveDraftAll()"
                             class="inline-flex items-center px-3 py-2 rounded-xl border border-gray-200 text-sm font-semibold
-                                   text-gray-700 hover:bg-gray-50 transition">
-                        Save Draft
+                                   text-gray-700 hover:bg-gray-50 transition disabled:opacity-60 disabled:cursor-not-allowed">
+                        <span id="header-save-draft-label">Save Draft</span>
                     </button>
 
                     @if($status === 'returned_to_faculty')
@@ -99,7 +102,12 @@
         @endif
         @if (($application->status ?? '') === 'returned_to_faculty')
             <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Returned form mode: only entries with reviewer comments are editable. Other entries are locked.
+                Returned form mode: only entries with action-required reviewer comments are editable. Other entries are locked.
+            </div>
+        @endif
+        @if (($application->status ?? '') === 'rejected_final')
+            <div class="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                This application has been final rejected for this period and can no longer be submitted.
             </div>
         @endif
         @if(!($submissionWindowOpen ?? true) && in_array(($application->status ?? ''), ['draft', 'returned_to_faculty'], true))
@@ -113,12 +121,20 @@
                 </div>
             </div>
         @endif
+        @php
+            $requiredCommentThreads = collect($commentThreads ?? [])
+                ->filter(fn ($thread) => (string) ($thread->action_type ?? 'requires_action') === 'requires_action')
+                ->values();
+            $infoCommentThreads = collect($commentThreads ?? [])
+                ->filter(fn ($thread) => (string) ($thread->action_type ?? 'requires_action') === 'info')
+                ->values();
+        @endphp
         <div id="faculty-comment-threads">
-        @if (($application->status ?? '') === 'returned_to_faculty' && !empty($commentThreads) && $commentThreads->count() > 0)
+        @if (($application->status ?? '') === 'returned_to_faculty' && $requiredCommentThreads->count() > 0)
             <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
                 <div class="font-semibold text-amber-800 mb-2">Reviewer comments to address</div>
                 <div class="space-y-3">
-                    @foreach($commentThreads as $thread)
+                    @foreach($requiredCommentThreads as $thread)
                         @php
                             $status = $thread->status ?? 'open';
                             $statusClass = match($status) {
@@ -209,6 +225,30 @@
                                     @endif
                                 </div>
                             @endif
+                        </div>
+                    @endforeach
+                </div>
+            </div>
+        @endif
+        @if($infoCommentThreads->count() > 0)
+            <div class="mb-4 rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                <div class="font-semibold text-blue-800 mb-2">Reviewer notes (no action required)</div>
+                <div class="space-y-2">
+                    @foreach($infoCommentThreads as $thread)
+                        @php
+                            $threadSection = $thread->entry?->section?->section_code;
+                            $threadCriterion = strtoupper((string) ($thread->entry?->criterion_key ?? ''));
+                        @endphp
+                        <div class="rounded-lg border border-blue-200 bg-white p-3">
+                            <div class="text-xs text-gray-500">
+                                Section {{ $threadSection ?? '-' }} / {{ $threadCriterion ?: '-' }}
+                            </div>
+                            <div class="text-xs text-gray-500">
+                                {{ $thread->author?->name ?? 'Reviewer' }}
+                                &middot;
+                                {{ optional($thread->created_at)->format('M d, Y g:i A') }}
+                            </div>
+                            <div class="mt-2 text-sm text-gray-800">{{ $thread->body }}</div>
                         </div>
                     @endforeach
                 </div>
@@ -409,12 +449,12 @@
                                     </div>
                                     <div>
                                         <div class="text-xs text-gray-500">Date of Original Appointment</div>
-                                        <div class="text-sm font-semibold text-gray-800">{{ $appointmentDate ?? 'â€”' }}</div>
+                                        <div class="text-sm font-semibold text-gray-800">{{ $appointmentDate ?? '-' }}</div>
                                     </div>
                                     <div>
                                         <div class="text-xs text-gray-500">Total Years of Service (BU)</div>
                                         <div class="text-sm font-semibold text-gray-800">
-                                            {{ $yearsService !== null ? (int) $yearsService . ' years' : 'â€”' }}
+                                            {{ $yearsService !== null ? (int) $yearsService . ' years' : '-' }}
                                         </div>
                                     </div>
                                     <div>
@@ -432,7 +472,7 @@
                                     </div>
                                     <div>
                                         <div class="text-xs text-gray-500">Rank Based on Points</div>
-                                        <div class="text-sm font-semibold text-gray-800" x-text="isSection2Pending() ? 'Not yet available' : (pointsRankLabel() || 'â€”')"></div>
+                                        <div class="text-sm font-semibold text-gray-800" x-text="isSection2Pending() ? 'Not yet available' : (pointsRankLabel() || '-')"></div>
                                     </div>
                                     <div>
                                         <div class="text-xs text-gray-500">Allowed Rank (Rules Applied)</div>
@@ -484,35 +524,35 @@
                                         </thead>
                                         <tbody class="divide-y">
                                             <tr>
-                                                <td class="px-4 py-3 font-medium">Section I â€“ Academic Preparation & Professional Development</td>
+                                                <td class="px-4 py-3 font-medium">Section I - Academic Preparation & Professional Development</td>
                                                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="sectionPoints(1).toFixed(2)"></td>
                                                 <td class="px-4 py-3 text-right">
                                                     <button type="button" @click="$dispatch('review-nav', { target: 1 })" class="text-bu text-xs font-medium hover:underline">View Section I</button>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="px-4 py-3 font-medium">Section II â€“ Instructional Competence</td>
+                                                <td class="px-4 py-3 font-medium">Section II - Instructional Competence</td>
                                                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="sectionPoints(2).toFixed(2)"></td>
                                                 <td class="px-4 py-3 text-right">
                                                     <button type="button" @click="$dispatch('review-nav', { target: 2 })" class="text-bu text-xs font-medium hover:underline">View Section II</button>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="px-4 py-3 font-medium">Section III â€“ Research Competence & Productivity</td>
+                                                <td class="px-4 py-3 font-medium">Section III - Research Competence & Productivity</td>
                                                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="sectionPoints(3).toFixed(2)"></td>
                                                 <td class="px-4 py-3 text-right">
                                                     <button type="button" @click="$dispatch('review-nav', { target: 3 })" class="text-bu text-xs font-medium hover:underline">View Section III</button>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="px-4 py-3 font-medium">Section IV â€“ Teaching / Professional / Administrative Experience</td>
+                                                <td class="px-4 py-3 font-medium">Section IV - Teaching / Professional / Administrative Experience</td>
                                                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="sectionPoints(4).toFixed(2)"></td>
                                                 <td class="px-4 py-3 text-right">
                                                     <button type="button" @click="$dispatch('review-nav', { target: 4 })" class="text-bu text-xs font-medium hover:underline">View Section IV</button>
                                                 </td>
                                             </tr>
                                             <tr>
-                                                <td class="px-4 py-3 font-medium">Section V â€“ Professional & Community Leadership Service</td>
+                                                <td class="px-4 py-3 font-medium">Section V - Professional & Community Leadership Service</td>
                                                 <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="sectionPoints(5).toFixed(2)"></td>
                                                 <td class="px-4 py-3 text-right">
                                                     <button type="button" @click="$dispatch('review-nav', { target: 5 })" class="text-bu text-xs font-medium hover:underline">View Section V</button>
@@ -523,9 +563,9 @@
                                                 <td class="px-4 py-3 text-right font-semibold text-gray-900" x-text="totalPoints().toFixed(2)"></td>
                                                 <td class="px-4 py-3"></td>
                                             </tr>
-                                            <tr>
-                                                <td class="px-4 py-3 font-semibold">EQUIVALENT PERCENTAGE (Total Ã· 4)</td>
-                                                <td class="px-4 py-3 text-right font-semibold text-gray-900" x-text="eqPercent().toFixed(2)"></td>
+                                            <tr class="bg-green-600 text-white">
+                                                <td class="px-4 py-3 font-semibold">EQUIVALENT PERCENTAGE (Total / 4)</td>
+                                                <td class="px-4 py-3 text-right font-semibold" x-text="eqPercent().toFixed(2)"></td>
                                                 <td class="px-4 py-3"></td>
                                             </tr>
                                         </tbody>
@@ -542,9 +582,9 @@
                                 <p>No faculty member can be promoted to the rank of Full Professor who has not earned a doctorate degree in his field of teaching assignment or allied field of discipline and has produced at least one accepted research output; or recognition of outstanding accomplishments in arts and sciences; attainment of higher responsible position in government service, business and industry.</p>
                                 <p>No faculty member can be promoted to more than one rank (not step) during any one reclassification term.</p>
                                 <p>Normally, a new faculty member starts as a probationary instructor, but he may be appointed to a higher rank depending on his credentials.</p>
-                                <p>A faculty member cannot be ranked if he does not have a masterâ€™s degree.</p>
+                                <p>A faculty member cannot be ranked if he does not have a master's degree.</p>
                                 <p>A faculty member cannot be ranked without any research or its equivalent.</p>
-                                <p>A faculty member who has just earned his/her masterâ€™s degree can be classified even if it is not within the reclassification term in the University.</p>
+                                <p>A faculty member who has just earned his/her master's degree can be classified even if it is not within the reclassification term in the University.</p>
                             </div>
                         </div>
 
@@ -556,7 +596,7 @@
                                         class="px-5 py-2.5 rounded-xl border border-gray-200 text-gray-700 font-semibold hover:bg-gray-50 transition"
                                         :class="savingDraft ? 'opacity-60 cursor-not-allowed' : ''"
                                         :title="savingDraft ? 'Saving draft...' : 'Save all sections as draft.'">
-                                    Save Draft
+                                    <span x-text="savingDraft ? 'Saving draft...' : 'Save Draft'"></span>
                                 </button>
 
                                 <form id="final-submit-form"
@@ -633,7 +673,7 @@
                                     @click="uploadPendingEvidence()"
                                     :disabled="uploading || pendingUploads.length === 0"
                                     class="mt-2 px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft hover:bg-bu-dark disabled:opacity-50 disabled:cursor-not-allowed">
-                                <span x-text="uploading ? 'Uploadingâ€¦' : 'Upload selected'"></span>
+                                <span x-text="uploading ? 'Uploading...' : 'Upload selected'"></span>
                             </button>
                         </div>
                     </template>
@@ -739,6 +779,9 @@
     @php
         $pendingCommentTargetsPayload = collect($commentThreads ?? [])
             ->filter(function ($thread) {
+                return (string) ($thread->action_type ?? 'requires_action') === 'requires_action';
+            })
+            ->filter(function ($thread) {
                 return (string) ($thread->status ?? 'open') !== 'resolved';
             })
             ->map(function ($thread) {
@@ -770,6 +813,7 @@
             const initial = @json($initialSections);
             const sectionUrls = @json(collect(range(1, 5))->mapWithKeys(fn ($i) => [$i => route('reclassification.section', $i)]));
             const reviewUrl = @json(route('reclassification.show', ['tab' => 'review']));
+            const applicationId = @json((int) $application->id);
             const globalEvidence = @json($globalEvidence ?? []);
             const detachBase = @json(url('/reclassification/evidences'));
             const deleteBase = @json(url('/reclassification/evidences'));
@@ -795,7 +839,14 @@
                  globalEvidence,
                  libraryPreviewOpen: false,
                  libraryPreviewItem: null,
-                 libraryToast: { show: false, message: '' },
+                 libraryToast: { show: false, message: '', type: 'info' },
+                 toastTimer: null,
+                 showBackToTop: false,
+                 draftSaveInFlight: false,
+                 autosaveTimer: null,
+                 autosaveDelayMs: 8000,
+                 localDraftTimers: {},
+                 dirtySections: {},
                 pendingUploads: [],
                 savingDraft: false,
                 finalSubmitting: false,
@@ -837,12 +888,223 @@
                         if (!form) return;
                         this.submitFinal({ target: form });
                     };
+                    window.reclassificationToast = (message, type = 'info', timeout = 3000) => {
+                        this.showToast(message, type, timeout);
+                    };
+
+                    this.bindDraftProtection();
+                    this.updateBackToTopVisibility();
+                    window.addEventListener('scroll', () => this.updateBackToTopVisibility(), { passive: true });
 
                     this.$nextTick(() => {
+                        this.restoreLocalDrafts();
                         if (this.returnedLockMode) {
                             this.applyReturnedLocks();
                         }
                     });
+                },
+
+                showToast(message, type = 'info', timeout = 2500) {
+                    this.libraryToast = { show: true, message, type };
+                    if (this.toastTimer) {
+                        clearTimeout(this.toastTimer);
+                        this.toastTimer = null;
+                    }
+                    if (timeout > 0) {
+                        this.toastTimer = setTimeout(() => {
+                            this.libraryToast.show = false;
+                            this.toastTimer = null;
+                        }, timeout);
+                    }
+                },
+
+                bindDraftProtection() {
+                    const onFieldChange = (event) => {
+                        const target = event?.target;
+                        if (!target || typeof target.closest !== 'function') return;
+                        const form = target.closest('form[data-validate-evidence]');
+                        if (!form || form.dataset.viewOnly === 'true') return;
+                        this.markSectionDirty(form);
+                        this.scheduleLocalFormSnapshot(form);
+                        this.scheduleAutosave();
+                    };
+
+                    document.addEventListener('input', onFieldChange, true);
+                    document.addEventListener('change', onFieldChange, true);
+
+                    document.addEventListener('visibilitychange', () => {
+                        if (!document.hidden) return;
+                        this.persistAllLocalDrafts();
+                        this.saveDirtySectionsDraft('auto');
+                    });
+
+                    window.addEventListener('beforeunload', (event) => {
+                        if (!this.hasDirtyChanges()) return;
+                        this.persistAllLocalDrafts();
+                        event.preventDefault();
+                        event.returnValue = '';
+                    });
+                },
+
+                editableForms() {
+                    return Array.from(document.querySelectorAll('form[data-validate-evidence]'))
+                        .filter((form) => form.dataset.viewOnly !== 'true');
+                },
+
+                draftStorageKey(sectionCode) {
+                    return `reclassification:draft:${applicationId}:section:${sectionCode}`;
+                },
+
+                formSnapshot(form) {
+                    const formData = new FormData(form);
+                    this.appendDisabledFormValues(form, formData);
+                    const values = {};
+                    for (const [name, raw] of formData.entries()) {
+                        if (raw instanceof File) continue;
+                        if (!values[name]) values[name] = [];
+                        values[name].push(String(raw ?? ''));
+                    }
+                    return values;
+                },
+
+                applyFormSnapshot(form, values) {
+                    if (!form || !values || typeof values !== 'object') return;
+                    const grouped = {};
+                    Array.from(form.querySelectorAll('[name]')).forEach((field) => {
+                        if (!field.name) return;
+                        if (!grouped[field.name]) grouped[field.name] = [];
+                        grouped[field.name].push(field);
+                    });
+
+                    Object.entries(grouped).forEach(([name, fields]) => {
+                        if (!Object.prototype.hasOwnProperty.call(values, name)) return;
+                        const savedValues = Array.isArray(values[name]) ? values[name].map(String) : [String(values[name])];
+                        const first = fields[0];
+                        const type = String(first?.type || '').toLowerCase();
+                        const tag = String(first?.tagName || '').toLowerCase();
+
+                        if (type === 'file') return;
+
+                        if (type === 'checkbox' || type === 'radio') {
+                            fields.forEach((field) => {
+                                const value = String(field.value ?? 'on');
+                                field.checked = savedValues.includes(value);
+                            });
+                            return;
+                        }
+
+                        if (tag === 'select' && first.multiple) {
+                            const selected = new Set(savedValues);
+                            Array.from(first.options || []).forEach((opt) => {
+                                opt.selected = selected.has(String(opt.value));
+                            });
+                            return;
+                        }
+
+                        fields.forEach((field, index) => {
+                            field.value = savedValues[index] ?? savedValues[0] ?? '';
+                        });
+                    });
+
+                    form.dispatchEvent(new Event('input', { bubbles: true }));
+                    form.dispatchEvent(new Event('change', { bubbles: true }));
+                },
+
+                markSectionDirty(form) {
+                    const sectionCode = this.formSectionCode(form);
+                    if (!sectionCode) return;
+                    this.dirtySections[sectionCode] = true;
+                },
+
+                clearSectionDirty(form) {
+                    const sectionCode = this.formSectionCode(form);
+                    if (!sectionCode) return;
+                    delete this.dirtySections[sectionCode];
+                },
+
+                hasDirtyChanges() {
+                    return Object.keys(this.dirtySections || {}).length > 0;
+                },
+
+                scheduleLocalFormSnapshot(form) {
+                    const sectionCode = this.formSectionCode(form);
+                    if (!sectionCode) return;
+                    if (this.localDraftTimers[sectionCode]) {
+                        clearTimeout(this.localDraftTimers[sectionCode]);
+                    }
+                    this.localDraftTimers[sectionCode] = setTimeout(() => {
+                        this.persistLocalFormDraft(form);
+                        delete this.localDraftTimers[sectionCode];
+                    }, 450);
+                },
+
+                persistLocalFormDraft(form) {
+                    const sectionCode = this.formSectionCode(form);
+                    if (!sectionCode) return;
+                    try {
+                        const payload = {
+                            saved_at: Date.now(),
+                            values: this.formSnapshot(form),
+                        };
+                        window.localStorage.setItem(this.draftStorageKey(sectionCode), JSON.stringify(payload));
+                    } catch (error) {
+                        // ignore storage errors
+                    }
+                },
+
+                persistAllLocalDrafts() {
+                    this.editableForms().forEach((form) => this.persistLocalFormDraft(form));
+                },
+
+                clearLocalFormDraft(form) {
+                    const sectionCode = this.formSectionCode(form);
+                    if (!sectionCode) return;
+                    try {
+                        window.localStorage.removeItem(this.draftStorageKey(sectionCode));
+                    } catch (error) {
+                        // ignore storage errors
+                    }
+                },
+
+                restoreLocalDrafts() {
+                    let restoredCount = 0;
+                    this.editableForms().forEach((form) => {
+                        const sectionCode = this.formSectionCode(form);
+                        if (!sectionCode) return;
+                        try {
+                            const raw = window.localStorage.getItem(this.draftStorageKey(sectionCode));
+                            if (!raw) return;
+                            const parsed = JSON.parse(raw);
+                            if (!parsed?.values || typeof parsed.values !== 'object') return;
+                            this.applyFormSnapshot(form, parsed.values);
+                            this.dirtySections[sectionCode] = true;
+                            restoredCount += 1;
+                        } catch (error) {
+                            // ignore broken payloads
+                        }
+                    });
+
+                    if (restoredCount > 0) {
+                        this.showToast('Recovered unsaved local changes from this device.', 'info', 3200);
+                        this.scheduleAutosave();
+                    }
+                },
+
+                scheduleAutosave() {
+                    if (this.autosaveTimer) {
+                        clearTimeout(this.autosaveTimer);
+                    }
+                    this.autosaveTimer = setTimeout(() => {
+                        this.saveDirtySectionsDraft('auto');
+                    }, this.autosaveDelayMs);
+                },
+
+                updateBackToTopVisibility() {
+                    this.showBackToTop = window.scrollY > 320;
+                },
+
+                scrollToTop() {
+                    window.scrollTo({ top: 0, behavior: 'smooth' });
                 },
 
                 navTo(target) {
@@ -852,6 +1114,8 @@
                             return;
                         }
                     }
+                    this.persistAllLocalDrafts();
+                    this.saveDirtySectionsDraft('auto');
 
                     if (target === 'review') {
                         this.active = 'review';
@@ -1197,7 +1461,11 @@
                     if (!this.hasMasters) return 'Cannot submit: Master\'s degree is required.';
                     if (!this.hasMinBuYears) return 'Cannot submit: At least 3 years of service in BU is required.';
                     if (!this.hasResearchEquivalentNow()) return 'Cannot submit: At least one research output/equivalent is required.';
-                    return 'Ready to submit.';
+                    return 'Ready to submit. A confirmation prompt will appear.';
+                },
+
+                finalSubmitConfirmMessage() {
+                    return "Are you sure you want to final submit this reclassification?\n\nPlease make sure all required documents are complete.\n\nOnly one submission is allowed per period, and you cannot fully revise after final submit unless a reviewer returns the form.";
                 },
 
                 evidenceCount() {
@@ -1301,12 +1569,10 @@
                                 window.dispatchEvent(new CustomEvent('evidence-updated', { detail: { evidence: this.globalEvidence } }));
                             }
                             this.pendingUploads = [];
-                            this.libraryToast = { show: true, message: 'Uploads saved.' };
-                            setTimeout(() => { this.libraryToast.show = false; }, 2500);
+                            this.showToast('Uploads saved.', 'success', 2500);
                         })
                         .catch((err) => {
-                            this.libraryToast = { show: true, message: err?.message || 'Upload failed.' };
-                            setTimeout(() => { this.libraryToast.show = false; }, 3500);
+                            this.showToast(err?.message || 'Upload failed.', 'error', 3500);
                         })
                         .finally(() => { this.uploading = false; });
                 },
@@ -1341,14 +1607,12 @@
                                 if (ev.id !== item.id) return ev;
                                 return { ...ev, entry_id: null, section_code: null };
                             });
-                            this.libraryToast = { show: true, message: 'Evidence detached.' };
-                            setTimeout(() => { this.libraryToast.show = false; }, 2000);
+                            this.showToast('Evidence detached.', 'success', 2000);
                             window.dispatchEvent(new CustomEvent('evidence-detached', { detail: { id: item.id } }));
                             window.dispatchEvent(new CustomEvent('evidence-updated', { detail: { evidence: this.globalEvidence } }));
                         })
                         .catch(() => {
-                            this.libraryToast = { show: true, message: 'Detach failed.' };
-                            setTimeout(() => { this.libraryToast.show = false; }, 2000);
+                            this.showToast('Detach failed.', 'error', 2200);
                         });
                 },
 
@@ -1367,14 +1631,12 @@
                         .then((res) => {
                             if (!res.ok) throw new Error('Failed');
                             this.globalEvidence = (this.globalEvidence || []).filter((ev) => ev.id !== item.id);
-                            this.libraryToast = { show: true, message: 'Evidence removed.' };
-                            setTimeout(() => { this.libraryToast.show = false; }, 2000);
+                            this.showToast('Evidence removed.', 'success', 2000);
                             window.dispatchEvent(new CustomEvent('evidence-updated', { detail: { evidence: this.globalEvidence } }));
                             window.dispatchEvent(new CustomEvent('evidence-detached', { detail: { id: item.id } }));
                         })
                         .catch(() => {
-                            this.libraryToast = { show: true, message: 'Remove failed.' };
-                            setTimeout(() => { this.libraryToast.show = false; }, 2000);
+                            this.showToast('Remove failed.', 'error', 2200);
                         });
                 },
 
@@ -1392,19 +1654,48 @@
                         : 'border-gray-200 bg-gray-50 text-gray-600';
                 },
 
-                saveDraftAll() {
-                    if (this.savingDraft) return Promise.resolve(false);
-                    const forms = Array.from(document.querySelectorAll('form[data-validate-evidence]'))
-                        .filter((form) => form.dataset.viewOnly !== 'true');
-                    if (!forms.length) {
-                        this.libraryToast = { show: true, message: 'Nothing to save.' };
-                        setTimeout(() => { this.libraryToast.show = false; }, 2000);
+                saveDirtySectionsDraft(mode = 'auto') {
+                    if (this.draftSaveInFlight) return Promise.resolve(false);
+                    const forms = this.editableForms().filter((form) => {
+                        const sectionCode = this.formSectionCode(form);
+                        return !!sectionCode && !!this.dirtySections[sectionCode];
+                    });
+                    if (!forms.length) return Promise.resolve(false);
+                    return this.saveFormsDraft(forms, mode);
+                },
+
+                saveFormsDraft(forms, mode = 'manual') {
+                    const saveForms = Array.isArray(forms)
+                        ? forms.filter((form) => form && form.dataset?.viewOnly !== 'true')
+                        : [];
+
+                    if (!saveForms.length) {
+                        if (mode === 'manual') {
+                            this.showToast('Nothing to save.', 'info', 2000);
+                        }
                         return Promise.resolve(false);
                     }
 
-                    this.savingDraft = true;
+                    if (this.draftSaveInFlight) {
+                        if (mode === 'manual') {
+                            this.showToast('Saving is already in progress...', 'info', 1800);
+                        }
+                        return Promise.resolve(false);
+                    }
+
+                    const headerSaveBtn = document.getElementById('header-save-draft-btn');
+                    const headerSaveLabel = document.getElementById('header-save-draft-label');
+
+                    this.draftSaveInFlight = true;
+                    if (mode === 'manual') {
+                        this.savingDraft = true;
+                        if (headerSaveBtn) headerSaveBtn.disabled = true;
+                        if (headerSaveLabel) headerSaveLabel.textContent = 'Saving draft...';
+                    }
+                    this.showToast('Saving draft...', 'info', 0);
+
                     const csrf = document.querySelector('meta[name="csrf-token"]').getAttribute('content');
-                    const requests = forms.map((form) => {
+                    const requests = saveForms.map((form) => {
                         const formData = new FormData(form);
                         this.appendDisabledFormValues(form, formData);
                         formData.set('action', 'draft');
@@ -1424,28 +1715,49 @@
                         .then((responses) => {
                             const failed = responses.find((res) => !res.ok);
                             if (failed) throw new Error(`Save failed (HTTP ${failed.status}).`);
-                            this.libraryToast = { show: true, message: 'Draft saved.' };
-                            setTimeout(() => { this.libraryToast.show = false; }, 2500);
+                            saveForms.forEach((form) => {
+                                this.clearSectionDirty(form);
+                                this.clearLocalFormDraft(form);
+                            });
+                            if (mode === 'manual') {
+                                this.showToast('Draft saved.', 'success', 2800);
+                            } else {
+                                this.showToast('Saved just now.', 'success', 1700);
+                            }
                             return true;
                         })
                         .catch((err) => {
-                            this.libraryToast = { show: true, message: err?.message || 'Draft save failed.' };
-                            setTimeout(() => { this.libraryToast.show = false; }, 3000);
+                            if (mode === 'manual') {
+                                this.showToast(err?.message || 'Draft save failed.', 'error', 3500);
+                            } else {
+                                this.showToast('Autosave failed. Changes are kept locally.', 'error', 3200);
+                            }
                             return false;
                         })
                         .finally(() => {
-                            this.savingDraft = false;
+                            this.draftSaveInFlight = false;
+                            if (mode === 'manual') {
+                                this.savingDraft = false;
+                                if (headerSaveBtn) headerSaveBtn.disabled = false;
+                                if (headerSaveLabel) headerSaveLabel.textContent = 'Save Draft';
+                            }
                         });
+                },
+
+                saveDraftAll() {
+                    if (this.savingDraft || this.draftSaveInFlight) return Promise.resolve(false);
+                    const forms = this.editableForms();
+                    return this.saveFormsDraft(forms, 'manual');
                 },
 
                 submitFinal(event) {
                     if (this.finalSubmitting) return;
                     if (!this.submissionWindowOpen) {
-                        this.libraryToast = { show: true, message: 'Submission window is closed. Save draft only.' };
-                        setTimeout(() => { this.libraryToast.show = false; }, 3000);
+                        this.showToast('Submission window is closed. Save draft only.', 'error', 3000);
                         return;
                     }
                     if (!this.canFinalSubmit()) return;
+                    if (!window.confirm(this.finalSubmitConfirmMessage())) return;
 
                     const form = event?.target;
                     if (!form) return;
@@ -1454,8 +1766,7 @@
                     this.saveDraftAll()
                         .then((ok) => {
                             if (!ok) {
-                                this.libraryToast = { show: true, message: 'Please fix save errors before final submit.' };
-                                setTimeout(() => { this.libraryToast.show = false; }, 3000);
+                                this.showToast('Please fix save errors before final submit.', 'error', 3000);
                                 return;
                             }
                             form.submit();
@@ -1528,7 +1839,7 @@
                         instructor:'Instructor',
                     }[this.track] || this.trackLabel;
 
-                    return `${trackLabel} â€“ ${hit.letter}`;
+                    return `${trackLabel} - ${hit.letter}`;
                 },
 
                 pointsRank() {
@@ -1573,7 +1884,7 @@
                         assistant: 'Assistant Professor',
                         instructor: 'Instructor',
                     };
-                    return `${labels[hit.track]} â€“ ${hit.letter}`;
+                    return `${labels[hit.track]} - ${hit.letter}`;
                 },
 
                 hasResearchEquivalentNow() {
@@ -1674,7 +1985,11 @@
                 target.scrollIntoView({ behavior: 'smooth', block: 'center' });
                 setTimeout(() => target.classList.remove('ring-2', 'ring-red-400', 'rounded-xl'), 2000);
             }
-            alert('Please attach evidence for Section IV before going next.');
+            if (typeof window.reclassificationToast === 'function') {
+                window.reclassificationToast('Please attach evidence for Section IV before going next.', 'error', 3000);
+            } else {
+                alert('Please attach evidence for Section IV before going next.');
+            }
             return false;
         };
     </script>
@@ -1706,8 +2021,18 @@
         </div>
     </div>
 
+    <button type="button"
+            x-cloak
+            x-show="showBackToTop"
+            @click="scrollToTop()"
+            class="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 px-3 py-2 rounded-full bg-bu text-white text-sm font-semibold shadow-soft hover:bg-bu-dark transition">
+        <span aria-hidden="true">&uarr;</span>
+        <span>Top</span>
+    </button>
+
     <div x-cloak x-show="libraryToast.show" class="fixed bottom-6 left-6 z-50">
-        <div class="px-4 py-2 rounded-lg shadow-lg text-sm text-white bg-gray-800">
+        <div class="px-4 py-2 rounded-lg shadow-lg text-sm text-white"
+             :class="libraryToast.type === 'success' ? 'bg-green-600' : (libraryToast.type === 'error' ? 'bg-red-600' : 'bg-slate-800')">
             <span x-text="libraryToast.message"></span>
         </div>
     </div>

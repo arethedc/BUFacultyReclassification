@@ -491,7 +491,7 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
                  step="0.01"
                  x-model="b_prev"
                  name="section1[b_prev]"
-                 class="mt-1 w-full rounded border-gray-300 text-sm"
+                 class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
                  placeholder="Enter previous B points">
           <p class="mt-1 text-[11px] text-gray-500">
             Counted: <span class="font-medium text-gray-700" x-text="Number(b_prev || 0) / 3"></span>
@@ -646,7 +646,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                  step="0.01"
                  x-model="c_prev"
                  name="section1[c_prev]"
-                 class="mt-1 w-full rounded border-gray-300 text-sm"
+                 class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
                  placeholder="Enter previous C points">
           <p class="mt-1 text-[11px] text-gray-500">
             Counted: <span class="font-medium text-gray-700" x-text="Number(c_prev || 0) / 3"></span>
@@ -958,7 +958,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
 </div>
 
 {{-- TOAST --}}
-<div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 right-6 z-50">
+<div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 left-6 z-50">
   <div class="px-4 py-2 rounded-lg shadow-lg text-sm text-white"
        :class="toast.type === 'success' ? 'bg-green-600' : 'bg-gray-800'">
     <span x-text="toast.message"></span>

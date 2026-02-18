@@ -2,35 +2,70 @@
     <x-slot name="header">
         <div class="flex flex-col gap-1">
             <h2 class="text-2xl font-semibold text-gray-800">President Dashboard</h2>
-            <p class="text-sm text-gray-500">Final approval and signing of reclassification submissions.</p>
+            <p class="text-sm text-gray-500">Final cycle approval and completion of reclassification submissions.</p>
         </div>
     </x-slot>
 
     <div class="py-12 bg-bu-muted min-h-screen">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
 
-            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
-                <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-                    <div>
-                        <div class="text-sm text-gray-500">Reclassification Workflow</div>
-                        <div class="text-lg font-semibold text-gray-800">
-                            President Final Review
+            @php
+                $currentPeriod = $activePeriod ?? null;
+                $submissionOpen = (bool) ($currentPeriod?->is_open ?? false);
+                $periodStateLabel = $currentPeriod
+                    ? ($submissionOpen ? 'Open for submissions' : 'Closed for submissions')
+                    : 'No active period';
+                $periodStateClass = $submissionOpen
+                    ? 'bg-green-50 text-green-700 border-green-200'
+                    : ($currentPeriod ? 'bg-amber-50 text-amber-700 border-amber-200' : 'bg-gray-100 text-gray-700 border-gray-200');
+            @endphp
+
+            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 space-y-4">
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2">
+                        <div class="text-sm text-gray-500">Current Submission Period</div>
+                        <div class="mt-1 flex flex-wrap items-center gap-2">
+                            <div class="text-lg font-semibold text-gray-800">
+                                {{ $currentPeriod?->name ?? 'No active period' }}
+                            </div>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] border {{ $periodStateClass }}">
+                                {{ $periodStateLabel }}
+                            </span>
                         </div>
                         <div class="text-xs text-gray-500 mt-1">
-                            Approve final submissions and complete the workflow.
+                            @if($currentPeriod?->start_at || $currentPeriod?->end_at)
+                                {{ optional($currentPeriod?->start_at)->format('M d, Y') ?? '-' }}
+                                to {{ optional($currentPeriod?->end_at)->format('M d, Y') ?? '-' }}
+                            @else
+                                No configured date range
+                            @endif
+                            @if(!empty($currentPeriod?->cycle_year))
+                                • Cycle {{ $currentPeriod->cycle_year }}
+                            @endif
                         </div>
                     </div>
+
+                    <div class="flex flex-col gap-2">
+                        <a href="{{ route('reclassification.review.approved') }}"
+                           class="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
+                            Open President Approval List
+                        </a>
+                    </div>
+                </div>
+
+                <div class="pt-2 border-t border-gray-100">
+                    <div class="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-2">Other Reclassification Actions</div>
                     <div class="flex flex-wrap gap-2">
                         <a href="{{ route('reclassification.review.submissions') }}"
-                           class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
+                           class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
                             All Submissions
                         </a>
-                        <a href="{{ route('reclassification.review.approved') }}"
-                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
-                            Approved List
+                        <a href="{{ route('reclassification.review.finalized') }}"
+                           class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
+                            Approved Reclassification
                         </a>
                         <a href="{{ route('reclassification.history') }}"
-                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                           class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
                             Reclassification History
                         </a>
                     </div>
@@ -45,9 +80,9 @@
                     </div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
-                    <div class="text-xs text-gray-500">Returned to Faculty</div>
+                    <div class="text-xs text-gray-500">Ready for President Approval</div>
                     <div class="text-2xl font-semibold text-gray-800">
-                        {{ $statusCounts['returned_to_faculty'] ?? 0 }}
+                        {{ $statusCounts['president_review'] ?? 0 }}
                     </div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
@@ -57,58 +92,84 @@
                     </div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
-                    <div class="text-xs text-gray-500">Total Submissions</div>
+                    <div class="text-xs text-gray-500">Returned to Faculty</div>
                     <div class="text-2xl font-semibold text-gray-800">
-                        {{ $totalSubmissions ?? 0 }}
+                        {{ $statusCounts['returned_to_faculty'] ?? 0 }}
                     </div>
                 </div>
             </div>
 
-            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
-                <div class="flex items-center justify-between mb-4">
-                    <h3 class="text-lg font-semibold text-gray-800">Recent Submissions</h3>
-                    <a href="{{ route('reclassification.review.submissions') }}"
-                       class="text-sm font-semibold text-bu hover:underline">
-                        View all
-                    </a>
-                </div>
+            <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 lg:col-span-2">
+                    <div class="flex items-center justify-between mb-4">
+                        <h3 class="text-lg font-semibold text-gray-800">Recent Submissions</h3>
+                        <a href="{{ route('reclassification.review.submissions') }}"
+                           class="text-sm font-semibold text-bu hover:underline">
+                            View all
+                        </a>
+                    </div>
 
                     @if($recentApplications->isEmpty())
-                    <div class="text-sm text-gray-500">
-                        {{ !empty($hasActivePeriod) ? 'No submissions yet.' : 'No active period. No recent submissions.' }}
-                    </div>
-                @else
-                    <div class="overflow-x-auto">
-                        <table class="w-full text-sm">
-                            <thead class="text-left text-gray-500 border-b">
-                                <tr>
-                                    <th class="py-2">Faculty</th>
-                                    <th class="py-2">Department</th>
-                                    <th class="py-2">Status</th>
-                                    <th class="py-2">Submitted</th>
-                                </tr>
-                            </thead>
-                            <tbody class="divide-y">
-                                @foreach($recentApplications as $app)
+                        <div class="text-sm text-gray-500">
+                            {{ !empty($hasActivePeriod) ? 'No submissions yet.' : 'No active period. No recent submissions.' }}
+                        </div>
+                    @else
+                        <div class="overflow-x-auto">
+                            <table class="w-full text-sm">
+                                <thead class="text-left text-gray-500 border-b">
                                     <tr>
-                                        <td class="py-2 font-medium text-gray-800">
-                                            {{ $app->faculty?->name ?? 'Faculty' }}
-                                        </td>
-                                        <td class="py-2 text-gray-600">
-                                            {{ $app->faculty?->department?->name ?? '--' }}
-                                        </td>
-                                        <td class="py-2 text-gray-600">
-                                            {{ ucfirst(str_replace('_',' ', $app->status)) }}
-                                        </td>
-                                        <td class="py-2 text-gray-600">
-                                            {{ optional($app->submitted_at)->format('M d, Y') ?? '--' }}
-                                        </td>
+                                        <th class="py-2">Faculty</th>
+                                        <th class="py-2">Department</th>
+                                        <th class="py-2">Status</th>
+                                        <th class="py-2">Submitted</th>
                                     </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                                </thead>
+                                <tbody class="divide-y">
+                                    @foreach($recentApplications as $app)
+                                        <tr>
+                                            <td class="py-2 font-medium text-gray-800">
+                                                {{ $app->faculty?->name ?? 'Faculty' }}
+                                            </td>
+                                            <td class="py-2 text-gray-600">
+                                                {{ $app->faculty?->department?->name ?? '-' }}
+                                            </td>
+                                            <td class="py-2 text-gray-600">
+                                                {{ ucfirst(str_replace('_',' ', $app->status)) }}
+                                            </td>
+                                            <td class="py-2 text-gray-600">
+                                                {{ optional($app->submitted_at)->format('M d, Y') ?? '-' }}
+                                            </td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+                </div>
+
+                <div class="lg:col-span-1 flex flex-col gap-6">
+                    <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
+                        <h3 class="text-lg font-semibold text-gray-800">Cycle Approval</h3>
+                        <p class="text-sm text-gray-600 mt-2">
+                            Approve the cycle list from President Approval List, then finalized entries move to Approved Reclassification.
+                        </p>
+                        <div class="mt-5 grid grid-cols-1 gap-3">
+                            <a href="{{ route('reclassification.review.approved') }}"
+                               class="inline-flex items-center justify-center px-4 py-2.5 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
+                                Open President Approval List
+                            </a>
+                            <a href="{{ route('reclassification.review.finalized') }}"
+                               class="inline-flex items-center justify-center px-4 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                                View Approved Reclassification
+                            </a>
+                        </div>
                     </div>
-                @endif
+
+                    <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
+                        <h3 class="text-lg font-semibold text-gray-800">Total Submissions</h3>
+                        <div class="mt-2 text-2xl font-semibold text-gray-800">{{ $totalSubmissions ?? 0 }}</div>
+                    </div>
+                </div>
             </div>
 
         </div>

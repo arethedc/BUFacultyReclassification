@@ -1,9 +1,17 @@
-﻿<x-app-layout>
+<x-app-layout>
+    @php
+        $summaryMode = $summaryMode ?? 'submitted';
+        $isDraftHistoryMode = $summaryMode === 'draft_history';
+    @endphp
     <x-slot name="header">
         <div class="flex items-start justify-between gap-4">
             <div>
-                <h2 class="text-2xl font-semibold text-gray-800">Submitted Reclassification Paper</h2>
-                <p class="text-sm text-gray-500">Read-only summary of your submitted form.</p>
+                <h2 class="text-2xl font-semibold text-gray-800">
+                    {{ $isDraftHistoryMode ? 'Draft Reclassification Paper' : 'Submitted Reclassification Paper' }}
+                </h2>
+                <p class="text-sm text-gray-500">
+                    {{ $isDraftHistoryMode ? 'Read-only summary of your historical draft.' : 'Read-only summary of your submitted form.' }}
+                </p>
             </div>
             <div class="flex items-center gap-2">
                 <a href="{{ route('faculty.dashboard') }}"
@@ -40,6 +48,7 @@
             'vpaa_approved' => 'VPAA Approved',
             'president_review' => 'President Review',
             'finalized' => 'Finalized',
+            'rejected_final' => 'Rejected',
             default => ucfirst(str_replace('_',' ', $application->status)),
         };
         $approvedRankLabel = trim((string) ($application->approved_rank_label ?? ''));
@@ -176,9 +185,9 @@
                     <div class="text-lg font-semibold text-gray-800">{{ $statusLabel }}</div>
                 </div>
                 <div class="text-sm text-gray-500">
-                    Submitted at:
+                    {{ $isDraftHistoryMode ? 'Saved at:' : 'Submitted at:' }}
                     <span class="font-medium text-gray-700">
-                        {{ optional($application->submitted_at)->format('M d, Y') ?? 'Not set' }}
+                        {{ optional($isDraftHistoryMode ? $application->updated_at : $application->submitted_at)->format('M d, Y') ?? 'Not set' }}
                     </span>
                 </div>
             </div>
@@ -382,19 +391,31 @@
                                                             @if($evidences->isEmpty())
                                                                 <span class="text-gray-400">None</span>
                                                             @else
-                                                                <div class="space-y-1">
+                                                                <div class="space-y-2">
                                                                     @foreach($evidences as $ev)
                                                                         @php
                                                                             $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
                                                                         @endphp
-                                                                        <div>
-                                                                            @if($url)
-                                                                                <a href="{{ $url }}" target="_blank" class="text-bu hover:underline">
-                                                                                    {{ $ev->original_name ?? 'Evidence file' }}
-                                                                                </a>
-                                                                            @else
-                                                                                <span class="text-gray-600">{{ $ev->original_name ?? $ev->path }}</span>
-                                                                            @endif
+                                                                        <div class="rounded-lg border p-3">
+                                                                            <div class="flex items-center justify-between gap-3">
+                                                                                <div class="min-w-0">
+                                                                                    <div class="truncate font-medium text-gray-800">
+                                                                                        {{ $ev->original_name ?? 'Evidence file' }}
+                                                                                    </div>
+                                                                                    <div class="text-xs text-gray-500">ID #{{ $ev->id }}</div>
+                                                                                </div>
+                                                                                <div class="shrink-0">
+                                                                                    @if($url)
+                                                                                        <a href="{{ $url }}"
+                                                                                           target="_blank"
+                                                                                           class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                                                                            View
+                                                                                        </a>
+                                                                                    @else
+                                                                                        <span class="text-xs text-gray-400">Unavailable</span>
+                                                                                    @endif
+                                                                                </div>
+                                                                            </div>
                                                                         </div>
                                                                     @endforeach
                                                                 </div>

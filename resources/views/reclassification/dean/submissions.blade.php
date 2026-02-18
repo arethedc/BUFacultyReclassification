@@ -41,7 +41,7 @@
                             class="mt-1 w-full rounded-xl border border-gray-300 bg-white focus:border-bu focus:ring-bu">
                         <option value="all" @selected($status === 'all')>All</option>
                         <option value="submitted" @selected($status === 'submitted')>Submitted (In Review)</option>
-                        @foreach(['dean_review','hr_review','vpaa_review','vpaa_approved','president_review','returned_to_faculty','finalized'] as $st)
+                        @foreach(['dean_review','hr_review','vpaa_review','vpaa_approved','president_review','returned_to_faculty','finalized','rejected_final'] as $st)
                             <option value="{{ $st }}" @selected($status === $st)>
                                 {{ ucfirst(str_replace('_',' ', $st)) }}
                             </option>

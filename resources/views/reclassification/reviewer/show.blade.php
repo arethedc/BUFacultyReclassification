@@ -9,6 +9,7 @@
             'president_review' => 'President Review',
             'returned_to_faculty' => 'Returned',
             'finalized' => 'Finalized',
+            'rejected_final' => 'Rejected',
             default => ucfirst(str_replace('_',' ', $application->status)),
         };
         $sectionsByCode = $sections->keyBy('section_code');
@@ -220,38 +221,131 @@
                 </div>
             @endif
 
-            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 flex items-center justify-between">
-                <div>
-                    <div class="text-sm text-gray-500">Status</div>
-                    <div class="text-lg font-semibold text-gray-800">{{ $statusLabel }}</div>
-                </div>
-                <div class="flex items-center gap-2">
-                    @php
-                        $nextLabel = match($application->status) {
-                            'dean_review' => 'Forward to HR',
-                            'hr_review' => 'Forward to VPAA',
-                            'vpaa_review' => 'Approve to VPAA List',
-                            'president_review' => 'Use Approved List',
-                            default => 'Forward',
-                        };
-                        $canForwardPerPaper = in_array($application->status, ['dean_review','hr_review','vpaa_review'], true);
-                    @endphp
-                    @if($canForwardPerPaper)
-                        <form method="POST" action="{{ route('reclassification.return', $application) }}">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold">
-                                Return to Faculty
-                            </button>
-                        </form>
-                        <form method="POST" action="{{ route('reclassification.forward', $application) }}">
-                            @csrf
-                            <button type="submit"
-                                    class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
-                                {{ $nextLabel }}
-                            </button>
-                        </form>
-                    @endif
+            <div>
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-gray-500">Status</div>
+                        <div class="text-lg font-semibold text-gray-800">{{ $statusLabel }}</div>
+                    </div>
+                    <div class="flex flex-col items-end gap-2">
+                        @php
+                            $currentRole = strtolower((string) (auth()->user()->role ?? ''));
+                            $nextLabel = match($application->status) {
+                                'dean_review' => 'Forward to HR',
+                                'hr_review' => 'Forward to VPAA',
+                                'vpaa_review' => 'Approve to VPAA List',
+                                'president_review' => 'Use Approved List',
+                                default => 'Forward',
+                            };
+                            $canForwardPerPaper = in_array($application->status, ['dean_review','hr_review','vpaa_review'], true);
+                            $section2 = $application->sections->firstWhere('section_code', '2');
+                            $section2Complete = (bool) ($section2?->is_complete);
+                            $section2Blocked = $currentRole === 'dean'
+                                && (string) $application->status === 'dean_review'
+                                && !$section2Complete;
+                            $openRequiredCommentEntries = $application->sections
+                                ->flatMap(function ($sec) {
+                                    return ($sec->entries ?? collect())
+                                        ->map(function ($entry) use ($sec) {
+                                            $openRequiredCount = ($entry->rowComments ?? collect())
+                                                ->filter(function ($comment) {
+                                                    if ((string) ($comment->visibility ?? '') !== 'faculty_visible') {
+                                                        return false;
+                                                    }
+                                                    if (!is_null($comment->parent_id ?? null)) {
+                                                        return false;
+                                                    }
+                                                    if ((string) ($comment->status ?? 'open') !== 'open') {
+                                                        return false;
+                                                    }
+                                                    return (string) ($comment->action_type ?? 'requires_action') === 'requires_action';
+                                                })
+                                                ->count();
+
+                                            if ($openRequiredCount < 1) {
+                                                return null;
+                                            }
+
+                                            return [
+                                                'entry_id' => (int) $entry->id,
+                                                'section_code' => (string) ($sec->section_code ?? ''),
+                                                'criterion_key' => strtoupper((string) ($entry->criterion_key ?? '')),
+                                                'count' => $openRequiredCount,
+                                            ];
+                                        })
+                                        ->filter()
+                                        ->values();
+                                })
+                                ->values();
+                            $openRequiredCommentsCount = (int) $openRequiredCommentEntries->sum('count');
+                            $pendingActionMoveRequestsCount = collect($application->moveRequests ?? [])
+                                ->where('status', 'pending')
+                                ->count();
+                            $returnBlocked = $canForwardPerPaper
+                                && (($openRequiredCommentsCount + $pendingActionMoveRequestsCount) < 1);
+                            $forwardBlocked = $canForwardPerPaper && ($openRequiredCommentsCount > 0 || $section2Blocked);
+                        @endphp
+                        @if($canForwardPerPaper)
+                            <div class="flex items-center gap-2">
+                                <form method="POST" action="{{ route('reclassification.return', $application) }}">
+                                    @csrf
+                                    <button type="submit"
+                                            @disabled($returnBlocked)
+                                            class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold {{ $returnBlocked ? 'opacity-60 cursor-not-allowed' : '' }}">
+                                        Return to Faculty
+                                    </button>
+                                </form>
+                                <form method="POST" action="{{ route('reclassification.forward', $application) }}">
+                                    @csrf
+                                    <button type="submit"
+                                            @disabled($forwardBlocked)
+                                            class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft {{ $forwardBlocked ? 'opacity-60 cursor-not-allowed' : '' }}">
+                                        {{ $nextLabel }}
+                                    </button>
+                                </form>
+                            </div>
+                            @if($forwardBlocked)
+                                <div class="w-full text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                    @if($section2Blocked)
+                                        <div>Forward blocked: Section II (Dean Input) is not yet completed.</div>
+                                        <div class="mt-1">
+                                            <a href="#section-2-dean-input"
+                                               class="inline-flex items-center px-2 py-0.5 rounded border border-amber-300 bg-white hover:bg-amber-100">
+                                                Go to Section II
+                                            </a>
+                                        </div>
+                                    @endif
+                                    @if($openRequiredCommentsCount > 0)
+                                        <div class="{{ $section2Blocked ? 'mt-2' : '' }}">
+                                            {{ $openRequiredCommentsCount === 1
+                                                ? 'Forward blocked: 1 action-required comment is still open.'
+                                                : "Forward blocked: {$openRequiredCommentsCount} action-required comments are still open." }}
+                                            Use Return to Faculty.
+                                        </div>
+                                    @endif
+                                    @if($openRequiredCommentEntries->isNotEmpty())
+                                        <div class="mt-2 flex flex-wrap items-center gap-1.5">
+                                            <span class="font-medium">Jump to:</span>
+                                            @foreach($openRequiredCommentEntries->take(6) as $target)
+                                                <a href="#entry-comments-{{ $target['entry_id'] }}"
+                                                   class="inline-flex items-center px-2 py-0.5 rounded border border-amber-300 bg-white hover:bg-amber-100">
+                                                    S{{ $target['section_code'] }} / {{ $target['criterion_key'] }} ({{ $target['count'] }})
+                                                </a>
+                                            @endforeach
+                                            @if($openRequiredCommentEntries->count() > 6)
+                                                <span class="text-amber-700">+{{ $openRequiredCommentEntries->count() - 6 }} more</span>
+                                            @endif
+                                        </div>
+                                    @endif
+                                </div>
+                            @endif
+                            @if($returnBlocked)
+                                <div class="w-full text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                    Return blocked: add at least one action-required comment or move request first.
+                                </div>
+                            @endif
+                        @endif
+                    </div>
                 </div>
             </div>
 
@@ -460,24 +554,26 @@
                                                                     @foreach($evidences as $ev)
                                                                         @php
                                                                             $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
-                                                                            $status = $ev->status ?? 'pending';
                                                                         @endphp
-                                                                        <div class="rounded-lg border p-3 space-y-2">
-                                                                            <div class="flex items-center justify-between">
+                                                                        <div class="rounded-lg border p-3">
+                                                                            <div class="flex items-center justify-between gap-3">
                                                                                 <div class="min-w-0">
-                                                                                    @if($url)
-                                                                                        <a href="{{ $url }}" target="_blank" class="text-bu hover:underline">
-                                                                                            {{ $ev->original_name ?? 'Evidence file' }}
-                                                                                        </a>
-                                                                                    @else
-                                                                                        <span class="text-gray-600">{{ $ev->original_name ?? $ev->path }}</span>
-                                                                                    @endif
+                                                                                    <div class="truncate font-medium text-gray-800">
+                                                                                        {{ $ev->original_name ?? 'Evidence file' }}
+                                                                                    </div>
                                                                                     <div class="text-xs text-gray-500">ID #{{ $ev->id }}</div>
                                                                                 </div>
-                                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[11px] border
-                                                                                    {{ $status === 'accepted' ? 'bg-green-50 text-green-700 border-green-200' : ($status === 'rejected' ? 'bg-red-50 text-red-700 border-red-200' : 'bg-gray-50 text-gray-600 border-gray-200') }}">
-                                                                                    {{ ucfirst($status) }}
-                                                                                </span>
+                                                                                <div class="shrink-0">
+                                                                                    @if($url)
+                                                                                        <a href="{{ $url }}"
+                                                                                           target="_blank"
+                                                                                           class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                                                                            View
+                                                                                        </a>
+                                                                                    @else
+                                                                                        <span class="text-xs text-gray-400">Unavailable</span>
+                                                                                    @endif
+                                                                                </div>
                                                                             </div>
                                                                         </div>
                                                                     @endforeach
@@ -538,7 +634,7 @@
                                                     @endphp
                                                     <tr class="bg-gray-50/50">
                                                         <td colspan="4" class="px-4 py-3">
-                                                            <div x-data="{ actionType: '' }" class="space-y-3">
+                                                            <div id="entry-comments-{{ $entry->id }}" x-data="{ actionType: '' }" class="space-y-3 scroll-mt-28">
                                                                 <div>
                                                                     <div class="text-xs font-semibold text-gray-700">Reviewer Comments</div>
                                                                     @php
@@ -559,17 +655,29 @@
                                                                                     $visibilityLabel = $comment->visibility === 'faculty_visible'
                                                                                         ? 'Visible to faculty'
                                                                                         : 'Internal';
+                                                                                    $commentActionType = (string) ($comment->action_type ?? 'requires_action');
+                                                                                    $commentActionClass = $commentActionType === 'info'
+                                                                                        ? 'bg-slate-50 text-slate-700 border-slate-200'
+                                                                                        : 'bg-amber-50 text-amber-700 border-amber-200';
+                                                                                    $commentActionLabel = $commentActionType === 'info'
+                                                                                        ? 'No action required'
+                                                                                        : 'Action required';
                                                                                     $status = $comment->status ?? 'open';
-                                                                                    $statusClass = match($status) {
-                                                                                        'resolved' => 'bg-green-50 text-green-700 border-green-200',
-                                                                                        'addressed' => 'bg-blue-50 text-blue-700 border-blue-200',
-                                                                                        default => 'bg-amber-50 text-amber-700 border-amber-200',
-                                                                                    };
-                                                                                    $statusLabel = match($status) {
-                                                                                        'resolved' => 'Resolved',
-                                                                                        'addressed' => 'Addressed',
-                                                                                        default => 'Open',
-                                                                                    };
+                                                                                    if ($commentActionType === 'info') {
+                                                                                        $statusClass = 'bg-slate-50 text-slate-700 border-slate-200';
+                                                                                        $statusLabel = 'FYI';
+                                                                                    } else {
+                                                                                        $statusClass = match($status) {
+                                                                                            'resolved' => 'bg-green-50 text-green-700 border-green-200',
+                                                                                            'addressed' => 'bg-blue-50 text-blue-700 border-blue-200',
+                                                                                            default => 'bg-amber-50 text-amber-700 border-amber-200',
+                                                                                        };
+                                                                                        $statusLabel = match($status) {
+                                                                                            'resolved' => 'Resolved',
+                                                                                            'addressed' => 'Addressed',
+                                                                                            default => 'Open',
+                                                                                        };
+                                                                                    }
                                                                                     $replies = $rowComments
                                                                                         ->where('parent_id', $comment->id)
                                                                                         ->sortBy('created_at')
@@ -584,6 +692,11 @@
                                                                                             <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border {{ $visibilityClass }}">
                                                                                                 {{ $visibilityLabel }}
                                                                                             </span>
+                                                                                            @if($comment->visibility === 'faculty_visible')
+                                                                                                <span class="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] border {{ $commentActionClass }}">
+                                                                                                    {{ $commentActionLabel }}
+                                                                                                </span>
+                                                                                            @endif
                                                                                             @if(($comment->status ?? 'open') !== 'resolved')
                                                                                                 <form method="POST"
                                                                                                       action="{{ route('reclassification.row-comments.destroy', $comment) }}"
@@ -628,7 +741,11 @@
                                                                                         </div>
                                                                                     @endif
 
-                                                                                    @if($comment->visibility === 'faculty_visible' && $comment->status === 'addressed')
+                                                                                    @if(
+                                                                                        $comment->visibility === 'faculty_visible'
+                                                                                        && ($comment->action_type ?? 'requires_action') === 'requires_action'
+                                                                                        && $comment->status === 'addressed'
+                                                                                    )
                                                                                         <div class="mt-2 flex justify-end">
                                                                                             <form method="POST"
                                                                                                   action="{{ route('reclassification.row-comments.resolve', $comment) }}"
@@ -671,11 +788,12 @@
                                                                       x-cloak
                                                                       method="POST"
                                                                       action="{{ route('reclassification.row-comments.store', [$application, $entry]) }}"
+                                                                      x-data="{ visibility: '', commentType: '' }"
                                                                       data-async-action
                                                                       data-async-refresh-target="#reviewer-content"
                                                                       data-loading-text="Saving..."
                                                                       data-loading-message="Saving comment..."
-                                                                      class="grid grid-cols-1 md:grid-cols-6 gap-3">
+                                                                      class="grid grid-cols-1 md:grid-cols-7 gap-3">
                                                                     @csrf
                                                                     <div class="md:col-span-4">
                                                                         <label class="text-xs text-gray-600">Add comment</label>
@@ -685,11 +803,31 @@
                                                                     </div>
                                                                     <div>
                                                                         <label class="text-xs text-gray-600">Visibility</label>
-                                                                        <select name="visibility" class="mt-1 w-full rounded-lg border-gray-300 text-xs">
+                                                                        <select name="visibility"
+                                                                                x-model="visibility"
+                                                                                required
+                                                                                class="mt-1 w-full rounded-lg border-gray-300 text-xs">
+                                                                            <option value="">Select visibility</option>
                                                                             <option value="faculty_visible">Visible to faculty</option>
                                                                             <option value="internal">Internal</option>
                                                                         </select>
                                                                     </div>
+                                                                    <template x-if="visibility === 'faculty_visible'">
+                                                                        <div>
+                                                                            <label class="text-xs text-gray-600">Type</label>
+                                                                            <select name="action_type"
+                                                                                    x-model="commentType"
+                                                                                    required
+                                                                                    class="mt-1 w-full rounded-lg border-gray-300 text-xs">
+                                                                                <option value="">Select type</option>
+                                                                                <option value="requires_action">Action required</option>
+                                                                                <option value="info">No action required (FYI)</option>
+                                                                            </select>
+                                                                        </div>
+                                                                    </template>
+                                                                    <template x-if="visibility === 'internal'">
+                                                                        <input type="hidden" name="action_type" value="info">
+                                                                    </template>
                                                                     <div class="flex items-end">
                                                                         <button type="submit"
                                                                                 class="w-full px-3 py-2 rounded-lg bg-bu text-white text-xs font-semibold">
@@ -819,7 +957,7 @@
                 </div>
 
                 @if($section->section_code === '1')
-                    <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
+                    <div id="section-2-dean-input" class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 scroll-mt-28">
                         <h3 class="text-lg font-semibold text-gray-800 mb-2">Section II (Dean Input)</h3>
                         @if(auth()->user()->role === 'dean')
                             @include('reclassification.section2', [
@@ -892,7 +1030,63 @@
                     </div>
                 @endif
             @endforeach
+
+            @if($canForwardPerPaper)
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
+                    <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                        <div>
+                            <div class="text-sm font-semibold text-gray-800">Review Actions</div>
+                            <p class="text-xs text-gray-500">Quick access to return or forward at the bottom of the page.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <form method="POST" action="{{ route('reclassification.return', $application) }}">
+                                @csrf
+                                <button type="submit"
+                                        @disabled($returnBlocked)
+                                        class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold {{ $returnBlocked ? 'opacity-60 cursor-not-allowed' : '' }}">
+                                    Return to Faculty
+                                </button>
+                            </form>
+                            <form method="POST" action="{{ route('reclassification.forward', $application) }}">
+                                @csrf
+                                <button type="submit"
+                                        @disabled($forwardBlocked)
+                                        class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft {{ $forwardBlocked ? 'opacity-60 cursor-not-allowed' : '' }}">
+                                    {{ $nextLabel }}
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+                    @if($forwardBlocked)
+                        <div class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            @if($section2Blocked)
+                                <div>Forward blocked: Section II (Dean Input) is not yet completed.</div>
+                            @endif
+                            @if($openRequiredCommentsCount > 0)
+                                <div class="{{ $section2Blocked ? 'mt-1' : '' }}">
+                                    {{ $openRequiredCommentsCount === 1
+                                        ? 'Forward blocked: 1 action-required comment is still open.'
+                                        : "Forward blocked: {$openRequiredCommentsCount} action-required comments are still open." }}
+                                </div>
+                            @endif
+                        </div>
+                    @endif
+                    @if($returnBlocked)
+                        <div class="mt-3 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                            Return blocked: add at least one action-required comment or move request first.
+                        </div>
+                    @endif
+                </div>
+            @endif
         </div>
     </div>
+
+    <button type="button"
+            onclick="window.scrollTo({ top: 0, behavior: 'smooth' })"
+            class="fixed bottom-6 right-6 z-50 inline-flex items-center gap-2 px-3 py-2 rounded-full bg-bu text-white text-sm font-semibold shadow-soft hover:bg-bu-dark transition">
+        <span aria-hidden="true">&uarr;</span>
+        <span>Top</span>
+    </button>
+
     @include('reclassification.partials.async-actions')
 </x-app-layout>

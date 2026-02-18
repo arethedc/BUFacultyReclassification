@@ -12,6 +12,7 @@
                 'vpaa_approved' => 'VPAA Approved',
                 'president_review' => 'President Review',
                 'finalized' => 'Finalized',
+                'rejected_final' => 'Rejected',
                 default => ucfirst(str_replace('_',' ', $status)),
             };
 
@@ -19,6 +20,7 @@
                 'draft' => 'bg-gray-100 text-gray-700 border-gray-200',
                 'returned_to_faculty' => 'bg-amber-50 text-amber-700 border-amber-200',
                 'finalized' => 'bg-green-50 text-green-700 border-green-200',
+                'rejected_final' => 'bg-red-50 text-red-700 border-red-200',
                 default => 'bg-blue-50 text-blue-700 border-blue-200',
             };
         @endphp

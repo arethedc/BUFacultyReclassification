@@ -29,7 +29,7 @@
       data-view-only="{{ $readOnly ? 'true' : 'false' }}">
 @csrf
 
-<div x-data="sectionTwo(@js($sectionData ?? []))"
+<div x-data="sectionTwo(@js($sectionData ?? []), { readOnly: @js($readOnly) })"
      x-init="init()"
      class="{{ $embedded ? 'py-4' : 'py-12 bg-bu-muted min-h-screen' }}">
 <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
@@ -194,27 +194,27 @@ Counted (capped):
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.dean.i1"
                                        name="section2[ratings][dean][i1]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.chair.i1"
                                        name="section2[ratings][chair][i1]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.student.i1"
                                        name="section2[ratings][student][i1]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -232,27 +232,27 @@ Counted (capped):
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.dean.i2"
                                        name="section2[ratings][dean][i2]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.chair.i2"
                                        name="section2[ratings][chair][i2]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.student.i2"
                                        name="section2[ratings][student][i2]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -270,27 +270,27 @@ Counted (capped):
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.dean.i3"
                                        name="section2[ratings][dean][i3]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.chair.i3"
                                        name="section2[ratings][chair][i3]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.student.i3"
                                        name="section2[ratings][student][i3]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -308,27 +308,27 @@ Counted (capped):
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.dean.i4"
                                        name="section2[ratings][dean][i4]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.chair.i4"
                                        name="section2[ratings][chair][i4]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
                             <td class="px-4 py-3 text-center">
                                 <input x-model.number="ratings.student.i4"
                                        name="section2[ratings][student][i4]"
-                                       type="number" step="0.01" min="1" max="4"
+                                       type="number" step="0.01" min="0" max="4"
                                        class="w-24 text-center rounded border-gray-300"
-                                       @if($readOnly) disabled @endif
+                                       :disabled="readOnly || !isEditMode"
                                        placeholder="1.00–4.00">
                             </td>
 
@@ -448,18 +448,23 @@ Counted (capped):
 
             {{-- PREVIOUS RECLASSIFICATION --}}
             <div class="border-t pt-6">
-                <label class="block text-sm font-medium text-gray-700">
-                    Points from Previous Reclassification (if applicable)
-                </label>
-                <input x-model.number="previous"
-                       name="section2[previous_points]"
-                       type="number" step="0.01"
-                       class="mt-1 w-48 rounded border-gray-300"
-                       @if($readOnly) disabled @endif
-                       placeholder="0.00">
-                <p class="text-xs text-gray-500 mt-1">
-                    System applies 1/3 of this value. Subject to validation.
-                </p>
+                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                    <label class="block text-xs text-gray-500">
+                        Points from Previous Reclassification (if applicable)
+                    </label>
+                    <input x-model.number="previous"
+                           name="section2[previous_points]"
+                           type="number" step="0.01"
+                           class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
+                           :disabled="readOnly || !isEditMode"
+                           placeholder="0.00">
+                    <p class="text-xs text-gray-500 mt-1">
+                        Counted: <span class="font-medium text-gray-700" x-text="Number(prevThird()).toFixed(2)"></span>
+                    </p>
+                    <p class="text-xs text-gray-500 mt-1">
+                        System applies 1/3 of this value. Subject to validation.
+                    </p>
+                </div>
             </div>
 
 {{-- ACTIONS --}}
@@ -472,18 +477,28 @@ Counted (capped):
             Section II saved.
         </span>
     @endif
-    <button type="button"
-            @click="clearAll()"
-            @if($readOnly) disabled @endif
-            class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
-        Clear
-    </button>
-    @if(!$readOnly)
-        <button type="submit"
-                class="px-6 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft">
-            Save Section II
+
+    <template x-if="!readOnly && !isEditMode">
+        <button type="button"
+                @click="startEdit()"
+                class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
+            Edit Section II
         </button>
-    @endif
+    </template>
+
+    <template x-if="!readOnly && isEditMode">
+        <div class="flex items-center gap-3">
+            <button type="button"
+                    @click="discardChanges()"
+                    class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
+                Discard Changes
+            </button>
+            <button type="submit"
+                    class="px-6 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft"
+                    x-text="hasSavedData ? 'Save Changes' : 'Save Section II'">
+            </button>
+        </div>
+    </template>
 </div>
 
         </div>
@@ -494,8 +509,13 @@ Counted (capped):
 </form>
 
 <script>
-function sectionTwo(initial = {}) {
+function sectionTwo(initial = {}, options = {}) {
   return {
+readOnly: Boolean(options.readOnly ?? false),
+isEditMode: false,
+hasSavedData: false,
+originalState: null,
+
 hasAnyRating() {
   const all = [
     this.ratings.dean.i1, this.ratings.dean.i2, this.ratings.dean.i3, this.ratings.dean.i4,
@@ -505,31 +525,92 @@ hasAnyRating() {
   return all.some(v => this.n(v) != null);
 },
 
-clearAll() {
-  this.ratings.dean = { i1: null, i2: null, i3: null, i4: null };
-  this.ratings.chair = { i1: null, i2: null, i3: null, i4: null };
-  this.ratings.student = { i1: null, i2: null, i3: null, i4: null };
-  this.previous = 0;
+captureState() {
+  return {
+    ratings: JSON.parse(JSON.stringify(this.ratings)),
+    previous: Number(this.previous || 0),
+  };
+},
+
+applyState(state) {
+  if (!state) return;
+  this.ratings = JSON.parse(JSON.stringify(state.ratings || {
+    dean: { i1: 0, i2: 0, i3: 0, i4: 0 },
+    chair: { i1: 0, i2: 0, i3: 0, i4: 0 },
+    student: { i1: 0, i2: 0, i3: 0, i4: 0 },
+  }));
+  this.previous = Number(state.previous || 0);
+},
+
+computeHasSavedData() {
+  return this.hasAnyRating() || Number(this.previous || 0) > 0;
+},
+
+startEdit() {
+  if (this.readOnly) return;
+  this.originalState = this.captureState();
+  this.isEditMode = true;
+},
+
+discardChanges() {
+  if (this.readOnly) return;
+  this.applyState(this.originalState);
+  this.isEditMode = !this.hasSavedData;
+},
+
+clampRating(rater, key) {
+  if (!this.ratings?.[rater]) return;
+  const raw = this.ratings[rater][key];
+  if (raw === null || raw === '') {
+    this.ratings[rater][key] = 0;
+    return;
+  }
+
+  let val = Number(raw);
+  if (!Number.isFinite(val)) {
+    this.ratings[rater][key] = 0;
+    return;
+  }
+
+  if (val <= 0) val = 0;
+  else if (val < 1) val = 1;
+  if (val > 4) val = 4;
+  this.ratings[rater][key] = Number(val.toFixed(2));
 },
 
     ratings: {
-      dean:    { i1: null, i2: null, i3: null, i4: null },
-      chair:   { i1: null, i2: null, i3: null, i4: null },
-      student: { i1: null, i2: null, i3: null, i4: null },
+      dean:    { i1: 0, i2: 0, i3: 0, i4: 0 },
+      chair:   { i1: 0, i2: 0, i3: 0, i4: 0 },
+      student: { i1: 0, i2: 0, i3: 0, i4: 0 },
     },
     previous: 0,
 
     init() {
       if (initial.ratings) {
         this.ratings = {
-          dean:    { i1: initial.ratings?.dean?.i1 ?? null, i2: initial.ratings?.dean?.i2 ?? null, i3: initial.ratings?.dean?.i3 ?? null, i4: initial.ratings?.dean?.i4 ?? null },
-          chair:   { i1: initial.ratings?.chair?.i1 ?? null, i2: initial.ratings?.chair?.i2 ?? null, i3: initial.ratings?.chair?.i3 ?? null, i4: initial.ratings?.chair?.i4 ?? null },
-          student: { i1: initial.ratings?.student?.i1 ?? null, i2: initial.ratings?.student?.i2 ?? null, i3: initial.ratings?.student?.i3 ?? null, i4: initial.ratings?.student?.i4 ?? null },
+          dean:    { i1: initial.ratings?.dean?.i1 ?? 0, i2: initial.ratings?.dean?.i2 ?? 0, i3: initial.ratings?.dean?.i3 ?? 0, i4: initial.ratings?.dean?.i4 ?? 0 },
+          chair:   { i1: initial.ratings?.chair?.i1 ?? 0, i2: initial.ratings?.chair?.i2 ?? 0, i3: initial.ratings?.chair?.i3 ?? 0, i4: initial.ratings?.chair?.i4 ?? 0 },
+          student: { i1: initial.ratings?.student?.i1 ?? 0, i2: initial.ratings?.student?.i2 ?? 0, i3: initial.ratings?.student?.i3 ?? 0, i4: initial.ratings?.student?.i4 ?? 0 },
         };
       }
       if (initial.previous_points !== undefined && initial.previous_points !== null && initial.previous_points !== '') {
         this.previous = Number(initial.previous_points || 0);
       }
+
+      ['dean', 'chair', 'student'].forEach((rater) => {
+        ['i1', 'i2', 'i3', 'i4'].forEach((key) => this.clampRating(rater, key));
+      });
+
+      this.$el.addEventListener('input', (event) => {
+        const name = String(event?.target?.name || '');
+        const match = name.match(/^section2\[ratings\]\[(dean|chair|student)\]\[(i[1-4])\]$/);
+        if (!match) return;
+        this.clampRating(match[1], match[2]);
+      });
+
+      this.hasSavedData = this.computeHasSavedData();
+      this.originalState = this.captureState();
+      this.isEditMode = !this.readOnly && !this.hasSavedData;
     },
 
     cap(v, max) {
@@ -538,7 +619,7 @@ clearAll() {
     },
     n(v) {
       const x = Number(v);
-      return Number.isFinite(x) ? x : null;
+      return Number.isFinite(x) && x > 0 ? x : null;
     },
 
     // ✅ Paper tables (rating -> points)
@@ -642,5 +723,7 @@ clearAll() {
   }
 }
 </script>
+
+
 
 

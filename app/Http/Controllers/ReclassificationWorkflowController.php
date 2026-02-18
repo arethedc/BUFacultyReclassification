@@ -29,6 +29,33 @@ class ReclassificationWorkflowController extends Controller
         return $query->orderByDesc('created_at')->first();
     }
 
+    private function openSubmissionPeriod(): ?ReclassificationPeriod
+    {
+        if (!Schema::hasTable('reclassification_periods')) {
+            return null;
+        }
+
+        $query = ReclassificationPeriod::query()->where('is_open', true);
+        if (Schema::hasColumn('reclassification_periods', 'status')) {
+            $query->where('status', 'active');
+        }
+
+        $period = $query->orderByDesc('created_at')->first();
+        if (!$period) {
+            return null;
+        }
+
+        if ($period->start_at && now()->lt($period->start_at)) {
+            return null;
+        }
+
+        if ($period->end_at && now()->gt($period->end_at)) {
+            return null;
+        }
+
+        return $period;
+    }
+
     private function stepLabel(string $step): string
     {
         return match ($step) {
@@ -40,6 +67,32 @@ class ReclassificationWorkflowController extends Controller
             'finalized' => 'Finalized',
             default => ucfirst(str_replace('_', ' ', $step)),
         };
+    }
+
+    private function hasReturnActionItems(ReclassificationApplication $application): bool
+    {
+        $commentQuery = $application->rowComments()
+            ->where('visibility', 'faculty_visible');
+        if (Schema::hasColumn('reclassification_row_comments', 'action_type')) {
+            $commentQuery->where('action_type', 'requires_action');
+        }
+        if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
+            $commentQuery->whereNull('parent_id');
+        }
+        if (Schema::hasColumn('reclassification_row_comments', 'status')) {
+            $commentQuery->where('status', 'open');
+        }
+
+        if ($commentQuery->exists()) {
+            return true;
+        }
+
+        $moveQuery = $application->moveRequests();
+        if (Schema::hasColumn('reclassification_move_requests', 'status')) {
+            $moveQuery->where('status', 'pending');
+        }
+
+        return $moveQuery->exists();
     }
 
     private function currentRankLabel($profile): string
@@ -356,23 +409,26 @@ class ReclassificationWorkflowController extends Controller
 
         $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
         $hasPeriodsTable = Schema::hasTable('reclassification_periods');
+        $openSubmissionPeriod = $this->openSubmissionPeriod();
         $activePeriod = $this->activePeriod();
-        if ($hasPeriodsTable && !$activePeriod) {
+        if ($hasPeriodsTable && !$openSubmissionPeriod) {
             return back()->withErrors([
                 'submit' => 'Submissions are currently closed. Please wait for HR to open a submission period.',
             ]);
         }
 
+        $targetPeriod = $openSubmissionPeriod ?? $activePeriod;
+
         if (
             $hasPeriodId
-            && $activePeriod
+            && $targetPeriod
             && !$application->period_id
-            && (string) $application->cycle_year === (string) $activePeriod->cycle_year
+            && (string) $application->cycle_year === (string) $targetPeriod->cycle_year
         ) {
-            $application->update(['period_id' => $activePeriod->id]);
+            $application->update(['period_id' => $targetPeriod->id]);
         }
 
-        if ($hasPeriodId && $activePeriod && (int) ($application->period_id ?? 0) !== (int) $activePeriod->id) {
+        if ($hasPeriodId && $targetPeriod && (int) ($application->period_id ?? 0) !== (int) $targetPeriod->id) {
             return back()->withErrors([
                 'submit' => 'This draft belongs to a different cycle. Please open your active-cycle draft.',
             ]);
@@ -396,6 +452,9 @@ class ReclassificationWorkflowController extends Controller
 
         $openCommentsQuery = $application->rowComments()
             ->where('visibility', 'faculty_visible');
+        if (Schema::hasColumn('reclassification_row_comments', 'action_type')) {
+            $openCommentsQuery->where('action_type', 'requires_action');
+        }
         if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
             $openCommentsQuery->whereNull('parent_id');
         }
@@ -405,7 +464,7 @@ class ReclassificationWorkflowController extends Controller
         $openComments = $openCommentsQuery->count();
         if ($openComments > 0) {
             return back()->withErrors([
-                'submit' => 'Please address all reviewer comments before submitting.',
+                'submit' => 'Please address all action-required reviewer comments before submitting.',
             ]);
         }
 
@@ -452,6 +511,12 @@ class ReclassificationWorkflowController extends Controller
         // Only return if currently in review stages
         abort_unless(in_array($application->status, ['dean_review','hr_review','vpaa_review','president_review'], true), 422);
 
+        if (!$this->hasReturnActionItems($application)) {
+            return back()->withErrors([
+                'return' => 'Add at least one action-required comment or move request before returning to faculty.',
+            ]);
+        }
+
         $application->update([
             'status' => 'returned_to_faculty',
             'current_step' => 'faculty',
@@ -467,6 +532,7 @@ class ReclassificationWorkflowController extends Controller
     public function forward(Request $request, ReclassificationApplication $application)
     {
         abort_unless(in_array($request->user()->role, ['dean','hr','vpaa','president'], true), 403);
+        $application->loadMissing('sections.entries');
 
         // Map forward chain
         $map = [
@@ -481,6 +547,12 @@ class ReclassificationWorkflowController extends Controller
                 ->with('success', 'The form is already finalized.');
         }
 
+        if ($application->status === 'rejected_final') {
+            return redirect()
+                ->route('reclassification.review.queue')
+                ->with('success', 'The form is already final rejected.');
+        }
+
         if ($application->status === 'vpaa_approved') {
             return redirect()
                 ->route('reclassification.review.approved')
@@ -492,6 +564,59 @@ class ReclassificationWorkflowController extends Controller
                 ->route('reclassification.review.approved')
                 ->withErrors([
                     'approved_list' => 'President approval is done from Approved List (batch).',
+                ]);
+        }
+
+        if ($application->status === 'dean_review') {
+            $section2 = $application->sections->firstWhere('section_code', '2');
+            $section2Complete = (bool) ($section2?->is_complete);
+
+            if (!$section2Complete) {
+                return redirect()
+                    ->route('reclassification.review.show', $application)
+                    ->withErrors([
+                        'forward' => 'Section II (Dean Input) must be completed and saved before forwarding to HR.',
+                    ]);
+            }
+
+            // Dean cannot forward to HR while any action-required faculty comments
+            // are still unresolved (including "addressed" but not yet "resolved").
+            $unresolvedDeanCommentsQuery = $application->rowComments()
+                ->where('visibility', 'faculty_visible');
+            if (Schema::hasColumn('reclassification_row_comments', 'action_type')) {
+                $unresolvedDeanCommentsQuery->where('action_type', 'requires_action');
+            }
+            if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
+                $unresolvedDeanCommentsQuery->whereNull('parent_id');
+            }
+            if (Schema::hasColumn('reclassification_row_comments', 'status')) {
+                $unresolvedDeanCommentsQuery->where('status', '!=', 'resolved');
+            }
+            if ($unresolvedDeanCommentsQuery->count() > 0) {
+                return redirect()
+                    ->route('reclassification.review.show', $application)
+                    ->withErrors([
+                        'forward' => 'Cannot forward to HR yet. Dean must mark all action-required faculty comments as resolved.',
+                    ]);
+            }
+        }
+
+        $openRequiredCommentsQuery = $application->rowComments()
+            ->where('visibility', 'faculty_visible');
+        if (Schema::hasColumn('reclassification_row_comments', 'action_type')) {
+            $openRequiredCommentsQuery->where('action_type', 'requires_action');
+        }
+        if (Schema::hasColumn('reclassification_row_comments', 'parent_id')) {
+            $openRequiredCommentsQuery->whereNull('parent_id');
+        }
+        if (Schema::hasColumn('reclassification_row_comments', 'status')) {
+            $openRequiredCommentsQuery->where('status', 'open');
+        }
+        if ($openRequiredCommentsQuery->count() > 0) {
+            return redirect()
+                ->route('reclassification.review.show', $application)
+                ->withErrors([
+                    'forward' => 'Cannot forward while there are open action-required faculty comments. Return to faculty first, or mark comments as no action required.',
                 ]);
         }
 

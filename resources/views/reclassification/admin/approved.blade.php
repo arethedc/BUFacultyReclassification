@@ -8,6 +8,7 @@
         $showCycleFilter = $showCycleFilter ?? true;
         $showVpaaActions = $showVpaaActions ?? false;
         $showPresidentActions = $showPresidentActions ?? false;
+        $allowExportActions = $allowExportActions ?? true;
         $rankLevels = $rankLevels ?? collect();
         $rankLevelId = $rankLevelId ?? null;
         $batchReadyCount = (int) ($batchReadyCount ?? 0);
@@ -106,7 +107,7 @@
                     </select>
                 </div>
                 <div class="md:col-span-5 flex items-center justify-end gap-2">
-                    @if($hasFinalizedRows)
+                    @if($allowExportActions && $hasFinalizedRows)
                         <button type="button"
                                 data-print-url="{{ route('reclassification.approved.print', $exportQuery) }}"
                                 class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
@@ -116,6 +117,19 @@
                            class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
                             Export CSV
                         </a>
+                    @elseif($allowExportActions)
+                        <button type="button"
+                                disabled
+                                title="Print is available after President approval."
+                                class="px-4 py-2 rounded-xl border border-gray-200 text-gray-400 cursor-not-allowed">
+                            Print Format
+                        </button>
+                        <button type="button"
+                                disabled
+                                title="Export is available after President approval."
+                                class="px-4 py-2 rounded-xl border border-gray-200 text-gray-400 cursor-not-allowed">
+                            Export CSV
+                        </button>
                     @endif
                     <a href="{{ $indexRoute }}"
                        class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">

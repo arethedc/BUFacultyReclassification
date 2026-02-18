@@ -42,17 +42,17 @@
           <div class="min-w-0">
             <div class="flex items-center gap-3">
               <h3 class="text-sm sm:text-base font-semibold text-gray-800 truncate">
-                Section III Summary
+                Section III Score Summary
               </h3>
 
-              <template x-if="criteriaMet() >= 2">
+              <template x-if="criteriaMet() >= 1">
                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-green-50 text-green-700 border border-green-200">
-                  Criteria met
+                  Minimum criteria met (1/1)
                 </span>
               </template>
-              <template x-if="criteriaMet() < 2">
+              <template x-if="criteriaMet() < 1">
                 <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium bg-amber-50 text-amber-700 border border-amber-200">
-                  Need 2 criteria
+                  Need at least 1 criterion
                 </span>
               </template>
 
@@ -69,7 +69,10 @@
             </div>
 
             <p class="text-xs text-gray-600 mt-1">
-              Criteria met: <span class="font-semibold text-gray-800" x-text="criteriaMet()"></span>
+              Minimum required:
+              <span class="font-semibold text-gray-800" x-text="criteriaMet() >= 1 ? '1/1' : '0/1'"></span>
+              <span class="mx-2 text-gray-300">•</span>
+              Criteria with entries: <span class="font-semibold text-gray-800" x-text="criteriaMet()"></span>
               <span class="text-gray-400">/ 9</span>
               <span class="mx-2 text-gray-300">•</span>
               Raw: <span class="font-semibold text-gray-800" x-text="rawTotal()"></span>
@@ -155,8 +158,34 @@
       <div class="p-6">
         <p class="text-sm text-gray-600">
           Publications and Creative Works within the last three years (supported by evidences) + 1/3 of the points earned in the last reclassification.
-          Any two (2) criteria below must be met.
+          At least one (1) criterion below must be met.
         </p>
+      </div>
+    </div>
+
+    {{-- ===============================
+    PREVIOUS RECLASSIFICATION
+    =============================== --}}
+    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+      <div class="p-6">
+        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <label class="block text-xs text-gray-500">
+            Points from Previous Reclassification (if applicable)
+          </label>
+          <input
+            x-model.number="previous"
+            name="section3[previous_points]"
+            type="number" step="0.01"
+            class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
+            placeholder="0.00"
+          >
+          <p class="text-xs text-gray-500 mt-1">
+            Counted: <span class="font-medium text-gray-700" x-text="Number(prevThird()).toFixed(2)"></span>
+          </p>
+          <p class="text-xs text-gray-500 mt-1">
+            System applies 1/3 of this value. Subject to validation.
+          </p>
+        </div>
       </div>
     </div>
 
@@ -1168,6 +1197,10 @@
                 <td class="p-2 text-gray-700">
                   <span x-text="Number(rowPoints('c8', i)).toFixed(2)"></span>
                   <span class="text-xs text-gray-400">(Fixed)</span>
+                  <div class="mt-1 text-xs">
+                    <span x-show="rowCounted('c8', i)" class="text-green-700">Counted</span>
+                    <span x-show="rowDuplicate('c8', i)" class="text-amber-600">Not counted (duplicate)</span>
+                  </div>
                 </td>
                 <td class="p-2">
                   <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
@@ -1347,27 +1380,6 @@
                 class="text-sm text-bu hover:underline">
           + Add editorial service
         </button>
-      </div>
-    </div>
-
-    {{-- ===============================
-    PREVIOUS RECLASSIFICATION
-    =============================== --}}
-    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-      <div class="p-6">
-        <label class="block text-sm font-medium text-gray-700">
-          Points from Previous Reclassification (if applicable)
-        </label>
-        <input
-          x-model.number="previous"
-          name="section3[previous_points]"
-          type="number" step="0.01"
-          class="mt-1 w-56 rounded border-gray-300"
-          placeholder="0.00"
-        >
-        <p class="text-xs text-gray-500 mt-1">
-          System applies 1/3 of this value. Subject to validation.
-        </p>
       </div>
     </div>
 
@@ -1555,7 +1567,7 @@
     </div>
 
     {{-- TOAST --}}
-    <div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 right-6 z-50">
+    <div x-cloak x-show="toast.show" x-transition class="fixed bottom-6 left-6 z-50">
       <div class="px-4 py-2 rounded-lg shadow-lg text-sm text-white"
            :class="toast.type === 'success' ? 'bg-green-600' : 'bg-gray-800'">
         <span x-text="toast.message"></span>
@@ -1813,7 +1825,7 @@ function sectionThree(initial = {}, globalEvidence = []) {
     },
 
     isBucketed(key) {
-      return ['c1','c2','c3','c4','c5','c6','c7','c9'].includes(key);
+      return ['c1','c2','c3','c4','c5','c6','c7','c8','c9'].includes(key);
     },
 
     bucketOnceRows(rows, keyFn, pointsFn) {
@@ -1835,13 +1847,6 @@ function sectionThree(initial = {}, globalEvidence = []) {
     bucketedRows(key) {
       const rows = this[key] || [];
       if (!this.isBucketed(key)) {
-        if (key === 'c8') {
-          return rows.map((row) => ({
-            ...row,
-            points: this.rowHasValue(row) ? 5 : 0,
-            counted: this.rowHasValue(row),
-          }));
-        }
         return rows.map((row) => ({ ...row, points: 0, counted: false }));
       }
 
@@ -1853,6 +1858,7 @@ function sectionThree(initial = {}, globalEvidence = []) {
         c5: (r) => r.level || '',
         c6: (r) => `${r.role || ''}|${r.level || ''}`,
         c7: (r) => `${r.role || ''}|${r.level || ''}`,
+        c8: (r) => String(r.title || '').trim().toLowerCase(),
         c9: (r) => r.service || '',
       };
 
@@ -1864,6 +1870,7 @@ function sectionThree(initial = {}, globalEvidence = []) {
         c5: (r) => this.ptsConference(r),
         c6: (r) => this.ptsCompleted(r),
         c7: (r) => this.ptsProposal(r),
+        c8: (r) => this.rowHasValue(r) ? 5 : 0,
         c9: (r) => this.ptsEditorial(r),
       };
 
@@ -1889,6 +1896,7 @@ function sectionThree(initial = {}, globalEvidence = []) {
         c5: (r) => r.level || '',
         c6: (r) => `${r.role || ''}|${r.level || ''}`,
         c7: (r) => `${r.role || ''}|${r.level || ''}`,
+        c8: (r) => String(r.title || '').trim().toLowerCase(),
         c9: (r) => r.service || '',
       };
       return String(keyFns[key] ? keyFns[key](row || {}) : '');
@@ -1903,6 +1911,7 @@ function sectionThree(initial = {}, globalEvidence = []) {
         c5: (r) => this.ptsConference(r),
         c6: (r) => this.ptsCompleted(r),
         c7: (r) => this.ptsProposal(r),
+        c8: (r) => this.rowHasValue(r) ? 5 : 0,
         c9: (r) => this.ptsEditorial(r),
       };
       return Number(pointsFns[key] ? pointsFns[key](row || {}) : 0);
@@ -2095,7 +2104,3 @@ function sectionThree(initial = {}, globalEvidence = []) {
 </script>
 
 </form>
-
-
-
-

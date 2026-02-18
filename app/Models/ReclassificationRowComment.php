@@ -12,6 +12,7 @@ class ReclassificationRowComment extends Model
         'user_id',
         'body',
         'visibility',
+        'action_type',
         'parent_id',
         'status',
         'resolved_by_user_id',

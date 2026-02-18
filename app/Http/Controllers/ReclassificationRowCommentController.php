@@ -6,6 +6,7 @@ use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationRowComment;
 use App\Models\ReclassificationSectionEntry;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\Schema;
 
 class ReclassificationRowCommentController extends Controller
 {
@@ -47,6 +48,7 @@ class ReclassificationRowCommentController extends Controller
         $validated = $request->validate([
             'body' => ['required', 'string', 'max:5000'],
             'visibility' => ['required', 'in:faculty_visible,internal'],
+            'action_type' => ['nullable', 'required_if:visibility,faculty_visible', 'in:requires_action,info'],
         ]);
 
         $entry->loadMissing('section');
@@ -55,21 +57,28 @@ class ReclassificationRowCommentController extends Controller
 
         $body = trim((string) $validated['body']);
         $visibility = (string) ($validated['visibility'] ?? 'faculty_visible');
+        $hasActionTypeColumn = Schema::hasColumn('reclassification_row_comments', 'action_type');
+        $actionType = $visibility === 'internal'
+            ? 'info'
+            : (string) ($validated['action_type'] ?? 'requires_action');
 
-        $recentDuplicate = ReclassificationRowComment::query()
+        $duplicateQuery = ReclassificationRowComment::query()
             ->where('reclassification_application_id', $application->id)
             ->where('reclassification_section_entry_id', $entry->id)
             ->where('user_id', $request->user()->id)
             ->whereNull('parent_id')
             ->where('body', $body)
             ->where('visibility', $visibility)
-            ->where('created_at', '>=', now()->subSeconds(15))
-            ->exists();
+            ->where('created_at', '>=', now()->subSeconds(15));
+        if ($hasActionTypeColumn) {
+            $duplicateQuery->where('action_type', $actionType);
+        }
+        $recentDuplicate = $duplicateQuery->exists();
         if ($recentDuplicate) {
             return $this->respond($request, 'Comment already saved.');
         }
 
-        ReclassificationRowComment::create([
+        $payload = [
             'reclassification_application_id' => $application->id,
             'reclassification_section_entry_id' => $entry->id,
             'user_id' => $request->user()->id,
@@ -77,7 +86,12 @@ class ReclassificationRowCommentController extends Controller
             'visibility' => $visibility,
             'parent_id' => null,
             'status' => 'open',
-        ]);
+        ];
+        if ($hasActionTypeColumn) {
+            $payload['action_type'] = $actionType;
+        }
+
+        ReclassificationRowComment::create($payload);
 
         return $this->respond($request, 'Comment added.');
     }
@@ -90,6 +104,11 @@ class ReclassificationRowCommentController extends Controller
         abort_unless($application->status === 'returned_to_faculty', 422);
         abort_unless($comment->parent_id === null, 422);
         abort_unless($comment->visibility === 'faculty_visible', 422);
+        abort_unless(
+            !Schema::hasColumn('reclassification_row_comments', 'action_type')
+                || ($comment->action_type ?? 'requires_action') === 'requires_action',
+            422
+        );
         abort_unless($comment->status !== 'resolved', 422);
 
         $validated = $request->validate([
@@ -110,7 +129,7 @@ class ReclassificationRowCommentController extends Controller
             return $this->respond($request, 'Reply already saved.');
         }
 
-        ReclassificationRowComment::create([
+        $replyPayload = [
             'reclassification_application_id' => $comment->reclassification_application_id,
             'reclassification_section_entry_id' => $comment->reclassification_section_entry_id,
             'user_id' => $request->user()->id,
@@ -118,7 +137,12 @@ class ReclassificationRowCommentController extends Controller
             'visibility' => 'faculty_visible',
             'parent_id' => $comment->id,
             'status' => 'open',
-        ]);
+        ];
+        if (Schema::hasColumn('reclassification_row_comments', 'action_type')) {
+            $replyPayload['action_type'] = 'requires_action';
+        }
+
+        ReclassificationRowComment::create($replyPayload);
 
         $comment->update([
             'status' => 'addressed',
@@ -137,6 +161,11 @@ class ReclassificationRowCommentController extends Controller
         abort_unless($application->status === 'returned_to_faculty', 422);
         abort_unless($comment->parent_id === null, 422);
         abort_unless($comment->visibility === 'faculty_visible', 422);
+        abort_unless(
+            !Schema::hasColumn('reclassification_row_comments', 'action_type')
+                || ($comment->action_type ?? 'requires_action') === 'requires_action',
+            422
+        );
         if ($comment->status === 'addressed') {
             return $this->respond($request, 'Comment already addressed.');
         }
@@ -157,6 +186,12 @@ class ReclassificationRowCommentController extends Controller
 
         $application = $comment->application()->with('faculty')->firstOrFail();
         abort_unless($comment->parent_id === null, 422);
+        abort_unless(
+            !Schema::hasColumn('reclassification_row_comments', 'action_type')
+                || ($comment->action_type ?? 'requires_action') === 'requires_action',
+            422,
+            'No-action comments do not need resolution.'
+        );
         if ($comment->status === 'resolved') {
             return $this->respond($request, 'Comment already resolved.');
         }

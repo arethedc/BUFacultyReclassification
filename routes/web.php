@@ -53,10 +53,11 @@ Route::middleware(['auth'])->group(function () {
     |----------------------------------------------------------------------
     */
     Route::middleware(['role:faculty'])->get('/faculty/dashboard', function () {
-        $user = request()->user()->load(['department', 'facultyProfile']);
+        $user = request()->user()->load(['department', 'facultyProfile', 'facultyHighestDegree']);
         $applications = ReclassificationApplication::where('faculty_user_id', $user->id)
             ->latest()
             ->get();
+        $hasPeriodId = Schema::hasColumn('reclassification_applications', 'period_id');
         $activePeriod = ReclassificationPeriod::query()
             ->when(
                 Schema::hasColumn('reclassification_periods', 'status'),
@@ -73,6 +74,63 @@ Route::middleware(['auth'])->group(function () {
             )
             ->orderByDesc('created_at')
             ->first();
+        $currentCycleRejectedApplication = null;
+        $currentCycleFinalizedApplication = null;
+        if ($activePeriod) {
+            $currentCycleRejectedApplication = ReclassificationApplication::query()
+                ->where('faculty_user_id', $user->id)
+                ->where('status', 'rejected_final')
+                ->when(
+                    $hasPeriodId,
+                    function ($query) use ($activePeriod) {
+                        $query->where(function ($builder) use ($activePeriod) {
+                            $builder->where('period_id', $activePeriod->id);
+                            if (!empty($activePeriod->cycle_year)) {
+                                $builder->orWhere(function ($fallback) use ($activePeriod) {
+                                    $fallback->whereNull('period_id')
+                                        ->where('cycle_year', $activePeriod->cycle_year);
+                                });
+                            }
+                        });
+                    },
+                    function ($query) use ($activePeriod) {
+                        if (!empty($activePeriod->cycle_year)) {
+                            $query->where('cycle_year', $activePeriod->cycle_year);
+                        } else {
+                            $query->whereRaw('1 = 0');
+                        }
+                    }
+                )
+                ->latest('updated_at')
+                ->first();
+
+            $currentCycleFinalizedApplication = ReclassificationApplication::query()
+                ->where('faculty_user_id', $user->id)
+                ->where('status', 'finalized')
+                ->when(
+                    $hasPeriodId,
+                    function ($query) use ($activePeriod) {
+                        $query->where(function ($builder) use ($activePeriod) {
+                            $builder->where('period_id', $activePeriod->id);
+                            if (!empty($activePeriod->cycle_year)) {
+                                $builder->orWhere(function ($fallback) use ($activePeriod) {
+                                    $fallback->whereNull('period_id')
+                                        ->where('cycle_year', $activePeriod->cycle_year);
+                                });
+                            }
+                        });
+                    },
+                    function ($query) use ($activePeriod) {
+                        if (!empty($activePeriod->cycle_year)) {
+                            $query->where('cycle_year', $activePeriod->cycle_year);
+                        } else {
+                            $query->whereRaw('1 = 0');
+                        }
+                    }
+                )
+                ->latest('updated_at')
+                ->first();
+        }
         $promotionNotification = null;
         if (Schema::hasTable('notifications')) {
             $promotionNotification = $user->unreadNotifications()
@@ -90,6 +148,8 @@ Route::middleware(['auth'])->group(function () {
             'promotionNotification',
             'activePeriod',
             'openPeriod',
+            'currentCycleRejectedApplication',
+            'currentCycleFinalizedApplication',
         ));
     })->name('faculty.dashboard');
 
@@ -248,6 +308,7 @@ Route::middleware(['auth'])->group(function () {
         };
 
         $statusCounts = ReclassificationApplication::query()
+            ->where('status', '!=', 'draft')
             ->tap($applyActivePeriodScope)
             ->selectRaw('status, COUNT(*) as total')
             ->groupBy('status')
@@ -263,6 +324,7 @@ Route::middleware(['auth'])->group(function () {
             ->first();
 
         $recentApplications = ReclassificationApplication::query()
+            ->where('status', '!=', 'draft')
             ->tap($applyActivePeriodScope)
             ->with('faculty.department')
             ->orderByDesc('submitted_at')
@@ -291,8 +353,12 @@ Route::middleware(['auth'])->group(function () {
             ->name('reclassification.periods.toggle');
         Route::post('/periods/{period}/submission-toggle', [ReclassificationPeriodController::class, 'toggleSubmission'])
             ->name('reclassification.periods.submission.toggle');
+        Route::post('/periods/{period}/window', [ReclassificationPeriodController::class, 'updateWindow'])
+            ->name('reclassification.periods.window.update');
         Route::get('/submissions', [ReclassificationAdminController::class, 'index'])
             ->name('reclassification.admin.submissions');
+        Route::post('/submissions/{application}/toggle-reject', [ReclassificationAdminController::class, 'toggleReject'])
+            ->name('reclassification.admin.submissions.toggle-reject');
         Route::get('/approved', [ReclassificationAdminController::class, 'approved'])
             ->name('reclassification.admin.approved');
     });
@@ -436,6 +502,8 @@ Route::middleware(['auth'])->group(function () {
             ->name('reclassification.review.submissions');
         Route::get('/approved-list', [ReclassificationAdminController::class, 'reviewerApproved'])
             ->name('reclassification.review.approved');
+        Route::get('/approved-reclassification', [ReclassificationAdminController::class, 'reviewerFinalized'])
+            ->name('reclassification.review.finalized');
     });
 
     Route::middleware(['role:dean,hr,vpaa,president'])->prefix('reclassification')->group(function () {
@@ -515,6 +583,10 @@ Route::middleware(['auth'])->group(function () {
             ->name('reclassification.submitted-summary');
         Route::get('/submitted-summary/{application}', [ReclassificationFormController::class, 'submittedSummaryShow'])
             ->name('reclassification.submitted-summary.show');
+        Route::get('/drafts/{application}/summary', [ReclassificationFormController::class, 'draftSummaryShow'])
+            ->name('reclassification.drafts.summary');
+        Route::delete('/drafts/{application}', [ReclassificationFormController::class, 'destroyDraft'])
+            ->name('reclassification.drafts.destroy');
 
         // Workflow actions
         Route::post('/{application}/submit', [ReclassificationWorkflowController::class, 'submit'])

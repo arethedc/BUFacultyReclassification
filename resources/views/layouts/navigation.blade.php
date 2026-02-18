@@ -74,7 +74,7 @@
                                         </a>
                                         <a href="{{ route('reclassification.periods') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.periods') ? 'font-semibold text-gray-900' : '' }}">
-                                            Submission Periods
+                                            Manage Periods
                                         </a>
                                     </div>
                                 </div>
@@ -100,7 +100,7 @@
                                     <div class="py-2">
                                         <a href="{{ route('users.index') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('users.index') ? 'font-semibold text-gray-900' : '' }}">
-                                            Users
+                                            Manage Users
                                         </a>
                                         <a href="{{ route('users.create') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('users.create') ? 'font-semibold text-gray-900' : '' }}">
@@ -216,7 +216,11 @@
                                         </a>
                                         <a href="{{ route('reclassification.review.approved') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.review.approved') ? 'font-semibold text-gray-900' : '' }}">
-                                            Approved List
+                                            VPAA Endorsement List
+                                        </a>
+                                        <a href="{{ route('reclassification.review.finalized') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.review.finalized') ? 'font-semibold text-gray-900' : '' }}">
+                                            Approved Reclassification
                                         </a>
                                         <a href="{{ route('reclassification.history') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.history') ? 'font-semibold text-gray-900' : '' }}">
@@ -252,7 +256,11 @@
                                         </a>
                                         <a href="{{ route('reclassification.review.approved') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.review.approved') ? 'font-semibold text-gray-900' : '' }}">
-                                            Approved List
+                                            President Approval List
+                                        </a>
+                                        <a href="{{ route('reclassification.review.finalized') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.review.finalized') ? 'font-semibold text-gray-900' : '' }}">
+                                            Approved Reclassification
                                         </a>
                                         <a href="{{ route('reclassification.history') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.history') ? 'font-semibold text-gray-900' : '' }}">
@@ -354,7 +362,10 @@
                                         {{ __('All Submissions') }}
                                     </x-dropdown-link>
                                     <x-dropdown-link :href="route('reclassification.review.approved')">
-                                        {{ __('Approved List') }}
+                                        {{ __('VPAA Endorsement List') }}
+                                    </x-dropdown-link>
+                                    <x-dropdown-link :href="route('reclassification.review.finalized')">
+                                        {{ __('Approved Reclassification') }}
                                     </x-dropdown-link>
                                     <x-dropdown-link :href="route('reclassification.history')">
                                         {{ __('Reclassification History') }}
@@ -366,7 +377,10 @@
                                         {{ __('All Submissions') }}
                                     </x-dropdown-link>
                                     <x-dropdown-link :href="route('reclassification.review.approved')">
-                                        {{ __('Approved List') }}
+                                        {{ __('President Approval List') }}
+                                    </x-dropdown-link>
+                                    <x-dropdown-link :href="route('reclassification.review.finalized')">
+                                        {{ __('Approved Reclassification') }}
                                     </x-dropdown-link>
                                     <x-dropdown-link :href="route('reclassification.history')">
                                         {{ __('Reclassification History') }}
@@ -379,7 +393,7 @@
                                 @csrf
                                 <x-dropdown-link
                                     :href="route('logout')"
-                                    onclick="event.preventDefault(); this.closest('form').submit();">
+                                    onclick="event.preventDefault(); if (confirm('Are you sure you want to log out?')) { this.closest('form').submit(); }">
                                     {{ __('Log Out') }}
                                 </x-dropdown-link>
                             </form>
@@ -458,7 +472,10 @@
                     {{ __('All Submissions') }}
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('reclassification.review.approved')" :active="request()->routeIs('reclassification.review.approved')">
-                    {{ __('Approved List') }}
+                    {{ __('VPAA Endorsement List') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('reclassification.review.finalized')" :active="request()->routeIs('reclassification.review.finalized')">
+                    {{ __('Approved Reclassification') }}
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('reclassification.history')" :active="request()->routeIs('reclassification.history')">
                     {{ __('Reclassification History') }}
@@ -471,7 +488,10 @@
                     {{ __('All Submissions') }}
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('reclassification.review.approved')" :active="request()->routeIs('reclassification.review.approved')">
-                    {{ __('Approved List') }}
+                    {{ __('President Approval List') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('reclassification.review.finalized')" :active="request()->routeIs('reclassification.review.finalized')">
+                    {{ __('Approved Reclassification') }}
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('reclassification.history')" :active="request()->routeIs('reclassification.history')">
                     {{ __('Reclassification History') }}
@@ -510,7 +530,7 @@
                     @csrf
                     <x-responsive-nav-link
                         :href="route('logout')"
-                        onclick="event.preventDefault(); this.closest('form').submit();">
+                        onclick="event.preventDefault(); if (confirm('Are you sure you want to log out?')) { this.closest('form').submit(); }">
                         {{ __('Log Out') }}
                     </x-responsive-nav-link>
                 </form>

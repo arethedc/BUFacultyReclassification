@@ -20,6 +20,13 @@
                     </div>
                 </div>
             @endif
+            @if ($errors->has('draft_delete'))
+                <div class="bg-red-50 border border-red-200 rounded-2xl shadow-card p-6">
+                    <div class="text-sm font-semibold text-red-800">
+                        {{ $errors->first('draft_delete') }}
+                    </div>
+                </div>
+            @endif
 
             @php
                 $latestFinalized = $applications->firstWhere('status', 'finalized');
@@ -126,6 +133,68 @@
                 </div>
             </div>
 
+            @php
+                $highestDegree = strtolower((string) ($user->facultyHighestDegree?->highest_degree ?? ''));
+                $facultyYearsInBu = $user->facultyProfile?->original_appointment_date
+                    ? $user->facultyProfile->original_appointment_date->diffInYears(now())
+                    : 0;
+                $hasMastersForSubmit = in_array($highestDegree, ['masters', 'doctorate'], true);
+                $hasYearsForSubmit = $facultyYearsInBu >= 3;
+                $missingSubmitRequirements = [];
+                if (!$hasMastersForSubmit) {
+                    $missingSubmitRequirements[] = "Master's degree";
+                }
+                if (!$hasYearsForSubmit) {
+                    $missingSubmitRequirements[] = 'At least 3 years of BU service';
+                }
+            @endphp
+            @if(!empty($missingSubmitRequirements))
+                <div class="bg-amber-50 border border-amber-200 rounded-2xl shadow-card p-5">
+                    <div class="text-sm font-semibold text-amber-900">
+                        Final submit is currently locked.
+                    </div>
+                    <div class="mt-1 text-sm text-amber-800">
+                        Missing requirement{{ count($missingSubmitRequirements) > 1 ? 's' : '' }}:
+                        {{ implode(' and ', $missingSubmitRequirements) }}.
+                        You can still work and save your draft.
+                    </div>
+                </div>
+            @endif
+
+            @php
+                $returnedSubmission = $applications->firstWhere('status', 'returned_to_faculty');
+            @endphp
+            @if($returnedSubmission)
+                <div class="bg-amber-50 border border-amber-200 rounded-2xl shadow-card p-5">
+                    <div class="text-sm font-semibold text-amber-900">
+                        Your reclassification was returned for revision.
+                    </div>
+                    <div class="mt-1 text-sm text-amber-800">
+                        Open your current submission and address reviewer comments. Only flagged/commented entries should be updated before resubmission.
+                    </div>
+                </div>
+            @endif
+            @if(!empty($currentCycleRejectedApplication))
+                <div class="bg-red-50 border border-red-200 rounded-2xl shadow-card p-5">
+                    <div class="text-sm font-semibold text-red-900">
+                        Your application was final rejected for the current reclassification period.
+                    </div>
+                    <div class="mt-1 text-sm text-red-800">
+                        You cannot create another application in this period. Please wait for the next reclassification cycle.
+                    </div>
+                </div>
+            @endif
+            @if(!empty($currentCycleFinalizedApplication))
+                <div class="bg-blue-50 border border-blue-200 rounded-2xl shadow-card p-5">
+                    <div class="text-sm font-semibold text-blue-900">
+                        Reclassification for this period is already completed.
+                    </div>
+                    <div class="mt-1 text-sm text-blue-800">
+                        Your submission has been approved by President. Please wait for the next reclassification period.
+                    </div>
+                </div>
+            @endif
+
             {{-- PROFILE SUMMARY --}}
             @php
                 $profile = $user->facultyProfile;
@@ -178,27 +247,77 @@
 
             {{-- ACTION NAV --}}
             @php
-                $hasContinuableSubmission = $applications->contains(function ($app) {
-                    return in_array($app->status, ['draft', 'returned_to_faculty'], true);
+                $activeDraftStatuses = [
+                    'draft',
+                    'returned_to_faculty',
+                    'dean_review',
+                    'hr_review',
+                    'vpaa_review',
+                    'vpaa_approved',
+                    'president_review',
+                ];
+                $activePeriodId = (int) ($activePeriod?->id ?? 0);
+                $activeCycleYear = trim((string) ($activePeriod?->cycle_year ?? ''));
+
+                $currentSubmission = $applications->first(function ($app) use ($activeDraftStatuses, $activePeriodId, $activeCycleYear) {
+                    if (!in_array($app->status, $activeDraftStatuses, true)) {
+                        return false;
+                    }
+
+                    $appPeriodId = (int) ($app->period_id ?? 0);
+                    $appCycleYear = trim((string) ($app->cycle_year ?? ''));
+
+                    if ($activePeriodId > 0) {
+                        if ($appPeriodId === $activePeriodId) {
+                            return true;
+                        }
+
+                        return $appPeriodId === 0 && $activeCycleYear !== '' && $appCycleYear === $activeCycleYear;
+                    }
+
+                    return $appPeriodId === 0 && $appCycleYear === '';
                 });
-                $actionLabel = $hasContinuableSubmission
-                    ? 'Continue Reclassification'
-                    : 'Start Reclassification';
-                $actionRoute = route('reclassification.show');
+                if (!$currentSubmission && $activePeriodId > 0) {
+                    // Fallback: unassigned draft created while no period was active.
+                    // It will be auto-assigned as soon as faculty opens the form.
+                    $currentSubmission = $applications->first(function ($app) use ($activeDraftStatuses) {
+                        return in_array($app->status, $activeDraftStatuses, true)
+                            && (int) ($app->period_id ?? 0) === 0
+                            && trim((string) ($app->cycle_year ?? '')) === '';
+                    });
+                }
+
+                $hasCurrentSubmissionForStartLock = !empty($currentSubmission);
+                $lockStartForRejectedCurrentCycle = !empty($currentCycleRejectedApplication);
+                $lockStartForFinalizedCurrentCycle = !empty($currentCycleFinalizedApplication);
+                $disableStartButton = $hasCurrentSubmissionForStartLock || $lockStartForRejectedCurrentCycle || $lockStartForFinalizedCurrentCycle;
             @endphp
 
             <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-4">
                 <div class="flex flex-wrap items-center gap-3">
-                    <a href="{{ $actionRoute }}"
-                       class="px-5 py-2.5 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
-                        {{ $actionLabel }}
-                    </a>
+                    @if(!$disableStartButton)
+                        <a href="{{ route('reclassification.show') }}"
+                           class="px-5 py-2.5 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
+                            Start Reclassification
+                        </a>
+                    @else
+                        <button type="button"
+                                disabled
+                                class="px-5 py-2.5 rounded-xl bg-gray-200 text-gray-500 text-sm font-semibold cursor-not-allowed">
+                            Start Reclassification
+                        </button>
+                    @endif
 
                     <a href="{{ route('profile.edit') }}"
                        class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
                         My Profile / Reset Password
                     </a>
                 </div>
+                @if(!empty($currentCycleFinalizedApplication))
+                    <div class="mt-3 text-xs text-gray-500">
+                        Start is locked because this period is already completed.
+                    </div>
+                @endif
             </div>
 
             @php
@@ -211,15 +330,10 @@
                     'vpaa_approved' => ['VPAA Approved', 'bg-indigo-50 text-indigo-700'],
                     'president_review' => ['President Review', 'bg-blue-50 text-blue-700'],
                     'finalized' => ['Finalized', 'bg-green-50 text-green-700'],
+                    'rejected_final' => ['Rejected', 'bg-red-50 text-red-700'],
                 ];
-
-                $currentSubmission = $applications->first(function ($app) {
-                    return $app->status !== 'finalized';
-                });
                 $historyApplications = $applications->reject(function ($app) use ($currentSubmission) {
-                    return $currentSubmission
-                        && $currentSubmission->status === 'draft'
-                        && (int) $app->id === (int) $currentSubmission->id;
+                    return $currentSubmission && (int) $app->id === (int) $currentSubmission->id;
                 });
             @endphp
 
@@ -235,7 +349,17 @@
                     @if($currentSubmission)
                         @php
                             $statusInfo = $statusMap[$currentSubmission->status] ?? [ucfirst(str_replace('_', ' ', $currentSubmission->status)), 'bg-gray-100 text-gray-700'];
-                            $term = $currentSubmission->cycle_year ?: 'Not set';
+                            $term = trim((string) ($currentSubmission->cycle_year ?? ''));
+                            $isUnassignedDraft = ((int) ($currentSubmission->period_id ?? 0) === 0) && trim((string) ($currentSubmission->cycle_year ?? '')) === '';
+                            if ($term === '') {
+                                $term = trim((string) ($activePeriod?->name ?? ''));
+                            }
+                            if ($term === '') {
+                                $term = trim((string) ($activePeriod?->cycle_year ?? ''));
+                            }
+                            if ($term === '') {
+                                $term = 'Not set';
+                            }
                             $isEditable = in_array($currentSubmission->status, ['draft', 'returned_to_faculty'], true);
                         @endphp
                         <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -249,6 +373,11 @@
                                 <div class="text-xs text-gray-500">
                                     Last updated {{ optional($currentSubmission->updated_at)->format('M d, Y h:i A') }}
                                 </div>
+                                @if($isUnassignedDraft && $activePeriod)
+                                    <div class="text-xs text-amber-700">
+                                        Draft is from no-period state and will be assigned to the active period when you open it.
+                                    </div>
+                                @endif
                             </div>
 
                             <div>
@@ -317,17 +446,29 @@
                                         </span>
                                     </td>
                                     <td class="px-6 py-4 text-right">
-                                        @if(in_array($app->status, ['draft','returned_to_faculty'], true))
-                                            <a href="{{ route('reclassification.show') }}"
-                                               class="text-bu hover:underline font-medium">
-                                                Continue
-                                            </a>
-                                        @else
-                                            <a href="{{ route('reclassification.submitted-summary.show', $app) }}"
-                                               class="text-bu hover:underline font-medium">
-                                                View
-                                            </a>
-                                        @endif
+                                        <div class="inline-flex items-center gap-3">
+                                            @if($app->status === 'draft')
+                                                <a href="{{ route('reclassification.drafts.summary', $app) }}"
+                                                   class="text-bu hover:underline font-medium">
+                                                    View
+                                                </a>
+                                                <form method="POST"
+                                                      action="{{ route('reclassification.drafts.destroy', $app) }}"
+                                                      onsubmit="return confirm('Delete this old draft? This action cannot be undone.');">
+                                                    @csrf
+                                                    @method('DELETE')
+                                                    <button type="submit"
+                                                            class="text-red-600 hover:underline font-medium">
+                                                        Delete
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <a href="{{ route('reclassification.submitted-summary.show', $app) }}"
+                                                   class="text-bu hover:underline font-medium">
+                                                    View
+                                                </a>
+                                            @endif
+                                        </div>
                                     </td>
                                 </tr>
                             @empty

@@ -155,6 +155,7 @@ class ReclassificationAdminController extends Controller
         $role = strtolower((string) $request->user()->role);
         $q = trim((string) $request->get('q', ''));
         $status = $request->get('status', 'all');
+        $activity = $request->get('activity', 'active');
         $departmentId = $request->get('department_id');
         $rankLevelId = $request->get('rank_level_id');
         $activePeriod = $this->activePeriod();
@@ -174,11 +175,18 @@ class ReclassificationAdminController extends Controller
                 'vpaa_approved',
                 'president_review',
                 'finalized',
+                'rejected_final',
             ]);
         } elseif ($status === 'all') {
             $query->where('status', '!=', 'draft');
         } else {
             $query->where('status', $status);
+        }
+
+        if ($activity === 'rejected') {
+            $query->where('status', 'rejected_final');
+        } elseif ($activity === 'active') {
+            $query->where('status', '!=', 'rejected_final');
         }
 
         $this->applyDepartmentFilter($query, $departmentId);
@@ -203,6 +211,7 @@ class ReclassificationAdminController extends Controller
             ->appends([
                 'q' => $q,
                 'status' => $status,
+                'activity' => $activity,
                 'department_id' => $departmentId,
                 'rank_level_id' => $rankLevelId,
             ]);
@@ -223,12 +232,37 @@ class ReclassificationAdminController extends Controller
             'rankLevels',
             'q',
             'status',
+            'activity',
             'departmentId',
             'rankLevelId',
             'activePeriod',
             'hasActivePeriod',
             'indexRoute',
         ));
+    }
+
+    public function toggleReject(Request $request, ReclassificationApplication $application)
+    {
+        abort_unless(strtolower((string) $request->user()->role) === 'hr', 403);
+        abort_unless($application->status !== 'draft', 422);
+
+        if ($application->status === 'rejected_final') {
+            $application->update([
+                'status' => 'hr_review',
+                'current_step' => 'hr',
+                'returned_from' => null,
+            ]);
+
+            return back()->with('success', 'Submission is now active and returned to HR review.');
+        }
+
+        $application->update([
+            'status' => 'rejected_final',
+            'current_step' => 'finalized',
+            'returned_from' => null,
+        ]);
+
+        return back()->with('success', 'Submission marked as rejected.');
     }
 
     public function deanIndex(Request $request)
@@ -257,6 +291,7 @@ class ReclassificationAdminController extends Controller
                 'vpaa_approved',
                 'president_review',
                 'finalized',
+                'rejected_final',
             ]);
         } elseif ($status === 'all') {
             $query->where('status', '!=', 'draft');
@@ -465,7 +500,7 @@ class ReclassificationAdminController extends Controller
 
         $statusScope = $role === 'vpaa'
             ? ['vpaa_approved']
-            : ['president_review', 'finalized'];
+            : ['president_review'];
 
         $query = ReclassificationApplication::query()
             ->with([
@@ -499,10 +534,10 @@ class ReclassificationAdminController extends Controller
             : collect();
 
         $title = $role === 'vpaa'
-            ? 'VPAA Approved List'
+            ? 'VPAA Endorsement List'
             : 'President Approval List';
         $subtitle = $role === 'vpaa'
-            ? 'Gather VPAA-approved submissions in the active cycle and forward the list to President.'
+            ? 'Submissions approved by VPAA and pending batch forward to President.'
             : 'Finalize active-cycle submissions approved by VPAA.';
         $indexRoute = route('reclassification.review.approved');
         $backRoute = route('dashboard');
@@ -510,6 +545,7 @@ class ReclassificationAdminController extends Controller
         $showCycleFilter = false;
         $showVpaaActions = $role === 'vpaa';
         $showPresidentActions = $role === 'president';
+        $allowExportActions = false;
         $enforceActivePeriod = true;
         $exportPeriodId = null;
 
@@ -556,8 +592,88 @@ class ReclassificationAdminController extends Controller
             'showCycleFilter',
             'showVpaaActions',
             'showPresidentActions',
+            'allowExportActions',
             'enforceActivePeriod',
             'exportPeriodId',
+            'batchReadyCount',
+            'batchBlockingCount'
+        ));
+    }
+
+    public function reviewerFinalized(Request $request)
+    {
+        $role = strtolower((string) $request->user()->role);
+        abort_unless(in_array($role, ['vpaa', 'president'], true), 403);
+
+        $q = trim((string) $request->get('q', ''));
+        $departmentId = $request->get('department_id');
+        $rankLevelId = $request->get('rank_level_id');
+        $activePeriod = $this->activePeriod();
+        $hasActivePeriod = (bool) $activePeriod;
+
+        $query = ReclassificationApplication::query()
+            ->with([
+                'faculty.department',
+                'approvedBy',
+            ])
+            ->where('status', 'finalized');
+        $this->applyPeriodScope($query, $activePeriod);
+        $this->applyApprovedFilters($query, $q, $departmentId, null, $rankLevelId);
+
+        $applications = $query
+            ->orderByDesc('approved_at')
+            ->orderByDesc('finalized_at')
+            ->orderByDesc('updated_at')
+            ->paginate(20)
+            ->appends([
+                'q' => $q,
+                'department_id' => $departmentId,
+                'rank_level_id' => $rankLevelId,
+            ]);
+
+        $departments = Department::orderBy('name')->get();
+        $cycleYears = collect();
+        $rankLevels = Schema::hasTable('rank_levels')
+            ? \App\Models\RankLevel::orderBy('order_no')->get()
+            : collect();
+
+        $title = 'Approved Reclassification';
+        $subtitle = 'President-approved submissions for the active period.';
+        $indexRoute = route('reclassification.review.finalized');
+        $backRoute = route('dashboard');
+        $showDepartmentFilter = true;
+        $showCycleFilter = false;
+        $showVpaaActions = false;
+        $showPresidentActions = false;
+        $allowExportActions = true;
+        $enforceActivePeriod = true;
+        $exportPeriodId = null;
+        $batchReadyCount = 0;
+        $batchBlockingCount = 0;
+        $cycleYear = null;
+
+        return view('reclassification.admin.approved', compact(
+            'applications',
+            'departments',
+            'cycleYears',
+            'rankLevels',
+            'q',
+            'departmentId',
+            'rankLevelId',
+            'cycleYear',
+            'title',
+            'subtitle',
+            'indexRoute',
+            'backRoute',
+            'showDepartmentFilter',
+            'showCycleFilter',
+            'showVpaaActions',
+            'showPresidentActions',
+            'allowExportActions',
+            'enforceActivePeriod',
+            'exportPeriodId',
+            'activePeriod',
+            'hasActivePeriod',
             'batchReadyCount',
             'batchBlockingCount'
         ));
@@ -642,7 +758,13 @@ class ReclassificationAdminController extends Controller
             $workflow->finalizeForApproval($app, $request->user());
         }
 
-        return back()->with('success', "{$apps->count()} active-cycle submissions finalized and promotions applied.");
+        if (Schema::hasColumn('reclassification_periods', 'is_open')) {
+            $activePeriod->forceFill([
+                'is_open' => false,
+            ])->save();
+        }
+
+        return back()->with('success', "{$apps->count()} active-cycle submissions finalized and promotions applied. Submission is now closed for this period.");
     }
 
     public function approvedExportCsv(Request $request)
@@ -789,7 +911,13 @@ class ReclassificationAdminController extends Controller
         $periods = collect();
         if (Schema::hasTable('reclassification_periods')) {
             $hasCycleYear = Schema::hasColumn('reclassification_periods', 'cycle_year');
+            $hasStatus = Schema::hasColumn('reclassification_periods', 'status');
             $periods = ReclassificationPeriod::query()
+                ->when(
+                    $hasStatus,
+                    fn ($query) => $query->where('status', 'ended'),
+                    fn ($query) => $query->where('is_open', false)
+                )
                 ->when($q !== '', function ($query) use ($q, $hasCycleYear) {
                     $query->where(function ($builder) use ($q, $hasCycleYear) {
                         $builder->where('name', 'like', "%{$q}%");
@@ -840,8 +968,8 @@ class ReclassificationAdminController extends Controller
 
         $title = 'Reclassification History';
         $subtitle = $role === 'dean'
-            ? 'Period history for your department.'
-            : 'All reclassification periods and approved outputs.';
+            ? 'Ended period history for your department.'
+            : 'Ended reclassification periods and approved outputs.';
         $indexRoute = route('reclassification.history');
         $backRoute = route('dashboard');
 
@@ -867,6 +995,12 @@ class ReclassificationAdminController extends Controller
         $requestedDepartmentId = $request->get('department_id');
         $rankLevelId = $request->get('rank_level_id');
         $filterDepartmentId = $role === 'dean' ? $departmentId : $requestedDepartmentId;
+
+        if (Schema::hasColumn('reclassification_periods', 'status')) {
+            abort_unless((string) $period->status === 'ended', 404);
+        } else {
+            abort_unless((bool) $period->is_open === false, 404);
+        }
 
         $query = ReclassificationApplication::query()
             ->with(['faculty.department', 'approvedBy'])
