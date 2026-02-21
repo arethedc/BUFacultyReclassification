@@ -20,12 +20,23 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        if (app()->environment('production')) {
-            $appUrl = (string) config('app.url', '');
-            if ($appUrl !== '' && str_starts_with($appUrl, 'https://')) {
-                URL::forceRootUrl($appUrl);
-                URL::forceScheme('https');
+        $shouldForceHttps = app()->environment('production');
+
+        if (!$shouldForceHttps && !app()->runningInConsole()) {
+            $host = (string) request()->getHost();
+            if ($host !== '' && str_ends_with($host, '.onrender.com')) {
+                $shouldForceHttps = true;
+                URL::forceRootUrl("https://{$host}");
             }
+        }
+
+        if ($shouldForceHttps) {
+            $appUrl = (string) config('app.url', '');
+            if ($appUrl !== '' && !str_contains($appUrl, '.onrender.com')) {
+                $forcedUrl = preg_replace('/^http:/i', 'https:', $appUrl);
+                URL::forceRootUrl($forcedUrl ?: $appUrl);
+            }
+            URL::forceScheme('https');
         }
     }
 }
