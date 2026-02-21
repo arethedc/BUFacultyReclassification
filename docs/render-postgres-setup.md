@@ -3,8 +3,11 @@
 ## 1. Push repo with `render.yaml`
 Render will detect Blueprint config and create:
 - Web service: `faculty-reclassification-web`
-- Cron service: `faculty-reclassification-scheduler`
 - Postgres DB: `faculty-reclassification-db`
+
+Note:
+- Render may not show native PHP runtime in manual service creation.
+- This repo uses Docker runtime (`Dockerfile`) so Laravel works on Render.
 
 ## 2. Set required secret env vars (both services)
 - `APP_KEY`
@@ -31,6 +34,5 @@ Copy the full value (example starts with `base64:`) into Render `APP_KEY`.
 - Open the app URL.
 - Create/login user.
 - Check email verification flow.
-- Check scheduled reminders by watching Cron logs for:
-  - `reclassification:notify-deadlines`
-
+- Scheduler is started inside web service container for free-tier compatibility.
+- Check service logs for scheduler activity (`php artisan schedule:work`).
