@@ -6,6 +6,7 @@ use App\Models\RankLevel;
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
 use App\Notifications\ReclassificationPromotedNotification;
+use App\Services\ReclassificationNotificationService;
 use App\Support\ReclassificationEligibility;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -639,6 +640,16 @@ class ReclassificationWorkflowController extends Controller
         }
 
         $application->update($updatePayload);
+        $application->refresh();
+
+        $notifier = app(ReclassificationNotificationService::class);
+        if ($next['next_status'] === 'hr_review') {
+            $notifier->notifyApplicationForwardedToRole($application, 'hr');
+        } elseif ($next['next_status'] === 'vpaa_review') {
+            $notifier->notifyApplicationForwardedToRole($application, 'vpaa');
+        } elseif ($next['next_status'] === 'vpaa_approved') {
+            $notifier->notifyAddedToVpaaApprovedList($application);
+        }
 
         if ($fromStatus === 'vpaa_review') {
             return redirect()

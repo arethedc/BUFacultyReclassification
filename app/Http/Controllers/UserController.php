@@ -142,6 +142,10 @@ class UserController extends Controller
             'department_id' => $data['department_id'] ?? null,
         ]);
 
+        if (method_exists($user, 'sendEmailVerificationNotification') && !$user->hasVerifiedEmail()) {
+            $user->sendEmailVerificationNotification();
+        }
+
         // Create faculty profile ONLY if faculty
         if ($user->role === 'faculty') {
             $rankTitle = null;
@@ -225,11 +229,14 @@ class UserController extends Controller
             ($data['suffix'] ?? '')
         );
 
+        $emailChanged = (string) $data['email'] !== (string) $user->email;
+
         $user->update([
             'name' => $fullName,
             'email' => $data['email'],
             'status' => $data['status'],
             'department_id' => $needsDepartment ? $data['department_id'] : null,
+            'email_verified_at' => $emailChanged ? null : $user->email_verified_at,
         ]);
 
         if ($user->role === 'faculty' && $user->facultyProfile) {
@@ -238,9 +245,15 @@ class UserController extends Controller
             ]);
         }
 
+        $message = 'User updated successfully.';
+        if ($emailChanged && method_exists($user, 'sendEmailVerificationNotification')) {
+            $user->sendEmailVerificationNotification();
+            $message .= ' A verification email has been sent to the new email address.';
+        }
+
         return redirect()
             ->route('users.edit', $user)
-            ->with('success', 'User updated successfully.');
+            ->with('success', $message);
     }
 
     private function splitName(string $name): array

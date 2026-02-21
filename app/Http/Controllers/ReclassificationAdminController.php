@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use App\Models\Department;
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
+use App\Services\ReclassificationNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
@@ -703,18 +704,26 @@ class ReclassificationAdminController extends Controller
         $readyQuery = ReclassificationApplication::query()
             ->where('status', 'vpaa_approved');
         $this->applyPeriodScope($readyQuery, $activePeriod);
-        $readyCount = (clone $readyQuery)->count();
+        $readyApps = (clone $readyQuery)
+            ->with(['faculty', 'period'])
+            ->get();
+        $readyCount = $readyApps->count();
         if ($readyCount === 0) {
             return back()->withErrors([
                 'approved_list' => 'No VPAA-approved submissions found in VPAA Approved List.',
             ]);
         }
 
-        $readyQuery->update([
+        ReclassificationApplication::query()
+            ->whereIn('id', $readyApps->pluck('id'))
+            ->update([
             'status' => 'president_review',
             'current_step' => 'president',
             'returned_from' => null,
-        ]);
+            ]);
+
+        app(ReclassificationNotificationService::class)
+            ->notifyApprovedListForwardedToPresident($readyApps, $activePeriod);
 
         return back()->with('success', "{$readyCount} active-cycle submissions forwarded to President.");
     }
@@ -758,10 +767,16 @@ class ReclassificationAdminController extends Controller
             $workflow->finalizeForApproval($app, $request->user());
         }
 
+        $wasSubmissionOpen = (bool) $activePeriod->is_open;
         if (Schema::hasColumn('reclassification_periods', 'is_open')) {
             $activePeriod->forceFill([
                 'is_open' => false,
             ])->save();
+        }
+
+        if ($wasSubmissionOpen) {
+            app(ReclassificationNotificationService::class)
+                ->notifySubmissionClosed($activePeriod->fresh());
         }
 
         return back()->with('success', "{$apps->count()} active-cycle submissions finalized and promotions applied. Submission is now closed for this period.");

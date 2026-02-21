@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
 use App\Models\ReclassificationPeriod;
 use App\Models\ReclassificationApplication;
+use App\Services\ReclassificationNotificationService;
 
 class ReclassificationPeriodController extends Controller
 {
@@ -268,6 +269,7 @@ class ReclassificationPeriodController extends Controller
         $isEnding = $hasStatus
             ? ((string) ($period->status ?? '') === 'active')
             : (bool) $period->is_open;
+        $wasSubmissionOpen = (bool) $period->is_open;
 
         if ($isEnding) {
             $blocking = $this->blockingSubmissionCounts($period);
@@ -326,6 +328,13 @@ class ReclassificationPeriodController extends Controller
         $isNowActive = $hasStatus
             ? (string) ($period->status ?? '') === 'active'
             : (bool) $period->is_open;
+        if (!$isNowActive && $isEnding) {
+            $notifier = app(ReclassificationNotificationService::class);
+            $notifier->notifyPeriodEnded($period);
+            if ($wasSubmissionOpen) {
+                $notifier->notifySubmissionClosed($period);
+            }
+        }
 
         return redirect()
             ->route('reclassification.periods')
@@ -347,6 +356,14 @@ class ReclassificationPeriodController extends Controller
         $period->update([
             'is_open' => !$period->is_open,
         ]);
+        $period->refresh();
+
+        $notifier = app(ReclassificationNotificationService::class);
+        if ($period->is_open) {
+            $notifier->notifySubmissionOpened($period);
+        } else {
+            $notifier->notifySubmissionClosed($period);
+        }
 
         return redirect()
             ->route('reclassification.periods')

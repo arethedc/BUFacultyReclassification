@@ -31,7 +31,7 @@ Route::get('/', function () {
 | Authenticated Routes
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth'])->group(function () {
+Route::middleware(['auth', 'verified'])->group(function () {
 
     // Generic dashboard entrypoint: redirect to role dashboard
     Route::get('/dashboard', function () {

@@ -3,7 +3,9 @@
 namespace App\Notifications;
 
 use Illuminate\Bus\Queueable;
+use Illuminate\Notifications\Messages\MailMessage;
 use Illuminate\Notifications\Notification;
+use Illuminate\Support\Facades\Schema;
 
 class ReclassificationPromotedNotification extends Notification
 {
@@ -19,7 +21,23 @@ class ReclassificationPromotedNotification extends Notification
 
     public function via(object $notifiable): array
     {
-        return ['database'];
+        $channels = ['mail'];
+        if (Schema::hasTable('notifications')) {
+            $channels[] = 'database';
+        }
+
+        return $channels;
+    }
+
+    public function toMail(object $notifiable): MailMessage
+    {
+        $summaryUrl = route('reclassification.submitted-summary.show', $this->applicationId);
+
+        return (new MailMessage())
+            ->subject('Reclassification Approved - Promotion Notice')
+            ->line('Congratulations! Your reclassification has been approved.')
+            ->line("You have been promoted from {$this->fromRank} to {$this->toRank}.")
+            ->action('View Submitted Summary', $summaryUrl);
     }
 
     public function toArray(object $notifiable): array
@@ -34,4 +52,3 @@ class ReclassificationPromotedNotification extends Notification
         ];
     }
 }
-

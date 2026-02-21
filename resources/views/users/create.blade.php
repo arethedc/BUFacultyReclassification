@@ -14,11 +14,22 @@
             <form
                 x-data="{
                     role: '{{ old('role', ($forceRole ?? null) ? $forceRole : (($context ?? null) === 'faculty' ? 'faculty' : '')) }}',
+                    password: '',
+                    passwordConfirmation: '',
                     formatEmployeeNo(value) {
                         const digits = String(value || '').replace(/\D/g, '').slice(0, 7);
                         return digits.length > 4
                             ? digits.slice(0, 4) + '-' + digits.slice(4)
                             : digits;
+                    },
+                    hasPasswordValues() {
+                        return this.password.length > 0 || this.passwordConfirmation.length > 0;
+                    },
+                    passwordsMatch() {
+                        return this.password !== '' && this.password === this.passwordConfirmation;
+                    },
+                    passwordsMismatch() {
+                        return this.passwordConfirmation !== '' && this.password !== this.passwordConfirmation;
                     }
                 }"
                 method="POST"
@@ -112,6 +123,7 @@
                                 type="password"
                                 name="password"
                                 required
+                                x-model="password"
                                 class="mt-1 w-full rounded-xl border bg-white
                                 {{ $errors->has('password') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
                             >
@@ -126,9 +138,18 @@
                                 type="password"
                                 name="password_confirmation"
                                 required
+                                x-model="passwordConfirmation"
                                 class="mt-1 w-full rounded-xl border bg-white
                                 {{ $errors->has('password_confirmation') ? 'border-red-400 focus:border-red-500 focus:ring-red-500' : 'border-gray-300 focus:border-bu focus:ring-bu' }}"
                             >
+                            <p x-show="hasPasswordValues() && passwordsMatch()"
+                               class="mt-1 text-sm text-green-600">
+                                Passwords match.
+                            </p>
+                            <p x-show="passwordsMismatch()"
+                               class="mt-1 text-sm text-red-600">
+                                Passwords do not match.
+                            </p>
                             @error('password_confirmation')
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
@@ -372,6 +393,8 @@
                     </a>
 
                     <button type="submit"
+                            :disabled="passwordsMismatch()"
+                            :class="passwordsMismatch() ? 'opacity-60 cursor-not-allowed' : ''"
                             class="px-6 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft
                                    focus:ring-2 focus:ring-bu focus:ring-offset-2 transition">
                         Create User
