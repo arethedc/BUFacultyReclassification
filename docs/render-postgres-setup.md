@@ -28,7 +28,9 @@ Copy the full value (example starts with `base64:`) into Render `APP_KEY`.
 - First deploy runs:
   - `composer install`
   - `npm run build`
-  - `php artisan migrate --force` (post-deploy)
+  - `php artisan migrate --force`
+  - `php artisan db:seed --class=ProductionBootstrapSeeder --force`
+    - seeds only departments + rank levels (no test users)
 
 ## 4. Verify
 - Open the app URL.
