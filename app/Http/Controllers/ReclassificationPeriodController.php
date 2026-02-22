@@ -360,14 +360,16 @@ class ReclassificationPeriodController extends Controller
 
         $notifier = app(ReclassificationNotificationService::class);
         if ($period->is_open) {
-            $notifier->notifySubmissionOpened($period);
+            $sent = $notifier->notifySubmissionOpened($period);
+            $message = "Submission is now Open for the active period. Notification emails sent to {$sent} faculty account(s).";
         } else {
-            $notifier->notifySubmissionClosed($period);
+            $sent = $notifier->notifySubmissionClosed($period);
+            $message = "Submission is now Closed for the active period. Notification emails sent to {$sent} faculty account(s).";
         }
 
         return redirect()
             ->route('reclassification.periods')
-            ->with('success', $period->is_open ? 'Submission is now Open for the active period.' : 'Submission is now Closed for the active period.');
+            ->with('success', $message);
     }
 
     public function updateWindow(Request $request, ReclassificationPeriod $period)
@@ -400,5 +402,15 @@ class ReclassificationPeriodController extends Controller
         return redirect()
             ->route('reclassification.periods')
             ->with('success', 'Submission window updated.');
+    }
+
+    public function destroy(Request $request, ReclassificationPeriod $period)
+    {
+        $periodName = (string) ($period->name ?? 'period');
+        $period->delete();
+
+        return redirect()
+            ->route('reclassification.periods')
+            ->with('success', "Period deleted: {$periodName}.");
     }
 }

@@ -788,7 +788,7 @@ class ReclassificationFormController extends Controller
         $request->validate([
             // Accept either a single file or an array of files.
             'evidence_files' => ['required'],
-            'evidence_files.*' => ['file', 'max:20480'],
+            'evidence_files.*' => $this->evidenceFileRules(),
         ]);
 
         $this->storeGlobalEvidenceFiles($request, $application, $request->user()->id, 'evidence_files');
@@ -1347,7 +1347,7 @@ class ReclassificationFormController extends Controller
     {
         $request->validate([
             'section1' => ['array'],
-            'section1.evidence_files.*' => ['file', 'max:20480'],
+            'section1.evidence_files.*' => $this->evidenceFileRules(),
         ]);
 
         $uploaded = $this->storeEvidenceFiles($request, $application, $section, 1, $request->user()->id, 'section1.evidence_files');
@@ -1522,7 +1522,7 @@ class ReclassificationFormController extends Controller
     {
         $request->validate([
             'section3' => ['array'],
-            'section3.evidence_files.*' => ['file', 'max:20480'],
+            'section3.evidence_files.*' => $this->evidenceFileRules(),
         ]);
 
         $uploaded = $this->storeEvidenceFiles($request, $application, $section, 3, $request->user()->id, 'section3.evidence_files');
@@ -1644,7 +1644,7 @@ class ReclassificationFormController extends Controller
     {
         $request->validate([
             'section4' => ['array'],
-            'section4.evidence_files.*' => ['file', 'max:20480'],
+            'section4.evidence_files.*' => $this->evidenceFileRules(),
         ]);
 
         $uploaded = $this->storeEvidenceFiles($request, $application, $section, 4, $request->user()->id, 'section4.evidence_files');
@@ -1729,7 +1729,7 @@ class ReclassificationFormController extends Controller
     {
         $request->validate([
             'section5' => ['array'],
-            'section5.evidence_files.*' => ['file', 'max:20480'],
+            'section5.evidence_files.*' => $this->evidenceFileRules(),
         ]);
 
         $uploaded = $this->storeEvidenceFiles($request, $application, $section, 5, $request->user()->id, 'section5.evidence_files');
@@ -1895,6 +1895,15 @@ class ReclassificationFormController extends Controller
         }
 
         return $uploaded;
+    }
+
+    private function evidenceFileRules(): array
+    {
+        return [
+            'file',
+            'mimes:pdf,jpg,jpeg,png,gif,webp,bmp,svg,tif,tiff,heic,heif',
+            'max:20480',
+        ];
     }
 
     private function storeGlobalEvidenceFiles(

@@ -349,6 +349,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('reclassification.periods');
         Route::post('/periods', [ReclassificationPeriodController::class, 'store'])
             ->name('reclassification.periods.store');
+        Route::delete('/periods/{period}', [ReclassificationPeriodController::class, 'destroy'])
+            ->name('reclassification.periods.destroy');
         Route::post('/periods/{period}/toggle', [ReclassificationPeriodController::class, 'toggle'])
             ->name('reclassification.periods.toggle');
         Route::post('/periods/{period}/submission-toggle', [ReclassificationPeriodController::class, 'toggleSubmission'])
@@ -359,6 +361,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('reclassification.admin.submissions');
         Route::post('/submissions/{application}/toggle-reject', [ReclassificationAdminController::class, 'toggleReject'])
             ->name('reclassification.admin.submissions.toggle-reject');
+        Route::delete('/submissions/{application}', [ReclassificationAdminController::class, 'destroySubmission'])
+            ->name('reclassification.admin.submissions.destroy');
         Route::get('/approved', [ReclassificationAdminController::class, 'approved'])
             ->name('reclassification.admin.approved');
     });
@@ -534,7 +538,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     */
     Route::middleware(['role:hr'])->group(function () {
         Route::resource('users', UserController::class)->only([
-            'index', 'create', 'store', 'edit', 'update'
+            'index', 'create', 'store', 'edit', 'update', 'destroy'
         ]);
     });
 

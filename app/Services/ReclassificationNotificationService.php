@@ -13,6 +13,28 @@ use Illuminate\Support\Facades\Schema;
 
 class ReclassificationNotificationService
 {
+    private function submissionWindowLabel(ReclassificationPeriod $period): ?string
+    {
+        $startAt = $period->start_at instanceof Carbon ? $period->start_at : null;
+        $endAt = $period->end_at instanceof Carbon ? $period->end_at : null;
+
+        if (!$startAt && !$endAt) {
+            return null;
+        }
+
+        $format = 'M d, Y h:i A';
+
+        if ($startAt && $endAt) {
+            return "Submission window: {$startAt->format($format)} to {$endAt->format($format)}.";
+        }
+
+        if ($startAt) {
+            return "Submission starts on {$startAt->format($format)}.";
+        }
+
+        return "Submission closes on {$endAt->format($format)}.";
+    }
+
     private function periodLabel(?ReclassificationPeriod $period, ?string $fallbackCycle = null): string
     {
         if ($period) {
@@ -119,11 +141,16 @@ class ReclassificationNotificationService
     {
         $periodLabel = $this->periodLabel($period);
         $faculty = $this->facultyUsers();
+        $windowLabel = $this->submissionWindowLabel($period);
+        $message = "You may now submit your reclassification for {$periodLabel}.";
+        if ($windowLabel) {
+            $message .= " {$windowLabel}";
+        }
 
         return $this->send($faculty, new ReclassificationStatusNotification(
             subject: 'Reclassification Submission Is Open',
             title: 'Reclassification submission is now open.',
-            message: "You may now submit your reclassification for {$periodLabel}.",
+            message: $message,
             actionUrl: route('reclassification.show'),
             actionLabel: 'Open reclassification form',
             eventKey: "period:{$period->id}:submission_open",
@@ -139,11 +166,16 @@ class ReclassificationNotificationService
     {
         $periodLabel = $this->periodLabel($period);
         $faculty = $this->facultyUsers();
+        $windowLabel = $this->submissionWindowLabel($period);
+        $message = "Submission for {$periodLabel} is now closed.";
+        if ($windowLabel) {
+            $message .= " {$windowLabel}";
+        }
 
         return $this->send($faculty, new ReclassificationStatusNotification(
             subject: 'Reclassification Submission Is Closed',
             title: 'Reclassification submission is now closed.',
-            message: "Submission for {$periodLabel} is now closed.",
+            message: $message,
             actionUrl: route('faculty.dashboard'),
             actionLabel: 'Open dashboard',
             eventKey: "period:{$period->id}:submission_closed",

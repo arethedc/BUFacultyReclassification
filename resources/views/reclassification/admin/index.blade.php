@@ -221,6 +221,17 @@
                                                                             </button>
                                                                         </form>
                                                                     @endif
+
+                                                                    <form method="POST"
+                                                                          action="{{ route('reclassification.admin.submissions.destroy', $app) }}"
+                                                                          onsubmit="return confirm('Delete this submission and all related records? This cannot be undone.');">
+                                                                        @csrf
+                                                                        @method('DELETE')
+                                                                        <button type="submit"
+                                                                                class="block w-full rounded-lg px-4 py-2 text-left text-sm font-medium text-red-800 hover:bg-red-100">
+                                                                            Delete
+                                                                        </button>
+                                                                    </form>
                                                                 @endif
                                                             </div>
                                                         </div>

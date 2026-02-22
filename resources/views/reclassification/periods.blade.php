@@ -241,6 +241,17 @@
                                                     <span data-submit-label>{{ $period->is_open ? 'Close Submission' : 'Open Submission' }}</span>
                                                 </button>
                                             </form>
+                                            <form method="POST"
+                                                  action="{{ route('reclassification.periods.destroy', $period) }}"
+                                                  data-loading-text="Deleting period..."
+                                                  onsubmit="return confirm('Delete this period? This is for testing and cannot be undone.');">
+                                                @csrf
+                                                @method('DELETE')
+                                                <button type="submit"
+                                                        class="text-xs font-semibold text-red-700 hover:underline">
+                                                    <span data-submit-label>Delete</span>
+                                                </button>
+                                            </form>
                                         </div>
                                     </td>
                                 </tr>

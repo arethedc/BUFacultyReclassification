@@ -47,12 +47,26 @@
                                     <th class="px-4 py-2">Faculty</th>
                                     <th class="px-4 py-2">Submitted</th>
                                     <th class="px-4 py-2">Cycle</th>
-                                    <th class="px-4 py-2">Status</th>
+                                    <th class="px-4 py-2">Stage</th>
                                     <th class="px-4 py-2 text-right">Action</th>
                                 </tr>
                             </thead>
                             <tbody class="divide-y">
                                 @foreach($applications as $app)
+                                    @php
+                                        $stageLabel = match((string) $app->status) {
+                                            'dean_review' => 'Dean',
+                                            'hr_review' => 'HR',
+                                            'vpaa_review' => 'VPAA',
+                                            'vpaa_approved' => 'VPAA Approved',
+                                            'president_review' => 'President',
+                                            'returned_to_faculty' => 'Returned',
+                                            'finalized' => 'Finalized',
+                                            'rejected_final' => 'Rejected',
+                                            'draft' => 'Draft',
+                                            default => ucfirst(str_replace('_', ' ', (string) $app->status)),
+                                        };
+                                    @endphp
                                     <tr>
                                         <td class="px-4 py-2">
                                             <div class="font-medium text-gray-800">{{ $app->faculty?->name ?? 'Faculty' }}</div>
@@ -64,7 +78,7 @@
                                         <td class="px-4 py-2 text-gray-600">{{ $app->cycle_year }}</td>
                                         <td class="px-4 py-2">
                                             <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-[11px] border bg-blue-50 text-blue-700 border-blue-200">
-                                                {{ ucfirst(str_replace('_',' ', $app->status)) }}
+                                                {{ $stageLabel }}
                                             </span>
                                         </td>
                                         <td class="px-4 py-2 text-right">

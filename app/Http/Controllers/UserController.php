@@ -7,9 +7,12 @@ use App\Models\Department;
 use App\Models\FacultyProfile;
 use App\Models\FacultyHighestDegree;
 use App\Models\RankLevel;
+use App\Notifications\SetPasswordNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
 
 class UserController extends Controller
@@ -100,13 +103,15 @@ class UserController extends Controller
                 'department_id' => $departmentId,
             ]);
         }
+        $isManualPassword = $request->boolean('manual_password');
 
         $data = $request->validate([
             'role' => ['required', Rule::in(['faculty', 'dean', 'hr', 'vpaa', 'president'])],
             'status' => ['nullable', Rule::in(['active', 'inactive'])],
+            'manual_password' => ['nullable', 'boolean'],
 
             'email' => 'required|email|unique:users,email',
-            'password' => 'required|min:8|confirmed',
+            'password' => ['nullable', 'min:8', 'confirmed', Rule::requiredIf($isManualPassword)],
 
             // name parts
             'first_name' => 'required|string|max:100',
@@ -132,18 +137,31 @@ class UserController extends Controller
             $data['last_name'] . ' ' .
             ($data['suffix'] ?? '')
         );
+        $rawPassword = $isManualPassword
+            ? (string) ($data['password'] ?? '')
+            : Str::password(16);
 
         $user = User::create([
             'name' => $fullName,
             'email' => $data['email'],
-            'password' => Hash::make($data['password']),
+            'password' => Hash::make($rawPassword),
             'role' => $data['role'],
             'status' => $data['status'] ?? 'active',
             'department_id' => $data['department_id'] ?? null,
         ]);
 
-        if (method_exists($user, 'sendEmailVerificationNotification') && !$user->hasVerifiedEmail()) {
+        $message = 'User created successfully.';
+        if (!$isManualPassword) {
+            $token = Password::broker()->createToken($user);
+            try {
+                $user->notify(new SetPasswordNotification($token));
+                $message .= ' Invitation email sent with password setup link.';
+            } catch (\Throwable $e) {
+                $message .= ' Password setup email could not be sent. You may resend using Forgot Password.';
+            }
+        } elseif (method_exists($user, 'sendEmailVerificationNotification') && !$user->hasVerifiedEmail()) {
             $user->sendEmailVerificationNotification();
+            $message .= ' Verification email sent.';
         }
 
         // Create faculty profile ONLY if faculty
@@ -171,7 +189,7 @@ class UserController extends Controller
 
         return redirect()
             ->route($isDean ? 'dean.faculty.index' : 'users.index')
-            ->with('success', 'User created successfully.');
+            ->with('success', $message);
     }
 
     /* =====================================================
@@ -285,5 +303,25 @@ class UserController extends Controller
             'last_name' => $last,
             'suffix' => $suffix,
         ];
+    }
+
+    public function destroy(Request $request, User $user)
+    {
+        abort_unless($request->user()->role === 'hr', 403);
+
+        if ((int) $request->user()->id === (int) $user->id) {
+            return redirect()
+                ->route('users.index')
+                ->withErrors([
+                    'user' => 'You cannot delete your own account.',
+                ]);
+        }
+
+        $deletedName = (string) ($user->name ?? $user->email ?? 'User');
+        $user->delete();
+
+        return redirect()
+            ->route('users.index')
+            ->with('success', "User deleted: {$deletedName}.");
     }
 }

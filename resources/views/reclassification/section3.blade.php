@@ -273,7 +273,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c1', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -288,7 +288,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -417,7 +417,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c2', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -432,7 +432,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -561,7 +561,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c3', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -576,7 +576,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -716,7 +716,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c4', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -731,7 +731,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -836,7 +836,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c5', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -851,7 +851,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -968,7 +968,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c6', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -983,7 +983,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -1100,7 +1100,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c7', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -1115,7 +1115,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -1212,7 +1212,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c8', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -1227,7 +1227,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -1324,7 +1324,7 @@
                     <button type="button"
                             @click="openSelectEvidence('c9', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      Select Evidence
+                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                     </button>
 
                     <button type="button"
@@ -1339,7 +1339,7 @@
 
                   <template x-if="(row.comments || []).length">
                     <div class="mt-2 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-                      <div class="font-semibold text-amber-800">Reviewer comments</div>
+                      <div class="font-semibold text-amber-800">Reviewer's comments</div>
                       <div class="mt-1 space-y-1">
                         <template x-for="comment in row.comments" :key="comment.id">
                           <div>
@@ -1419,11 +1419,14 @@
               <template x-if="evidencePool().length === 0">
                 <div class="rounded-xl border border-dashed p-6 text-center text-sm text-gray-500 space-y-3">
                   <p>No uploaded files yet. Use the Evidence Library below to add files.</p>
-                  <button type="button"
-                          @click="scrollToLibrary(); closeEvidenceModal()"
+                  <p class="text-xs text-amber-700">
+                    Allowed file types: PDF and image files (JPG, JPEG, PNG, GIF, WEBP, BMP, SVG, TIFF, HEIC/HEIF).
+                  </p>
+                    <button type="button"
+                          @click="openEvidenceUploader(currentRow.key, currentRow.index)"
                           class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
-                    Go to Evidence Library
-                  </button>
+                    Upload Evidence
+                    </button>
                 </div>
               </template>
 
@@ -1441,13 +1444,22 @@
                           <span x-text="item.uploadedAt || (item.isNew ? 'New upload' : '')"></span>
                         </div>
                       </div>
-                      <button type="button"
-                              @click="openPreview(item)"
-                              class="text-xs text-bu hover:underline"
-                              :disabled="!item.url && !item.file">
-                        Preview
-                      </button>
-                    </label>
+                  <div class="flex items-center gap-3">
+                    <button type="button"
+                            @click.stop="openPreview(item)"
+                            class="text-xs text-bu hover:underline"
+                            :disabled="!item.url && !item.file">
+                      Preview
+                    </button>
+                    <button type="button"
+                            @click.stop="removeEvidenceFromLibrary(item)"
+                            class="text-xs text-red-600 hover:underline"
+                            :disabled="!item.canRemove"
+                            :class="!item.canRemove ? 'opacity-50 cursor-not-allowed' : ''">
+                      Remove
+                    </button>
+                  </div>
+                </label>
                   </template>
                 </div>
               </template>
@@ -1462,7 +1474,7 @@
                   <button type="button"
                           @click="openSelectEvidence(currentRow.key, currentRow.index)"
                           class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
-                    Select Evidence
+                    <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
                   </button>
                 </div>
               </template>
@@ -1522,6 +1534,12 @@
             <button type="button" @click="closeEvidenceModal()"
                     class="px-4 py-2 rounded-lg border text-sm text-gray-700 hover:bg-gray-50">
               Close
+            </button>
+            <button type="button"
+                    x-show="evidenceModalMode === 'select' && evidencePool().length > 0"
+                    @click="openEvidenceUploader(currentRow.key, currentRow.index)"
+                    class="px-4 py-2 rounded-lg border text-sm text-gray-700 hover:bg-gray-50">
+              Upload Evidence
             </button>
             <button type="button"
                     x-show="evidenceModalMode === 'select' && evidencePool().length > 0"
@@ -1588,6 +1606,7 @@ function sectionThree(initial = {}, globalEvidence = []) {
     lastFocusEl: null,
     previewOpen: false,
     previewItem: null,
+    pendingOpenSelectAfterUpload: false,
     toast: { show: false, message: '', type: 'success' },
     toastTimer: null,
 
@@ -1637,21 +1656,31 @@ function sectionThree(initial = {}, globalEvidence = []) {
         const list = event.detail?.evidence;
         if (Array.isArray(list)) {
           this.globalEvidence = list;
+          if (this.pendingOpenSelectAfterUpload && this.currentRow?.key) {
+            this.pendingOpenSelectAfterUpload = false;
+            const row = { ...this.currentRow };
+            if (this.hasLibraryEvidence()) {
+              this.openSelectEvidence(row.key, row.index);
+            }
+          }
         }
       });
     },
 
     evidenceOptions() {
-      return (this.globalEvidence || []).map((ev) => ({
-        value: `e:${ev.id}`,
-        label: ev.name,
-        url: ev.url || null,
-        mime: ev.mime_type || '',
-        uploadedAt: ev.uploaded_at || '',
-        isNew: false,
-        file: null,
-      }));
-    },
+	      return (this.globalEvidence || []).map((ev) => ({
+	        id: Number(ev.id || 0),
+	        value: `e:${ev.id}`,
+	        label: ev.name,
+	        url: ev.url || null,
+	        mime: ev.mime_type || '',
+	        uploadedAt: ev.uploaded_at || '',
+	        entryCount: Number(ev.entry_count || 0),
+	        canRemove: Number(ev.entry_count || 0) === 0,
+	        isNew: false,
+	        file: null,
+	      }));
+	    },
 
     fileTypeLabel(name, mime) {
       if (mime) {
@@ -1667,13 +1696,26 @@ function sectionThree(initial = {}, globalEvidence = []) {
         const typeLabel = this.fileTypeLabel(item.label, item.mime);
         const isImage = (item.mime || '').startsWith('image/') || /\.(png|jpe?g|gif|webp)$/i.test(item.label || '');
         const isPdf = (item.mime || '') === 'application/pdf' || /\.pdf$/i.test(item.label || '');
-        return {
-          ...item,
-          typeLabel,
-          isImage,
-          isPdf,
-        };
-      });
+	        return {
+	          ...item,
+	          typeLabel,
+	          isImage,
+	          isPdf,
+	        };
+	      });
+	    },
+
+	    removeEvidenceFromLibrary(item) {
+	      if (!item?.id) return;
+	      if (!item.canRemove) {
+	        this.toastMessage('Cannot remove evidence that is already attached.', 'error');
+	        return;
+	      }
+	      window.dispatchEvent(new CustomEvent('evidence-remove-request', { detail: { id: item.id } }));
+	    },
+
+    hasLibraryEvidence() {
+      return this.evidencePool().length > 0;
     },
 
     selectedEvidence(values) {
@@ -1713,6 +1755,20 @@ function sectionThree(initial = {}, globalEvidence = []) {
       this.evidenceModalMode = 'select';
       this.evidenceModalOpen = true;
       this.$nextTick(() => this.focusFirst('evidence'));
+    },
+
+    openEvidenceUploader(key = null, index = null) {
+      if (key !== null) {
+        this.currentRow = { key, index };
+        this.pendingOpenSelectAfterUpload = true;
+      }
+      const picker = document.getElementById('global-evidence-picker-input');
+      if (!picker) {
+        this.pendingOpenSelectAfterUpload = false;
+        this.toastMessage('Evidence picker unavailable.', 'error');
+        return;
+      }
+      picker.click();
     },
 
     openShowEvidence(key, index = null) {

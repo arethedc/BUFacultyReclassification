@@ -170,7 +170,7 @@
                         Your reclassification was returned for revision.
                     </div>
                     <div class="mt-1 text-sm text-amber-800">
-                        Open your current submission and address reviewer comments. Only flagged/commented entries should be updated before resubmission.
+                        Open your current submission and address reviewer's comments. Only flagged/commented entries should be updated before resubmission.
                     </div>
                 </div>
             @endif
@@ -310,7 +310,7 @@
 
                     <a href="{{ route('profile.edit') }}"
                        class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
-                        My Profile / Reset Password
+                        My Profile
                     </a>
                 </div>
                 @if(!empty($currentCycleFinalizedApplication))

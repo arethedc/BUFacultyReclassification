@@ -102,7 +102,7 @@
         @endif
         @if (($application->status ?? '') === 'returned_to_faculty')
             <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
-                Returned form mode: only entries with action-required reviewer comments are editable. Other entries are locked.
+                Returned form mode: only entries with action-required reviewer's comments are editable. Other entries are locked.
             </div>
         @endif
         @if (($application->status ?? '') === 'rejected_final')
@@ -132,7 +132,7 @@
         <div id="faculty-comment-threads">
         @if (($application->status ?? '') === 'returned_to_faculty' && $requiredCommentThreads->count() > 0)
             <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-                <div class="font-semibold text-amber-800 mb-2">Reviewer comments to address</div>
+                <div class="font-semibold text-amber-800 mb-2">Reviewer's comments to address</div>
                 <div class="space-y-3">
                     @foreach($requiredCommentThreads as $thread)
                         @php
@@ -633,13 +633,17 @@
                     <div class="flex flex-col items-center text-center gap-2">
                         <div class="text-sm font-semibold text-gray-800">Upload Evidence</div>
                         <div class="text-xs text-gray-500">
-                            Add multiple files. They will appear below and can be attached from any section.
+                            Add multiple files. They upload automatically after selection and can be attached from any section.
                         </div>
-
-                        <label class="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft hover:bg-bu-dark cursor-pointer">
+                        <div class="text-xs text-amber-700">
+                            Allowed file types: PDF and image files (JPG, JPEG, PNG, GIF, WEBP, BMP, SVG, TIFF, HEIC/HEIF).
+                        </div>
+                        <button type="button"
+                                @click="requestEvidenceUpload()"
+                                class="mt-2 inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft hover:bg-bu-dark">
                             <span>Select files</span>
-                            <input type="file" multiple class="sr-only" @change="addUploadFiles($event)">
-                        </label>
+                        </button>
+                        <input id="global-evidence-picker-input" type="file" multiple accept=".pdf,image/*" class="sr-only" @change="addUploadFiles($event)">
 
                         <div class="text-xs text-gray-500">
                             Uploaded: <span class="font-semibold text-gray-800" x-text="evidenceCount()"></span>
@@ -662,19 +666,16 @@
                                             <button type="button" @click="openLibraryPreview(item)" class="text-bu hover:underline">
                                                 Preview
                                             </button>
-                                            <button type="button" @click="removePendingUpload(idx)" class="text-red-600 hover:underline">
+                                            <button type="button"
+                                                    @click="removePendingUpload(idx)"
+                                                    :disabled="uploading"
+                                                    class="text-red-600 hover:underline disabled:opacity-50 disabled:cursor-not-allowed">
                                                 Remove
                                             </button>
                                         </div>
                                     </div>
                                 </template>
                             </div>
-                            <button type="button"
-                                    @click="uploadPendingEvidence()"
-                                    :disabled="uploading || pendingUploads.length === 0"
-                                    class="mt-2 px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft hover:bg-bu-dark disabled:opacity-50 disabled:cursor-not-allowed">
-                                <span x-text="uploading ? 'Uploading...' : 'Upload selected'"></span>
-                            </button>
                         </div>
                     </template>
                 </div>
@@ -851,6 +852,7 @@
                 savingDraft: false,
                 finalSubmitting: false,
                 uploading: false,
+                deletingEvidenceIds: {},
                 submissionWindowOpen: @json($submissionWindowOpen ?? true),
                 track: rankTrack,
                 trackLabel: rankTrackLabel,
@@ -891,6 +893,30 @@
                     window.reclassificationToast = (message, type = 'info', timeout = 3000) => {
                         this.showToast(message, type, timeout);
                     };
+                    window.reclassificationRequestEvidenceUpload = (onConfirm = null, onCancel = null) => {
+                        if (typeof onConfirm === 'function') {
+                            onConfirm();
+                            return;
+                        }
+                        this.requestEvidenceUpload();
+                    };
+                    window.reclassificationDeleteEvidence = (evidenceId) => {
+                        const id = Number(evidenceId || 0);
+                        if (!id) return;
+                        const item = (this.globalEvidence || []).find((ev) => Number(ev.id || 0) === id);
+                        if (!item) return;
+                        this.deleteLibraryEvidence(item);
+                    };
+
+                    if (window.__reclassificationRemoveRequestHandler) {
+                        window.removeEventListener('evidence-remove-request', window.__reclassificationRemoveRequestHandler);
+                    }
+                    window.__reclassificationRemoveRequestHandler = (event) => {
+                        const id = Number(event?.detail?.id || 0);
+                        if (!id) return;
+                        window.reclassificationDeleteEvidence(id);
+                    };
+                    window.addEventListener('evidence-remove-request', window.__reclassificationRemoveRequestHandler);
 
                     this.bindDraftProtection();
                     this.updateBackToTopVisibility();
@@ -1496,13 +1522,32 @@
                     });
                 },
 
+                isAllowedEvidenceFile(file) {
+                    const allowedExt = ['pdf', 'jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'tif', 'tiff', 'heic', 'heif'];
+                    const name = String(file?.name || '').toLowerCase();
+                    const ext = name.includes('.') ? name.split('.').pop() : '';
+                    const mime = String(file?.type || '').toLowerCase();
+                    if (mime === 'application/pdf') return true;
+                    if (mime.startsWith('image/')) return true;
+                    return allowedExt.includes(ext);
+                },
+
                 addUploadFiles(event) {
                     const files = Array.from(event.target.files || []);
                     if (!files.length) return;
+                    const validFiles = files.filter((file) => this.isAllowedEvidenceFile(file));
+                    const invalidCount = files.length - validFiles.length;
+                    if (invalidCount > 0) {
+                        this.showToast('Only PDF and image files are allowed.', 'error', 2600);
+                    }
+                    if (!validFiles.length) {
+                        event.target.value = '';
+                        return;
+                    }
                     const existing = this.pendingUploads || [];
                     const signature = (file) => `${file.name}|${file.size}|${file.lastModified}`;
                     const map = new Set(existing.map(signature));
-                    files.forEach((file) => {
+                    validFiles.forEach((file) => {
                         const sig = signature(file);
                         if (!map.has(sig)) {
                             map.add(sig);
@@ -1511,6 +1556,7 @@
                     });
                     this.pendingUploads = [...existing];
                     event.target.value = '';
+                    this.uploadPendingEvidence();
                 },
 
                 pendingItems() {
@@ -1539,8 +1585,12 @@
                 uploadPendingEvidence() {
                     if (!this.pendingUploads.length || this.uploading) return;
                     this.uploading = true;
+                    const signature = (file) => `${file.name}|${file.size}|${file.lastModified}`;
+                    const batch = [...(this.pendingUploads || [])];
+                    const batchSignatures = new Set(batch.map(signature));
+                    let failed = false;
                     const formData = new FormData();
-                    this.pendingUploads.forEach((file) => formData.append('evidence_files[]', file));
+                    batch.forEach((file) => formData.append('evidence_files[]', file));
                     fetch(uploadUrl, {
                         method: 'POST',
                         credentials: 'same-origin',
@@ -1568,13 +1618,21 @@
                                 this.globalEvidence = data.evidence;
                                 window.dispatchEvent(new CustomEvent('evidence-updated', { detail: { evidence: this.globalEvidence } }));
                             }
-                            this.pendingUploads = [];
+                            this.pendingUploads = (this.pendingUploads || []).filter(
+                                (file) => !batchSignatures.has(signature(file))
+                            );
                             this.showToast('Uploads saved.', 'success', 2500);
                         })
                         .catch((err) => {
+                            failed = true;
                             this.showToast(err?.message || 'Upload failed.', 'error', 3500);
                         })
-                        .finally(() => { this.uploading = false; });
+                        .finally(() => {
+                            this.uploading = false;
+                            if (!failed && this.pendingUploads.length) {
+                                this.uploadPendingEvidence();
+                            }
+                        });
                 },
 
                 openLibraryPreview(item) {
@@ -1587,6 +1645,15 @@
                 closeLibraryPreview() {
                     this.libraryPreviewOpen = false;
                     this.libraryPreviewItem = null;
+                },
+
+                requestEvidenceUpload() {
+                    const picker = document.getElementById('global-evidence-picker-input');
+                    if (!picker) {
+                        this.showToast('Evidence picker unavailable.', 'error', 2200);
+                        return;
+                    }
+                    picker.click();
                 },
 
                 detachLibraryEvidence(item) {
@@ -1618,7 +1685,11 @@
 
                 deleteLibraryEvidence(item) {
                     if (!item || item.entry_id) return;
+                    const id = Number(item.id || 0);
+                    if (!id) return;
+                    if (this.deletingEvidenceIds[id]) return;
                     if (!confirm('Remove this evidence file? This cannot be undone.')) return;
+                    this.deletingEvidenceIds[id] = true;
                     fetch(`${deleteBase}/${item.id}`, {
                         method: 'DELETE',
                         credentials: 'same-origin',
@@ -1629,14 +1700,23 @@
                         },
                     })
                         .then((res) => {
+                            if (res.status === 404) {
+                                return { alreadyMissing: true };
+                            }
                             if (!res.ok) throw new Error('Failed');
+                            return { alreadyMissing: false };
+                        })
+                        .then(({ alreadyMissing }) => {
                             this.globalEvidence = (this.globalEvidence || []).filter((ev) => ev.id !== item.id);
-                            this.showToast('Evidence removed.', 'success', 2000);
+                            this.showToast(alreadyMissing ? 'Evidence already removed.' : 'Evidence removed.', alreadyMissing ? 'info' : 'success', 2000);
                             window.dispatchEvent(new CustomEvent('evidence-updated', { detail: { evidence: this.globalEvidence } }));
                             window.dispatchEvent(new CustomEvent('evidence-detached', { detail: { id: item.id } }));
                         })
                         .catch(() => {
                             this.showToast('Remove failed.', 'error', 2200);
+                        })
+                        .finally(() => {
+                            delete this.deletingEvidenceIds[id];
                         });
                 },
 

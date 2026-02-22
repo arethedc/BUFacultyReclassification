@@ -18,8 +18,37 @@ class NewPasswordController extends Controller
     /**
      * Display the password reset view.
      */
-    public function create(Request $request): View
+    public function create(Request $request): View|RedirectResponse
     {
+        $email = (string) $request->query('email', '');
+        $token = (string) $request->route('token');
+        $isSetupLink = $request->boolean('setup');
+
+        if ($email === '' || $token === '') {
+            return redirect()
+                ->route('login')
+                ->with('status', 'This set-password link is invalid or already used.');
+        }
+
+        $user = User::query()->where('email', $email)->first();
+        if (!$user) {
+            return redirect()
+                ->route('login')
+                ->with('status', 'This set-password link is invalid or already used.');
+        }
+
+        if ($isSetupLink && method_exists($user, 'hasVerifiedEmail') && $user->hasVerifiedEmail()) {
+            return redirect()
+                ->route('login')
+                ->with('status', 'Your password is already set. Please log in.');
+        }
+
+        if (!Password::broker()->tokenExists($user, $token)) {
+            return redirect()
+                ->route('login')
+                ->with('status', 'This set-password link is invalid or already used.');
+        }
+
         return view('auth.reset-password', ['request' => $request]);
     }
 
@@ -47,6 +76,12 @@ class NewPasswordController extends Controller
                     'remember_token' => Str::random(60),
                 ])->save();
 
+                if (method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+                    $user->forceFill([
+                        'email_verified_at' => now(),
+                    ])->save();
+                }
+
                 event(new PasswordReset($user));
             }
         );
@@ -55,7 +90,7 @@ class NewPasswordController extends Controller
         // the application's home authenticated view. If there is an error we can
         // redirect them back to where they came from with their error message.
         return $status == Password::PASSWORD_RESET
-                    ? redirect()->route('login')->with('status', __($status))
+                    ? redirect()->route('login')->with('status', 'Password set successfully. You can now log in.')
                     : back()->withInput($request->only('email'))
                         ->withErrors(['email' => __($status)]);
     }

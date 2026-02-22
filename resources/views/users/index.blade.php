@@ -20,24 +20,41 @@
             selectedRowId: null,
             selectedUserUrl: null,
             selectedFacultyUrl: null,
+            selectedDeleteUrl: null,
+            selectedUserName: null,
 
-            select(rowId, userUrl, facultyUrl) {
+            select(rowId, userUrl, facultyUrl, deleteUrl, userName) {
                 this.selectedRowId = rowId;
                 this.selectedUserUrl = userUrl;
                 this.selectedFacultyUrl = facultyUrl;
+                this.selectedDeleteUrl = deleteUrl;
+                this.selectedUserName = userName;
             },
             clear() {
                 this.selectedRowId = null;
                 this.selectedUserUrl = null;
                 this.selectedFacultyUrl = null;
+                this.selectedDeleteUrl = null;
+                this.selectedUserName = null;
             }
          }"
          @click="clear()">
 
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+            @if (session('success'))
+                <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                    {{ session('success') }}
+                </div>
+            @endif
+
+            @if ($errors->any())
+                <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                    {{ $errors->first() }}
+                </div>
+            @endif
 
             {{-- SEARCH + ACTION BAR --}}
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4" @click.stop>
 
                 {{-- Search --}}
                 <form method="GET"
@@ -74,7 +91,7 @@
                 </form>
 
                 {{-- Contextual Actions --}}
-                <div class="flex items-center gap-2">
+                <div class="flex items-center gap-2" @click.stop>
 
                     {{-- DEFAULT (no selection): Create + More --}}
                     <template x-if="!selectedUserUrl">
@@ -144,6 +161,19 @@
                                       flex items-center justify-center whitespace-nowrap">
                                 View Faculty
                             </a>
+
+                            <form x-show="selectedDeleteUrl"
+                                  method="POST"
+                                  :action="selectedDeleteUrl"
+                                  onsubmit="return confirm('Delete this user? This cannot be undone.');"
+                                  class="inline-flex">
+                                @csrf
+                                @method('DELETE')
+                                <button type="submit"
+                                        class="h-11 px-5 rounded-xl border border-red-300 text-red-700 text-sm hover:bg-red-50 transition whitespace-nowrap">
+                                    Delete User
+                                </button>
+                            </form>
                         </div>
                     </template>
 
@@ -172,7 +202,9 @@
                                     {{ $user->role === 'faculty'
                                         ? "'" . route('faculty-profiles.edit', $user) . "'"
                                         : 'null'
-                                    }}
+                                    }},
+                                    '{{ route('users.destroy', $user) }}',
+                                    @js($user->name)
                                 )">
 
                                 <td class="px-6 py-4 font-medium text-gray-800">

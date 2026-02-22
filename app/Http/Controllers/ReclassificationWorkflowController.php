@@ -465,7 +465,7 @@ class ReclassificationWorkflowController extends Controller
         $openComments = $openCommentsQuery->count();
         if ($openComments > 0) {
             return back()->withErrors([
-                'submit' => 'Please address all action-required reviewer comments before submitting.',
+                'submit' => 'Please address all action-required reviewer\'s comments before submitting.',
             ]);
         }
 

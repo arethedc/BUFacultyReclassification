@@ -4,10 +4,12 @@ namespace App\Http\Controllers;
 
 use App\Models\Department;
 use App\Models\ReclassificationApplication;
+use App\Models\ReclassificationEvidence;
 use App\Models\ReclassificationPeriod;
 use App\Services\ReclassificationNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Storage;
 
 class ReclassificationAdminController extends Controller
 {
@@ -264,6 +266,29 @@ class ReclassificationAdminController extends Controller
         ]);
 
         return back()->with('success', 'Submission marked as rejected.');
+    }
+
+    public function destroySubmission(Request $request, ReclassificationApplication $application)
+    {
+        abort_unless(strtolower((string) $request->user()->role) === 'hr', 403);
+
+        $evidences = ReclassificationEvidence::query()
+            ->where('reclassification_application_id', $application->id)
+            ->get(['disk', 'path']);
+
+        foreach ($evidences as $evidence) {
+            if (empty($evidence->path)) {
+                continue;
+            }
+
+            Storage::disk((string) ($evidence->disk ?: 'public'))
+                ->delete((string) $evidence->path);
+        }
+
+        $applicationId = (int) $application->id;
+        $application->delete();
+
+        return back()->with('success', "Submission #{$applicationId} deleted.");
     }
 
     public function deanIndex(Request $request)
