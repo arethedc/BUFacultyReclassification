@@ -244,24 +244,43 @@ const bindActionLoading = (scope = document) => {
         if (el.dataset.uxActionBound === '1') return;
         el.dataset.uxActionBound = '1';
 
-        el.addEventListener('click', () => {
-            if (el instanceof HTMLButtonElement) {
-                setActionButtonLoading(el, el.dataset.uxActionLoading);
-                if ((el.type || '').toLowerCase() !== 'submit') {
-                    window.setTimeout(() => resetActionButton(el), 1800);
+        if (el instanceof HTMLButtonElement) {
+            const isSubmit = (el.type || '').toLowerCase() === 'submit';
+            const form = el.form;
+
+            // For submit buttons, set loading on actual form submit.
+            // This avoids disabling the button too early and accidentally blocking submission.
+            if (isSubmit && form) {
+                if (form.dataset.uxActionSubmitBound !== '1') {
+                    form.dataset.uxActionSubmitBound = '1';
+                    form.addEventListener('submit', (event) => {
+                        const submitter = event.submitter instanceof HTMLElement
+                            ? event.submitter
+                            : document.activeElement;
+                        if (!(submitter instanceof HTMLButtonElement)) return;
+                        if (!submitter.matches('button[data-ux-action-loading]')) return;
+                        setActionButtonLoading(submitter, submitter.dataset.uxActionLoading);
+                    });
                 }
-                return;
+            } else {
+                el.addEventListener('click', () => {
+                    setActionButtonLoading(el, el.dataset.uxActionLoading);
+                    window.setTimeout(() => resetActionButton(el), 1800);
+                });
             }
-            if (el instanceof HTMLAnchorElement) {
-                el.classList.add('ux-btn-loading');
-                if (!el.dataset.uxOriginalHtml) el.dataset.uxOriginalHtml = el.innerHTML;
-                const text = el.dataset.uxLinkLoading || 'Preparing...';
-                el.innerHTML = `<span class="ux-btn-spinner" aria-hidden="true"></span><span>${text}</span>`;
-                el.setAttribute('aria-busy', 'true');
-                announce(text);
-                progressBar?.start();
-                window.setTimeout(() => progressBar?.done(), 1400);
-            }
+            return;
+        }
+
+        el.addEventListener('click', () => {
+            if (!(el instanceof HTMLAnchorElement)) return;
+            el.classList.add('ux-btn-loading');
+            if (!el.dataset.uxOriginalHtml) el.dataset.uxOriginalHtml = el.innerHTML;
+            const text = el.dataset.uxLinkLoading || 'Preparing...';
+            el.innerHTML = `<span class="ux-btn-spinner" aria-hidden="true"></span><span>${text}</span>`;
+            el.setAttribute('aria-busy', 'true');
+            announce(text);
+            progressBar?.start();
+            window.setTimeout(() => progressBar?.done(), 1400);
         });
     });
 };

@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Jobs\SendApprovedListForwardedToPresidentNotifications;
 use App\Models\Department;
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
@@ -972,35 +973,19 @@ class ReclassificationAdminController extends Controller
             );
         }
 
-        // Send notifications after the HTTP response so forwarding does not look stuck.
         $forwardedAppIds = $readyApps->pluck('id')->all();
         $activePeriodId = (int) $activePeriod->id;
-        app()->terminating(function () use ($forwardedAppIds, $activePeriodId): void {
-            try {
-                $period = ReclassificationPeriod::find($activePeriodId);
-                if (!$period) {
-                    return;
-                }
 
-                $apps = ReclassificationApplication::query()
-                    ->with(['faculty', 'period'])
-                    ->whereIn('id', $forwardedAppIds)
-                    ->get();
-
-                if ($apps->isEmpty()) {
-                    return;
-                }
-
-                app(ReclassificationNotificationService::class)
-                    ->notifyApprovedListForwardedToPresident($apps, $period);
-            } catch (\Throwable $e) {
-                Log::error('Failed sending VPAA approved-list forward notifications.', [
-                    'period_id' => $activePeriodId,
-                    'application_ids' => $forwardedAppIds,
-                    'error' => $e->getMessage(),
-                ]);
-            }
-        });
+        try {
+            SendApprovedListForwardedToPresidentNotifications::dispatch($forwardedAppIds, $activePeriodId)
+                ->onConnection('database');
+        } catch (\Throwable $e) {
+            Log::error('Failed queueing VPAA approved-list forward notifications.', [
+                'period_id' => $activePeriodId,
+                'application_ids' => $forwardedAppIds,
+                'error' => $e->getMessage(),
+            ]);
+        }
 
         return back()->with('success', "{$readyCount} active-cycle submissions forwarded to President.");
     }

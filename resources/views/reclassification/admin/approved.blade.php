@@ -173,11 +173,7 @@
                             <div class="text-sm text-gray-700">
                                 <span class="font-semibold">Ready for batch action:</span>
                                 {{ $batchReadyCount }}
-                                <span class="mx-2 text-gray-300">-</span>
-                                <span class="font-semibold">Blocking submissions:</span>
-                                {{ $batchBlockingCount }}
                             </div>
-
                             @if($errors->has('approved_list'))
                                 <div class="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
                                     {{ $errors->first('approved_list') }}
