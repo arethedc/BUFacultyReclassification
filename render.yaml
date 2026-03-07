@@ -37,7 +37,7 @@ services:
       - key: MAIL_PORT
         value: "587"
       - key: MAIL_SCHEME
-        value: tls
+        value: smtp
       - key: MAIL_USERNAME
         sync: false
       - key: MAIL_PASSWORD
