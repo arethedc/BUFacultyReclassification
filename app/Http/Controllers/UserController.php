@@ -13,6 +13,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
 use Illuminate\Support\Facades\Schema;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rule;
@@ -338,6 +339,11 @@ class UserController extends Controller
                 $user->notify(new SetPasswordNotification($token));
                 $message .= ' Invitation email sent with password setup link.';
             } catch (\Throwable $e) {
+                Log::error('Failed to send password setup invitation email.', [
+                    'user_id' => (int) $user->id,
+                    'email' => (string) $user->email,
+                    'error' => $e->getMessage(),
+                ]);
                 $message .= ' Password setup email could not be sent. You may resend using Forgot Password.';
             }
         } elseif (method_exists($user, 'sendEmailVerificationNotification') && !$user->hasVerifiedEmail()) {
