@@ -8,6 +8,8 @@ services:
     envVars:
       - key: APP_ENV
         value: production
+      - key: APP_NAME
+        value: Baliuag University - Faculty Reclassification
       - key: APP_DEBUG
         value: "false"
       - key: APP_KEY
