@@ -47,7 +47,7 @@ services:
       - key: MAIL_FROM_ADDRESS
         sync: false
       - key: MAIL_FROM_NAME
-        value: faculty-reclassification
+        value: Baliuag University - Faculty Reclassification
 
 databases:
   - name: faculty-reclassification-db
