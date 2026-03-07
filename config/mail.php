@@ -1,5 +1,19 @@
 <?php
 
+$mailUrl = env('MAIL_URL');
+if (is_string($mailUrl) && str_starts_with($mailUrl, 'tls://')) {
+    // Normalize legacy/invalid scheme so SMTP can still boot in production.
+    $mailUrl = 'smtp://' . substr($mailUrl, 6);
+}
+
+$rawMailScheme = strtolower((string) env('MAIL_SCHEME', ''));
+$mailScheme = match ($rawMailScheme) {
+    'smtp' => 'smtp',
+    'smtps' => 'smtps',
+    'tls' => 'smtp',
+    default => null,
+};
+
 return [
 
     /*
@@ -39,8 +53,8 @@ return [
 
         'smtp' => [
             'transport' => 'smtp',
-            'scheme' => env('MAIL_SCHEME'),
-            'url' => env('MAIL_URL'),
+            'scheme' => $mailScheme,
+            'url' => $mailUrl,
             'host' => env('MAIL_HOST', '127.0.0.1'),
             'port' => env('MAIL_PORT', 2525),
             'username' => env('MAIL_USERNAME'),
