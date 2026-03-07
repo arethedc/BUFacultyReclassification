@@ -9,6 +9,7 @@ use App\Models\ReclassificationStatusTrail;
 use App\Services\ReclassificationNotificationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 
@@ -971,8 +972,35 @@ class ReclassificationAdminController extends Controller
             );
         }
 
-        app(ReclassificationNotificationService::class)
-            ->notifyApprovedListForwardedToPresident($readyApps, $activePeriod);
+        // Send notifications after the HTTP response so forwarding does not look stuck.
+        $forwardedAppIds = $readyApps->pluck('id')->all();
+        $activePeriodId = (int) $activePeriod->id;
+        app()->terminating(function () use ($forwardedAppIds, $activePeriodId): void {
+            try {
+                $period = ReclassificationPeriod::find($activePeriodId);
+                if (!$period) {
+                    return;
+                }
+
+                $apps = ReclassificationApplication::query()
+                    ->with(['faculty', 'period'])
+                    ->whereIn('id', $forwardedAppIds)
+                    ->get();
+
+                if ($apps->isEmpty()) {
+                    return;
+                }
+
+                app(ReclassificationNotificationService::class)
+                    ->notifyApprovedListForwardedToPresident($apps, $period);
+            } catch (\Throwable $e) {
+                Log::error('Failed sending VPAA approved-list forward notifications.', [
+                    'period_id' => $activePeriodId,
+                    'application_ids' => $forwardedAppIds,
+                    'error' => $e->getMessage(),
+                ]);
+            }
+        });
 
         return back()->with('success', "{$readyCount} active-cycle submissions forwarded to President.");
     }
