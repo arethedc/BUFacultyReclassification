@@ -22,7 +22,9 @@
             </div>
             <div class="flex items-center gap-2">
                 @if($canRequestReturn)
-                    @php($requestReturnModalName = 'request-return-summary-' . $application->id)
+                    @php
+                        $requestReturnModalName = 'request-return-summary-' . $application->id;
+                    @endphp
                     <button type="button"
                             x-data=""
                             x-on:click.prevent="$dispatch('open-modal', '{{ $requestReturnModalName }}')"
@@ -489,8 +491,10 @@
                                                                                 <div class="shrink-0">
                                                                                     @if($url)
                                                                                         <button type="button"
-                                                                                                onclick='window.BuEvidencePreview && window.BuEvidencePreview.open({ url: @json($url), name: @json($ev->original_name ?? "Evidence file"), mime: @json($ev->mime_type ?? "") })'
-                                                                                                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                                                                                class="js-evidence-preview-trigger inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                                                                data-evidence-url="{{ $url }}"
+                                                                                                data-evidence-name="{{ $ev->original_name ?? 'Evidence file' }}"
+                                                                                                data-evidence-mime="{{ $ev->mime_type ?? '' }}">
                                                                                             Preview
                                                                                         </button>
                                                                                     @else

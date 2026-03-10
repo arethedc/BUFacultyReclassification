@@ -1043,7 +1043,9 @@
                         @if($canReturnPerPaper || $canForwardPerPaper)
                             <div class="flex items-center gap-2">
                                 @if($canReturnPerPaper)
-                                    @php($confirmReturnModalNameTop = 'confirm-return-top-' . $application->id)
+                                    @php
+                                        $confirmReturnModalNameTop = 'confirm-return-top-' . $application->id;
+                                    @endphp
                                     <button type="button"
                                             x-data=""
                                             x-on:click.prevent="$dispatch('open-modal', '{{ $confirmReturnModalNameTop }}')"
@@ -1077,7 +1079,9 @@
                                     </x-modal>
                                 @endif
                                 @if($canForwardPerPaper)
-                                    @php($confirmForwardModalNameTop = 'confirm-forward-top-' . $application->id)
+                                    @php
+                                        $confirmForwardModalNameTop = 'confirm-forward-top-' . $application->id;
+                                    @endphp
                                     <button type="button"
                                             x-data=""
                                             x-on:click.prevent="$dispatch('open-modal', '{{ $confirmForwardModalNameTop }}')"
@@ -1215,7 +1219,9 @@
                             </p>
                         </div>
                         @if($canReturnPerPaper)
-                            @php($confirmApproveReturnRequestModalName = 'confirm-approve-request-' . $application->id)
+                            @php
+                                $confirmApproveReturnRequestModalName = 'confirm-approve-request-' . $application->id;
+                            @endphp
                             <button type="button"
                                     x-data=""
                                     x-on:click.prevent="$dispatch('open-modal', '{{ $confirmApproveReturnRequestModalName }}')"
@@ -1905,8 +1911,10 @@
                                                                                 <div class="shrink-0">
                                                                                     @if($url)
                                                                                         <button type="button"
-                                                                                                onclick='window.BuEvidencePreview && window.BuEvidencePreview.open({ url: @json($url), name: @json($ev->original_name ?? "Evidence file"), mime: @json($ev->mime_type ?? "") })'
-                                                                                                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                                                                                class="js-evidence-preview-trigger inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                                                                data-evidence-url="{{ $url }}"
+                                                                                                data-evidence-name="{{ $ev->original_name ?? 'Evidence file' }}"
+                                                                                                data-evidence-mime="{{ $ev->mime_type ?? '' }}">
                                                                                             Preview
                                                                                         </button>
                                                                                     @else
@@ -2351,7 +2359,9 @@
                             <p class="text-xs text-gray-500">Quick access to return or forward at the bottom of the page.</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            @php($confirmReturnModalNameBottom = 'confirm-return-bottom-' . $application->id)
+                            @php
+                                $confirmReturnModalNameBottom = 'confirm-return-bottom-' . $application->id;
+                            @endphp
                             <button type="button"
                                     x-data=""
                                     x-on:click.prevent="$dispatch('open-modal', '{{ $confirmReturnModalNameBottom }}')"
@@ -2383,7 +2393,9 @@
                                 </form>
                             </x-modal>
 
-                            @php($confirmForwardModalNameBottom = 'confirm-forward-bottom-' . $application->id)
+                            @php
+                                $confirmForwardModalNameBottom = 'confirm-forward-bottom-' . $application->id;
+                            @endphp
                             <button type="button"
                                     x-data=""
                                     x-on:click.prevent="$dispatch('open-modal', '{{ $confirmForwardModalNameBottom }}')"

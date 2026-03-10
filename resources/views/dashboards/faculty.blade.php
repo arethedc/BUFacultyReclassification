@@ -410,7 +410,9 @@
                                         View Submission
                                     </a>
                                     @if($canRequestReturn)
-                                        @php($requestReturnModalName = 'request-return-' . $currentSubmission->id)
+                                        @php
+                                            $requestReturnModalName = 'request-return-' . $currentSubmission->id;
+                                        @endphp
                                         <button type="button"
                                                 x-data=""
                                                 x-on:click.prevent="$dispatch('open-modal', '{{ $requestReturnModalName }}')"

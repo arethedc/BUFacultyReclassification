@@ -109,6 +109,17 @@
             el.addEventListener('click', close);
         });
 
+        document.addEventListener('click', (event) => {
+            const trigger = event.target.closest('.js-evidence-preview-trigger');
+            if (!trigger) return;
+            event.preventDefault();
+            open({
+                url: trigger.getAttribute('data-evidence-url') || '',
+                name: trigger.getAttribute('data-evidence-name') || 'Evidence Preview',
+                mime: trigger.getAttribute('data-evidence-mime') || '',
+            });
+        });
+
         document.addEventListener('keydown', (event) => {
             if (event.key === 'Escape' && !modal.classList.contains('hidden')) {
                 close();
@@ -118,4 +129,3 @@
         window.BuEvidencePreview = { open, close };
     })();
 </script>
-
