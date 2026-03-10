@@ -51,14 +51,7 @@
               </span>
             </div>
 
-            <p class="text-xs text-gray-600 mt-1">
-              Teaching (A) capped: <span class="font-semibold text-gray-800" x-text="teachingTotalCapped()"></span>
-              <span class="mx-2 text-gray-300">•</span>
-              Industry/Admin (B) capped: <span class="font-semibold text-gray-800" x-text="industryCapped()"></span>
-              <span class="mx-2 text-gray-300">•</span>
-              Final: <span class="font-semibold text-gray-800" x-text="finalCapped()"></span>
-              <span class="text-gray-400">/ 40</span>
-            </p>
+          
           </div>
 
           <button
@@ -77,26 +70,21 @@
             Subject to validation.
           </p>
 
-          <div class="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div class="rounded-xl border p-4">
-              <p class="text-xs text-gray-500">A1 (Before BU)</p>
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div class="rounded-xl border p-4 h-full">
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-500">Final Score</p>
+                <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 40</span>
+              </div>
               <p class="text-xl font-semibold text-gray-800">
-                <span x-text="a1Capped()"></span>
-                <span class="text-sm font-medium text-gray-400">/ 20</span>
-              </p>
-              <p class="mt-1 text-xs text-gray-500">2 pts/year (capped)</p>
-            </div>
-
-            <div class="rounded-xl border p-4">
-              <p class="text-xs text-gray-500">A2 (After BU)</p>
-              <p class="text-xl font-semibold text-gray-800">
-                <span x-text="a2Capped()"></span>
+                <span x-text="finalCapped()"></span>
                 <span class="text-sm font-medium text-gray-400">/ 40</span>
               </p>
-              <p class="mt-1 text-xs text-gray-500">3 pts/year (capped)</p>
+              <p class="mt-1 text-xs text-gray-500">
+                Counted track: <span class="font-medium text-gray-700" x-text="countedTrackLabel()"></span>
+              </p>
             </div>
-
-            <div class="rounded-xl border p-4">
+            <div class="rounded-xl border p-4 h-full">
               <p class="text-xs text-gray-500">Teaching Total (A)</p>
               <p class="text-xl font-semibold text-gray-800">
                 <span x-text="teachingTotalCapped()"></span>
@@ -105,7 +93,7 @@
               <p class="mt-1 text-xs text-gray-500">A1 + A2, then cap</p>
             </div>
 
-            <div class="rounded-xl border p-4">
+            <div class="rounded-xl border p-4 h-full">
               <p class="text-xs text-gray-500">Industry/Admin (B)</p>
               <p class="text-xl font-semibold text-gray-800">
                 <span x-text="industryCapped()"></span>
@@ -113,6 +101,8 @@
               </p>
               <p class="mt-1 text-xs text-gray-500">2 pts/year (capped)</p>
             </div>
+
+
           </div>
 
           <template x-if="isPartTime">
@@ -510,6 +500,18 @@
                 <label class="flex items-center gap-3 p-3 rounded-xl border hover:bg-gray-50">
                   <input type="checkbox" class="rounded text-bu"
                          :value="item.value" x-model="evidenceSelection">
+                  <button type="button"
+                          @click.stop="openPreview(item)"
+                          :disabled="!item.url && !item.file"
+                          :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
+                          class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center transition">
+                    <template x-if="item.isImage && item.url">
+                      <img :src="item.url" alt="Evidence preview" class="h-full w-full object-cover">
+                    </template>
+                    <template x-if="!(item.isImage && item.url)">
+                      <span class="text-[10px] font-semibold text-gray-500" x-text="item.typeLabel || 'FILE'"></span>
+                    </template>
+                  </button>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-gray-800 truncate" x-text="item.label"></p>
                     <div class="text-xs text-gray-500 flex items-center gap-2">
@@ -520,16 +522,10 @@
                   </div>
                   <div class="flex items-center gap-3">
                     <button type="button"
-                            @click.stop="openPreview(item)"
-                            class="text-xs text-bu hover:underline"
-                            :disabled="!item.url && !item.file">
-                      Preview
-                    </button>
-                    <button type="button"
                             @click.stop="removeEvidenceFromLibrary(item)"
-                            class="text-xs text-red-600 hover:underline"
-                            :disabled="!item.canRemove"
-                            :class="!item.canRemove ? 'opacity-50 cursor-not-allowed' : ''">
+                            class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                            :disabled="!item.id"
+                            :class="!item.id ? 'opacity-50 cursor-not-allowed' : ''">
                       Remove
                     </button>
                   </div>
@@ -558,6 +554,7 @@
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 text-left">
                   <tr>
+                    <th class="px-4 py-2">Image / Preview</th>
                     <th class="px-4 py-2">File</th>
                     <th class="px-4 py-2">Type</th>
                     <th class="px-4 py-2">Uploaded</th>
@@ -568,25 +565,31 @@
                   <template x-for="item in currentEvidenceItems()" :key="item.value">
                     <tr>
                       <td class="px-4 py-2">
+                        <button type="button"
+                                @click="openPreview(item)"
+                                :disabled="!item.url && !item.file"
+                                :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
+                                class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition">
+                          <template x-if="item.isImage && item.url">
+                            <img :src="item.url" alt="Evidence preview" class="h-full w-full object-cover">
+                          </template>
+                          <template x-if="!(item.isImage && item.url)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path d="M10 3C5.5 3 2.1 6 1 10c1.1 4 4.5 7 9 7s7.9-3 9-7c-1.1-4-4.5-7-9-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/>
+                              <path d="M10 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/>
+                            </svg>
+                          </template>
+                        </button>
+                      </td>
+                      <td class="px-4 py-2">
                         <p class="font-medium text-gray-800" x-text="item.label"></p>
                       </td>
                       <td class="px-4 py-2 text-gray-500" x-text="item.typeLabel"></td>
                       <td class="px-4 py-2 text-gray-500" x-text="item.uploadedAt || (item.isNew ? 'New upload' : '')"></td>
-                      <td class="px-4 py-2 text-right space-x-2">
-                        <button type="button"
-                                @click="openPreview(item)"
-                                class="text-xs text-bu hover:underline"
-                                :disabled="!item.url && !item.file">
-                          View
-                        </button>
-                        <button type="button"
-                                @click="openSelectEvidence(currentRow.key)"
-                                class="text-xs text-gray-600 hover:underline">
-                          Change
-                        </button>
+                      <td class="px-4 py-2 text-right">
                         <button type="button"
                                 @click="detachEvidence(item.value)"
-                                class="text-xs text-red-600 hover:underline">
+                                class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100">
                           Detach
                         </button>
                       </td>
@@ -777,11 +780,13 @@ function sectionFour(initial = {}, globalEvidence = []) {
 
 	    removeEvidenceFromLibrary(item) {
 	      if (!item?.id) return;
-	      if (!item.canRemove) {
-	        this.toastMessage('Cannot remove evidence that is already attached.', 'error');
-	        return;
-	      }
-	      window.dispatchEvent(new CustomEvent('evidence-remove-request', { detail: { id: item.id } }));
+	      window.dispatchEvent(new CustomEvent('evidence-remove-request', {
+	        detail: {
+	          id: item.id,
+	          name: item.label || 'this file',
+	          attachedCount: Number(item.entryCount || 0),
+	        },
+	      }));
 	    },
 
     hasLibraryEvidence() {
@@ -968,7 +973,7 @@ function sectionFour(initial = {}, globalEvidence = []) {
     },
     a1Capped() {
       const v = this.cap(this.a1Raw(), 20);
-      return Number(v).toFixed(2);
+      return Number(v).toFixed(0);
     },
 
     a2Raw() {
@@ -976,7 +981,7 @@ function sectionFour(initial = {}, globalEvidence = []) {
     },
     a2Capped() {
       const v = this.cap(this.a2Raw(), 40);
-      return Number(v).toFixed(2);
+      return Number(v).toFixed(0);
     },
 
     teachingTotalRawCapped() {
@@ -985,7 +990,7 @@ function sectionFour(initial = {}, globalEvidence = []) {
       return this.cap(a1 + a2, 40);
     },
     teachingTotalCapped() {
-      return Number(this.teachingTotalRawCapped()).toFixed(2);
+      return Number(this.teachingTotalRawCapped()).toFixed(0);
     },
 
     industryRawCapped() {
@@ -993,7 +998,7 @@ function sectionFour(initial = {}, globalEvidence = []) {
       return this.cap(this.n(this.bYears) * 2, 20);
     },
     industryCapped() {
-      return Number(this.industryRawCapped()).toFixed(2);
+      return Number(this.industryRawCapped()).toFixed(0);
     },
 
     rawCountedNumber() {
@@ -1006,7 +1011,7 @@ function sectionFour(initial = {}, globalEvidence = []) {
     },
     finalCapped() {
       const adjusted = this.rawCountedNumber() * this.deductionRate();
-      return this.cap(adjusted, 40).toFixed(2);
+      return this.cap(adjusted, 40).toFixed(0);
     },
 
     countedTrackLabel() {
@@ -1028,4 +1033,3 @@ function sectionFour(initial = {}, globalEvidence = []) {
   }
 }
 </script>
-

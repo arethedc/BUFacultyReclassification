@@ -190,7 +190,7 @@
             </div>
 
             <p class="text-xs text-gray-600 mt-1">
-              Total Points: <span class="font-semibold text-gray-800" x-text="totalPoints().toFixed(2)"></span>
+              Total Points: <span class="font-semibold text-gray-800" x-text="totalPoints().toFixed(0)"></span>
               <span class="mx-2 text-gray-300">•</span>
               Equivalent % (÷ 4): <span class="font-semibold text-gray-800" x-text="eqPercent().toFixed(2)"></span>
             </p>
@@ -210,7 +210,7 @@
             <div class="rounded-xl border p-4">
               <p class="text-xs text-gray-500">Computed totals</p>
               <p class="text-xl font-semibold text-gray-800 mt-2">
-                <span x-text="totalPoints().toFixed(2)"></span>
+                <span x-text="totalPoints().toFixed(0)"></span>
               </p>
               <p class="text-xs text-gray-500 mt-1">
                 Equivalent %: <span class="font-medium text-gray-700" x-text="eqPercent().toFixed(2)"></span>
@@ -297,7 +297,7 @@
         </div>
         <div class="text-right">
           <p class="text-xs text-gray-500">TOTAL</p>
-          <p class="text-lg font-semibold text-gray-900" x-text="totalPoints().toFixed(2)"></p>
+          <p class="text-lg font-semibold text-gray-900" x-text="totalPoints().toFixed(0)"></p>
         </div>
       </div>
 
@@ -314,7 +314,7 @@
             <tbody class="divide-y">
               <tr>
                 <td class="px-4 py-3 font-medium">Section I – Academic Preparation & Professional Development</td>
-                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s1.toFixed(2)"></td>
+                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s1.toFixed(0)"></td>
                 <td class="px-4 py-3 text-right">
                   <a href="{{ route('reclassification.section', 1) }}"
                      class="text-bu text-xs font-medium hover:underline">
@@ -336,7 +336,7 @@
 
               <tr>
                 <td class="px-4 py-3 font-medium">Section III – Research Competence & Productivity</td>
-                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s3.toFixed(2)"></td>
+                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s3.toFixed(0)"></td>
                 <td class="px-4 py-3 text-right">
                   <a href="{{ route('reclassification.section', 3) }}"
                      class="text-bu text-xs font-medium hover:underline">
@@ -347,7 +347,7 @@
 
               <tr>
                 <td class="px-4 py-3 font-medium">Section IV – Teaching / Professional / Administrative Experience</td>
-                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s4.toFixed(2)"></td>
+                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s4.toFixed(0)"></td>
                 <td class="px-4 py-3 text-right">
                   <a href="{{ route('reclassification.section', 4) }}"
                      class="text-bu text-xs font-medium hover:underline">
@@ -358,7 +358,7 @@
 
               <tr>
                 <td class="px-4 py-3 font-medium">Section V – Professional & Community Leadership Service</td>
-                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s5.toFixed(2)"></td>
+                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="s5.toFixed(0)"></td>
                 <td class="px-4 py-3 text-right">
                   <a href="{{ route('reclassification.section', 5) }}"
                      class="text-bu text-xs font-medium hover:underline">
@@ -369,7 +369,7 @@
 
               <tr class="bg-gray-50">
                 <td class="px-4 py-3 font-semibold">TOTAL POINTS</td>
-                <td class="px-4 py-3 text-right font-semibold text-gray-900" x-text="totalPoints().toFixed(2)"></td>
+                <td class="px-4 py-3 text-right font-semibold text-gray-900" x-text="totalPoints().toFixed(0)"></td>
                 <td class="px-4 py-3"></td>
               </tr>
 

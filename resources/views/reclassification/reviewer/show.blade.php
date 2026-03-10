@@ -1869,9 +1869,22 @@
                                                                     @if(in_array((string) $key, ['evidence', 'id', 'is_removed', 'points', 'counted', 'comments'], true))
                                                                         @continue
                                                                     @endif
+                                                                    @php
+                                                                        $detailLabel = ucwords(str_replace(['_', '-'], ' ', (string) $key));
+                                                                        $detailLabel = preg_replace('/\bBu\b/', 'BU', $detailLabel);
+                                                                        $detailValue = is_array($value) ? json_encode($value) : (string) $value;
+                                                                        $detailValueTrimmed = trim($detailValue);
+                                                                        if (in_array(strtolower($detailValueTrimmed), ['true', 'false'], true)) {
+                                                                            $detailValue = strtolower($detailValueTrimmed) === 'true' ? 'Yes' : 'No';
+                                                                        } elseif (str_contains($detailValueTrimmed, '_') || str_contains($detailValueTrimmed, '-')) {
+                                                                            $detailValue = ucwords(str_replace(['_', '-'], ' ', $detailValueTrimmed));
+                                                                        } elseif ($detailValueTrimmed !== '' && ctype_lower($detailValueTrimmed) && !str_contains($detailValueTrimmed, ' ')) {
+                                                                            $detailValue = ucfirst($detailValueTrimmed);
+                                                                        }
+                                                                    @endphp
                                                                     <div>
-                                                                        <span class="text-gray-400">{{ ucfirst(str_replace('_',' ', $key)) }}:</span>
-                                                                        <span class="text-gray-700">{{ is_array($value) ? json_encode($value) : $value }}</span>
+                                                                        <span class="text-gray-400">{{ $detailLabel }}:</span>
+                                                                        <span class="text-gray-700">{{ $detailValue }}</span>
                                                                     </div>
                                                                 @endforeach
                                                             </div>

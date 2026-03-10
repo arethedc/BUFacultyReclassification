@@ -36,12 +36,7 @@
               </template>
             </div>
 
-            <p class="text-xs text-gray-600 mt-1">
-              Raw: <span class="font-semibold text-gray-800" x-text="rawTotal()"></span>
-              <span class="text-gray-400">/ 30</span>
-              <span class="mx-2 text-gray-300">•</span>
-              Counted (capped): <span class="font-semibold text-gray-800" x-text="cappedTotal()"></span>
-            </p>
+
           </div>
 
           <button
@@ -58,7 +53,15 @@
             Select exact options based on the paper form to avoid miscalculation. Evidence is uploaded once and referenced per row.
           </p>
 
-          <div class="mt-3 grid grid-cols-1 sm:grid-cols-5 gap-3">
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+            <div class="rounded-xl border p-4">
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-500">Final Score</p>
+                <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 30</span>
+              </div>
+              <p class="text-xl font-semibold text-gray-800"><span x-text="cappedTotal()"></span></p>
+              <p class="text-xs text-gray-500 mt-1">Raw: <span x-text="rawTotal()"></span></p>
+            </div>
             <div class="rounded-xl border p-4">
               <p class="text-xs text-gray-500">A (cap 5)</p>
               <p class="text-xl font-semibold text-gray-800"><span x-text="sumA_capped()"></span></p>
@@ -68,19 +71,22 @@
             <div class="rounded-xl border p-4">
               <p class="text-xs text-gray-500">B (cap 10)</p>
               <p class="text-xl font-semibold text-gray-800"><span x-text="sumB_capped()"></span></p>
-              <p class="text-xs text-gray-500 mt-1">Raw: <span x-text="sumB_raw()"></span></p>
+              <p class="text-xs text-gray-500 mt-1">Previous B (1/3): <span x-text="prevBThird()"></span></p>
+              <p class="text-xs text-gray-500">Raw: <span x-text="sumB_raw()"></span></p>
             </div>
 
             <div class="rounded-xl border p-4">
               <p class="text-xs text-gray-500">C (cap 15)</p>
               <p class="text-xl font-semibold text-gray-800"><span x-text="sumC_capped()"></span></p>
-              <p class="text-xs text-gray-500 mt-1">Raw: <span x-text="sumC_raw()"></span></p>
+              <p class="text-xs text-gray-500 mt-1">Previous C (1/3): <span x-text="prevCThird()"></span></p>
+              <p class="text-xs text-gray-500">Raw: <span x-text="sumC_raw()"></span></p>
             </div>
 
             <div class="rounded-xl border p-4">
               <p class="text-xs text-gray-500">D (cap 10)</p>
               <p class="text-xl font-semibold text-gray-800"><span x-text="sumD_capped()"></span></p>
-              <p class="text-xs text-gray-500 mt-1">Raw: <span x-text="sumD_raw()"></span></p>
+              <p class="text-xs text-gray-500 mt-1">Previous D (1/3): <span x-text="prevDThird()"></span></p>
+              <p class="text-xs text-gray-500">Raw: <span x-text="sumD_raw()"></span></p>
             </div>
 
             <div class="rounded-xl border p-4">
@@ -88,6 +94,8 @@
               <p class="text-xl font-semibold text-gray-800"><span x-text="prevThird()"></span></p>
               <p class="text-xs text-gray-500 mt-1">Input: <span x-text="Number(previous||0).toFixed(2)"></span></p>
             </div>
+
+
           </div>
 
           <template x-if="Number(rawTotal()) > 30">
@@ -225,7 +233,7 @@
                   </td>
 
                   <td class="p-2 text-gray-700">
-                    <span x-text="Number(rowPoints('a', i)).toFixed(2)"></span>
+                    <span x-text="Number(rowPoints('a', i)).toFixed(0)"></span>
                     <span class="text-xs text-gray-400">(Auto)</span>
                     <div class="mt-1 text-xs">
                       <span x-show="rowCounted('a', i)" class="text-green-700">Counted</span>
@@ -389,7 +397,7 @@
                   </td>
 
                   <td class="p-2 text-gray-700">
-                    <span x-text="Number(rowPoints('b', i)).toFixed(2)"></span>
+                    <span x-text="Number(rowPoints('b', i)).toFixed(0)"></span>
                     <span class="text-xs text-gray-400">(Auto)</span>
                     <div class="mt-1 text-xs">
                       <span x-show="rowCounted('b', i)" class="text-green-700">Counted</span>
@@ -549,7 +557,7 @@
                       </select>
                     </td>
                       <td class="p-2 text-gray-700">
-                        <span x-text="Number(rowPoints('c1', i)).toFixed(2)"></span>
+                        <span x-text="Number(rowPoints('c1', i)).toFixed(0)"></span>
                         <span class="text-xs text-gray-400">(Auto)</span>
                       <div class="mt-1 text-xs">
                         <span x-show="rowCounted('c1', i)" class="text-green-700">Counted</span>
@@ -672,7 +680,7 @@
                       </select>
                     </td>
                       <td class="p-2 text-gray-700">
-                        <span x-text="Number(rowPoints('c2', i)).toFixed(2)"></span>
+                        <span x-text="Number(rowPoints('c2', i)).toFixed(0)"></span>
                         <span class="text-xs text-gray-400">(Auto)</span>
                       <div class="mt-1 text-xs">
                         <span x-show="rowCounted('c2', i)" class="text-green-700">Counted</span>
@@ -796,7 +804,7 @@
                       </select>
                     </td>
                       <td class="p-2 text-gray-700">
-                        <span x-text="Number(rowPoints('c3', i)).toFixed(2)"></span>
+                        <span x-text="Number(rowPoints('c3', i)).toFixed(0)"></span>
                         <span class="text-xs text-gray-400">(Auto)</span>
                       <div class="mt-1 text-xs">
                         <span x-show="rowCounted('c3', i)" class="text-green-700">Counted</span>
@@ -944,7 +952,7 @@
                   </td>
 
                     <td class="p-2 text-gray-700">
-                    <span x-text="Number(rowPoints('d', i)).toFixed(2)"></span>
+                    <span x-text="Number(rowPoints('d', i)).toFixed(0)"></span>
                     <span class="text-xs text-gray-400">(Auto)</span>
                     <div class="mt-1 text-xs">
                       <span x-show="rowCounted('d', i)" class="text-green-700">Counted</span>
@@ -1100,6 +1108,18 @@
                 <label class="flex items-center gap-3 p-3 rounded-xl border hover:bg-gray-50">
                   <input type="checkbox" class="rounded text-bu"
                          :value="item.value" x-model="evidenceSelection">
+                  <button type="button"
+                          @click.stop="openPreview(item)"
+                          :disabled="!item.url && !item.file"
+                          :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
+                          class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center transition">
+                    <template x-if="item.isImage && item.url">
+                      <img :src="item.url" alt="Evidence preview" class="h-full w-full object-cover">
+                    </template>
+                    <template x-if="!(item.isImage && item.url)">
+                      <span class="text-[10px] font-semibold text-gray-500" x-text="item.typeLabel || 'FILE'"></span>
+                    </template>
+                  </button>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-gray-800 truncate" x-text="item.label"></p>
                     <div class="text-xs text-gray-500 flex items-center gap-2">
@@ -1110,16 +1130,10 @@
                   </div>
                   <div class="flex items-center gap-3">
                     <button type="button"
-                            @click.stop="openPreview(item)"
-                            class="text-xs text-bu hover:underline"
-                            :disabled="!item.url && !item.file">
-                      Preview
-                    </button>
-                    <button type="button"
                             @click.stop="removeEvidenceFromLibrary(item)"
-                            class="text-xs text-red-600 hover:underline"
-                            :disabled="!item.canRemove"
-                            :class="!item.canRemove ? 'opacity-50 cursor-not-allowed' : ''">
+                            class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                            :disabled="!item.id"
+                            :class="!item.id ? 'opacity-50 cursor-not-allowed' : ''">
                       Remove
                     </button>
                   </div>
@@ -1148,6 +1162,7 @@
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 text-left">
                   <tr>
+                    <th class="px-4 py-2">Image / Preview</th>
                     <th class="px-4 py-2">File</th>
                     <th class="px-4 py-2">Type</th>
                     <th class="px-4 py-2">Uploaded</th>
@@ -1158,25 +1173,31 @@
                   <template x-for="item in currentEvidenceItems()" :key="item.value">
                     <tr>
                       <td class="px-4 py-2">
+                        <button type="button"
+                                @click="openPreview(item)"
+                                :disabled="!item.url && !item.file"
+                                :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
+                                class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition">
+                          <template x-if="item.isImage && item.url">
+                            <img :src="item.url" alt="Evidence preview" class="h-full w-full object-cover">
+                          </template>
+                          <template x-if="!(item.isImage && item.url)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path d="M10 3C5.5 3 2.1 6 1 10c1.1 4 4.5 7 9 7s7.9-3 9-7c-1.1-4-4.5-7-9-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/>
+                              <path d="M10 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/>
+                            </svg>
+                          </template>
+                        </button>
+                      </td>
+                      <td class="px-4 py-2">
                         <p class="font-medium text-gray-800" x-text="item.label"></p>
                       </td>
                       <td class="px-4 py-2 text-gray-500" x-text="item.typeLabel"></td>
                       <td class="px-4 py-2 text-gray-500" x-text="item.uploadedAt || (item.isNew ? 'New upload' : '')"></td>
-                      <td class="px-4 py-2 text-right space-x-2">
-                        <button type="button"
-                                @click="openPreview(item)"
-                                class="text-xs text-bu hover:underline"
-                                :disabled="!item.url && !item.file">
-                          View
-                        </button>
-                        <button type="button"
-                                @click="openSelectEvidence(currentRow.key, currentRow.index)"
-                                class="text-xs text-gray-600 hover:underline">
-                          Change
-                        </button>
+                      <td class="px-4 py-2 text-right">
                         <button type="button"
                                 @click="detachEvidence(item.value)"
-                                class="text-xs text-red-600 hover:underline">
+                                class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100">
                           Detach
                         </button>
                       </td>
@@ -1388,11 +1409,13 @@ function sectionFive(initial = {}, globalEvidence = []) {
 
 	    removeEvidenceFromLibrary(item) {
 	      if (!item?.id) return;
-	      if (!item.canRemove) {
-	        this.toastMessage('Cannot remove evidence that is already attached.', 'error');
-	        return;
-	      }
-	      window.dispatchEvent(new CustomEvent('evidence-remove-request', { detail: { id: item.id } }));
+	      window.dispatchEvent(new CustomEvent('evidence-remove-request', {
+	        detail: {
+	          id: item.id,
+	          name: item.label || 'this file',
+	          attachedCount: Number(item.entryCount || 0),
+	        },
+	      }));
 	    },
 
     hasLibraryEvidence() {
@@ -1814,42 +1837,42 @@ function sectionFive(initial = {}, globalEvidence = []) {
 
     sumA_raw() {
       const t = this.bucketedRows('a').reduce((s,r)=> s + Number(r.points || 0), 0);
-      return t.toFixed(2);
+      return t.toFixed(0);
     },
-    sumA_capped() { return Number(this.cap(this.sumA_raw(), 5)).toFixed(2); },
+    sumA_capped() { return Number(this.cap(this.sumA_raw(), 5)).toFixed(0); },
 
       sumB_raw() {
         const t = this.bucketedRows('b').reduce((s,r)=> s + Number(r.points || 0), 0);
         const prev = Number(this.prevBThird());
-        return (t + prev).toFixed(2);
+        return (t + prev).toFixed(0);
       },
-      sumB_capped() { return Number(this.cap(this.sumB_raw(), 10)).toFixed(2); },
+      sumB_capped() { return Number(this.cap(this.sumB_raw(), 10)).toFixed(0); },
 
-      c1_raw() { return this.bucketedRows('c1').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(2); },
-      c1_capped() { return Number(this.cap(this.c1_raw(), 10)).toFixed(2); },
+      c1_raw() { return this.bucketedRows('c1').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(0); },
+      c1_capped() { return Number(this.cap(this.c1_raw(), 10)).toFixed(0); },
 
-    c2_raw() { return this.bucketedRows('c2').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(2); },
-    c2_capped() { return Number(this.cap(this.c2_raw(), 5)).toFixed(2); },
+    c2_raw() { return this.bucketedRows('c2').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(0); },
+    c2_capped() { return Number(this.cap(this.c2_raw(), 5)).toFixed(0); },
 
-    c3_raw() { return this.bucketedRows('c3').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(2); },
-    c3_capped() { return Number(this.cap(this.c3_raw(), 10)).toFixed(2); },
+    c3_raw() { return this.bucketedRows('c3').reduce((s,r)=> s + Number(r.points || 0), 0).toFixed(0); },
+    c3_capped() { return Number(this.cap(this.c3_raw(), 10)).toFixed(0); },
 
       sumC_raw() {
         const t = Number(this.c1_raw()) + Number(this.c2_raw()) + Number(this.c3_raw());
         const prev = Number(this.prevCThird());
-        return (t + prev).toFixed(2);
+        return (t + prev).toFixed(0);
       },
       sumC_capped() {
         const t = Number(this.c1_capped()) + Number(this.c2_capped()) + Number(this.c3_capped()) + Number(this.prevCThird());
-        return Number(this.cap(t, 15)).toFixed(2);
+        return Number(this.cap(t, 15)).toFixed(0);
       },
 
       sumD_raw() {
         const t = this.bucketedRows('d').reduce((s,r)=> s + Number(r.points || 0), 0);
         const prev = Number(this.prevDThird());
-        return (t + prev).toFixed(2);
+        return (t + prev).toFixed(0);
       },
-      sumD_capped() { return Number(this.cap(this.sumD_raw(), 10)).toFixed(2); },
+      sumD_capped() { return Number(this.cap(this.sumD_raw(), 10)).toFixed(0); },
 
       subtotal() {
         return (
@@ -1857,7 +1880,7 @@ function sectionFive(initial = {}, globalEvidence = []) {
           Number(this.sumB_capped()) +
           Number(this.sumC_capped()) +
           Number(this.sumD_capped())
-        ).toFixed(2);
+        ).toFixed(0);
       },
 
       prevBThird() { return (Number(this.b_prev || 0) / 3).toFixed(2); },
@@ -1865,11 +1888,11 @@ function sectionFive(initial = {}, globalEvidence = []) {
       prevDThird() { return (Number(this.d_prev || 0) / 3).toFixed(2); },
       prevThird() { return (Number(this.previous || 0) / 3).toFixed(2); },
 
-      rawTotal() { return (Number(this.subtotal()) + Number(this.prevThird())).toFixed(2); },
+      rawTotal() { return (Number(this.subtotal()) + Number(this.prevThird())).toFixed(0); },
 
     cappedTotal() {
       const raw = Number(this.rawTotal());
-      return (raw > 30 ? 30 : raw).toFixed(2);
+      return (raw > 30 ? 30 : raw).toFixed(0);
     },
 
     emitScore(points) {
@@ -1882,4 +1905,3 @@ function sectionFive(initial = {}, globalEvidence = []) {
 </script>
 
 </form>
-

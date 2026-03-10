@@ -1006,6 +1006,7 @@ class ReclassificationFormController extends Controller
     public function deleteEvidence(Request $request, ReclassificationEvidence $evidence)
     {
         $user = $request->user();
+        $force = $request->boolean('force');
 
         $application = ReclassificationApplication::where('id', $evidence->reclassification_application_id)
             ->where('faculty_user_id', $user->id)
@@ -1017,8 +1018,21 @@ class ReclassificationFormController extends Controller
             ->where('reclassification_evidence_id', $evidence->id)
             ->exists();
 
-        if ($evidence->reclassification_section_entry_id || $hasLinks) {
+        if (($evidence->reclassification_section_entry_id || $hasLinks) && !$force) {
             return response()->json(['message' => 'Evidence is attached. Detach first.'], 422);
+        }
+
+        if ($force) {
+            DB::table('reclassification_evidence_links')
+                ->where('reclassification_evidence_id', $evidence->id)
+                ->delete();
+
+            if ($evidence->reclassification_section_entry_id || $evidence->reclassification_section_id) {
+                $evidence->update([
+                    'reclassification_section_entry_id' => null,
+                    'reclassification_section_id' => null,
+                ]);
+            }
         }
 
         if ($evidence->path) {

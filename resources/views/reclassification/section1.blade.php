@@ -18,29 +18,7 @@
 IMPROVED STICKY SCORE SUMMARY (Expandable)
 ======================== --}}
 <div
-  x-data="{ open:true, stuck:false, userOverride:false }"
-  x-init="
-    const onScroll = () => {
-      const nowStuck = window.scrollY > 140;
-
-      if (!stuck && nowStuck) {
-        stuck = true;
-        if (!userOverride) open = false;
-        return;
-      }
-
-      if (stuck && !nowStuck) {
-        stuck = false;
-        if (!userOverride) open = true;
-        return;
-      }
-
-      stuck = nowStuck;
-    };
-
-    window.addEventListener('scroll', onScroll, { passive:true });
-    onScroll();
-  "
+  x-data="{ open:true }"
   class="sticky top-24 z-20"
 >
   <div class="bg-white/95 backdrop-blur rounded-2xl border shadow-card">
@@ -63,16 +41,11 @@ IMPROVED STICKY SCORE SUMMARY (Expandable)
           </template>
         </div>
 
-        <p class="text-xs text-gray-600 mt-1">
-          Raw: <span class="font-semibold text-gray-800" x-text="Number(rawTotal()).toFixed(2)"></span>
-          <span class="text-gray-400">/ 140</span>
-          <span class="mx-2 text-gray-300">•</span>
-          Counted: <span class="font-semibold text-gray-800" x-text="Number(cappedTotal()).toFixed(2)"></span>
-        </p>
+
       </div>
 
       <button type="button"
-              @click="userOverride = true; open = !open"
+              @click="open = !open"
               class="px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
         <span x-text="open ? 'Hide details' : 'Show details'"></span>
       </button>
@@ -84,14 +57,22 @@ IMPROVED STICKY SCORE SUMMARY (Expandable)
       </p>
 
       <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+
+
+       
+
         <div class="rounded-xl border p-4">
-          <p class="text-xs text-gray-500">Total (Raw)</p>
+          <div class="flex items-center justify-between">
+            <p class="text-xs text-gray-500">Final Score</p>
+            <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 140</span>
+          </div>
+
           <p class="text-xl font-semibold text-gray-800">
-            <span x-text="Number(rawTotal()).toFixed(2)"></span>
+            <span x-text="Number(cappedTotal()).toFixed(0)"></span>
             <span class="text-sm font-medium text-gray-400">/ 140</span>
           </p>
           <p class="mt-1 text-xs text-gray-500">
-            Counted (capped): <span class="font-medium text-gray-700" x-text="Number(cappedTotal()).toFixed(2)"></span>
+            Raw: <span class="font-medium text-gray-700" x-text="Number(rawTotal()).toFixed(0)"></span>
           </p>
         </div>
 
@@ -101,25 +82,25 @@ IMPROVED STICKY SCORE SUMMARY (Expandable)
             <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 140</span>
           </div>
           <p class="text-lg font-semibold text-gray-800 mt-1">
-            <span x-text="Number(rawA()).toFixed(2)"></span>
+            <span x-text="Number(cap(rawA(),140)).toFixed(0)"></span>
             <span class="text-sm font-medium text-gray-400">/ 140</span>
           </p>
           <p class="text-xs text-gray-500">
-            Counted: <span class="font-medium text-gray-700" x-text="Number(cap(rawA(),140)).toFixed(2)"></span>
+            Raw: <span class="font-medium text-gray-700" x-text="Number(rawA()).toFixed(0)"></span>
           </p>
 
           <div class="mt-2 text-xs text-gray-500 space-y-1">
             <div class="flex items-center justify-between">
               <span>A8 Exams cap</span>
               <span>
-                <span class="font-medium text-gray-700" x-text="Number(rawA8()).toFixed(2)"></span>
+                <span class="font-medium text-gray-700" x-text="Number(rawA8()).toFixed(0)"></span>
                 <span class="text-gray-400">/ 15</span>
               </span>
             </div>
             <div class="flex items-center justify-between">
               <span>A9 Certifications cap</span>
               <span>
-                <span class="font-medium text-gray-700" x-text="Number(rawA9()).toFixed(2)"></span>
+                <span class="font-medium text-gray-700" x-text="Number(rawA9()).toFixed(0)"></span>
                 <span class="text-gray-400">/ 10</span>
               </span>
             </div>
@@ -133,11 +114,14 @@ IMPROVED STICKY SCORE SUMMARY (Expandable)
               <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 20</span>
             </div>
             <p class="text-lg font-semibold text-gray-800 mt-1">
-              <span x-text="Number(rawB()).toFixed(2)"></span>
+              <span x-text="Number(cap(rawB(),20)).toFixed(0)"></span>
               <span class="text-sm font-medium text-gray-400">/ 20</span>
             </p>
             <p class="text-xs text-gray-500">
-              Counted: <span class="font-medium text-gray-700" x-text="Number(cap(rawB(),20)).toFixed(2)"></span>
+              Previous B: <span class="font-medium text-gray-700" x-text="(Number(b_prev || 0) / 3).toFixed(2)"></span>
+            </p>
+            <p class="text-xs text-gray-500">
+              Raw: <span class="font-medium text-gray-700" x-text="Number(rawB()).toFixed(0)"></span>
             </p>
           </div>
 
@@ -147,11 +131,14 @@ IMPROVED STICKY SCORE SUMMARY (Expandable)
               <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 20</span>
             </div>
             <p class="text-lg font-semibold text-gray-800 mt-1">
-              <span x-text="Number(rawC()).toFixed(2)"></span>
+              <span x-text="Number(cap(rawC(),20)).toFixed(0)"></span>
               <span class="text-sm font-medium text-gray-400">/ 20</span>
             </p>
             <p class="text-xs text-gray-500">
-              Counted: <span class="font-medium text-gray-700" x-text="Number(cap(rawC(),20)).toFixed(2)"></span>
+              Previous C: <span class="font-medium text-gray-700" x-text="(Number(c_prev || 0) / 3).toFixed(2)"></span>
+            </p>
+            <p class="text-xs text-gray-500">
+              Raw: <span class="font-medium text-gray-700" x-text="Number(rawC()).toFixed(0)"></span>
             </p>
           </div>
         </div>
@@ -307,7 +294,7 @@ $tables = [
         @endforeach
         <th class="px-3 py-2"></th>
       </tr>
-    </thead>    
+    </thead>
 
           <template x-for="(row,i) in {{ $cfg['key'] }}" :key="i">
             <tbody class="divide-y">
@@ -320,7 +307,7 @@ $tables = [
                 <input type="hidden" :name="`section1[{{ $cfg['key'] }}][${i}][is_removed]`" :value="isRemovedRow(row) ? 1 : 0">
               @endif
               @if($col === 'Pts')
-                <span class="text-gray-800 font-semibold" x-text="Number(rowPoints('{{ $cfg['key'] }}', i)).toFixed(2)"></span>
+                <span class="text-gray-800 font-semibold" x-text="Number(rowPoints('{{ $cfg['key'] }}', i)).toFixed(0)"></span>
                 <span class="text-gray-400 text-xs"> (Auto)</span>
                 <div class="mt-1 text-xs" x-show="isBucketed('{{ $cfg['key'] }}')">
                   <span x-show="rowCounted('{{ $cfg['key'] }}', i)" class="text-green-700">Counted</span>
@@ -488,7 +475,7 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
                  class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
                  placeholder="Enter previous B points">
           <p class="mt-1 text-[11px] text-gray-500">
-            Counted: <span class="font-medium text-gray-700" x-text="Number(b_prev || 0) / 3"></span>
+            Counted: <span class="font-medium text-gray-700" x-text="(Number(b_prev || 0) / 3).toFixed(2)"></span>
           </p>
           <template x-if="(b_prev_comments || []).length">
             <div class="mt-2" x-data="{ row: { comments: b_prev_comments } }">
@@ -508,7 +495,7 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
           <th class="px-3 py-2 text-left">Evidence</th>
           <th class="px-3 py-2"></th>
         </tr>
-      </thead>      
+      </thead>
 
               <template x-for="(row,i) in b" :key="i">
                 <tbody class="divide-y">
@@ -536,7 +523,7 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
             </td>
 
             <td class="px-3 py-2">
-              <span class="text-gray-800 font-semibold" x-text="Number(rowPoints('b', i)).toFixed(2)"></span>
+              <span class="text-gray-800 font-semibold" x-text="Number(rowPoints('b', i)).toFixed(0)"></span>
               <span class="text-gray-400 text-xs"> (Auto)</span>
               <div class="mt-1 text-xs">
                 <span x-show="rowCounted('b', i)" class="text-green-700">Counted</span>
@@ -640,7 +627,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                  class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
                  placeholder="Enter previous C points">
           <p class="mt-1 text-[11px] text-gray-500">
-            Counted: <span class="font-medium text-gray-700" x-text="Number(c_prev || 0) / 3"></span>
+            Counted: <span class="font-medium text-gray-700" x-text="(Number(c_prev || 0) / 3).toFixed(2)"></span>
           </p>
           <template x-if="(c_prev_comments || []).length">
             <div class="mt-2" x-data="{ row: { comments: c_prev_comments } }">
@@ -661,7 +648,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
           <th class="px-3 py-2 text-left">Evidence</th>
           <th class="px-3 py-2"></th>
         </tr>
-      </thead>      
+      </thead>
 
 
               <template x-for="(row,i) in c" :key="i">
@@ -704,7 +691,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
 
             <td class="px-3 py-2">
               <div class="font-semibold text-gray-800">
-                <span x-text="Number(rowPoints('c', i)).toFixed(2)"></span>
+                <span x-text="Number(rowPoints('c', i)).toFixed(0)"></span>
                 <span class="text-xs text-gray-400">(Auto)</span>
               </div>
 
@@ -861,6 +848,18 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                 <label class="flex items-center gap-3 p-3 rounded-xl border hover:bg-gray-50">
                   <input type="checkbox" class="rounded text-bu"
                          :value="item.value" x-model="evidenceSelection">
+                  <button type="button"
+                          @click.stop="openPreview(item)"
+                          :disabled="!item.url && !item.file"
+                          :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
+                          class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center transition">
+                    <template x-if="item.isImage && item.url">
+                      <img :src="item.url" alt="Evidence preview" class="h-full w-full object-cover">
+                    </template>
+                    <template x-if="!(item.isImage && item.url)">
+                      <span class="text-[10px] font-semibold text-gray-500" x-text="item.typeLabel || 'FILE'"></span>
+                    </template>
+                  </button>
                   <div class="flex-1 min-w-0">
                     <p class="text-sm font-medium text-gray-800 truncate" x-text="item.label"></p>
                     <div class="text-xs text-gray-500 flex items-center gap-2">
@@ -871,16 +870,10 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                   </div>
                   <div class="flex items-center gap-3">
                     <button type="button"
-                            @click.stop="openPreview(item)"
-                            class="text-xs text-bu hover:underline"
-                            :disabled="!item.url && !item.file">
-                      Preview
-                    </button>
-                    <button type="button"
                             @click.stop="removeEvidenceFromLibrary(item)"
-                            class="text-xs text-red-600 hover:underline"
-                            :disabled="!item.canRemove"
-                            :class="!item.canRemove ? 'opacity-50 cursor-not-allowed' : ''">
+                            class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                            :disabled="!item.id"
+                            :class="!item.id ? 'opacity-50 cursor-not-allowed' : ''">
                       Remove
                     </button>
                   </div>
@@ -909,6 +902,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
               <table class="w-full text-sm">
                 <thead class="bg-gray-50 text-left">
                   <tr>
+                    <th class="px-4 py-2">Image / Preview</th>
                     <th class="px-4 py-2">File</th>
                     <th class="px-4 py-2">Type</th>
                     <th class="px-4 py-2">Uploaded</th>
@@ -919,25 +913,31 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                   <template x-for="item in currentEvidenceItems()" :key="item.value">
                     <tr>
                       <td class="px-4 py-2">
+                        <button type="button"
+                                @click="openPreview(item)"
+                                :disabled="!item.url && !item.file"
+                                :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
+                                class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition">
+                          <template x-if="item.isImage && item.url">
+                            <img :src="item.url" alt="Evidence preview" class="h-full w-full object-cover">
+                          </template>
+                          <template x-if="!(item.isImage && item.url)">
+                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                              <path d="M10 3C5.5 3 2.1 6 1 10c1.1 4 4.5 7 9 7s7.9-3 9-7c-1.1-4-4.5-7-9-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/>
+                              <path d="M10 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/>
+                            </svg>
+                          </template>
+                        </button>
+                      </td>
+                      <td class="px-4 py-2">
                         <p class="font-medium text-gray-800" x-text="item.label"></p>
                       </td>
                       <td class="px-4 py-2 text-gray-500" x-text="item.typeLabel"></td>
                       <td class="px-4 py-2 text-gray-500" x-text="item.uploadedAt || (item.isNew ? 'New upload' : '')"></td>
-                      <td class="px-4 py-2 text-right space-x-2">
-                        <button type="button"
-                                @click="openPreview(item)"
-                                class="text-xs text-bu hover:underline"
-                                :disabled="!item.url && !item.file">
-                          View
-                        </button>
-                        <button type="button"
-                                @click="openSelectEvidence(currentRow.key, currentRow.index)"
-                                class="text-xs text-gray-600 hover:underline">
-                          Change
-                        </button>
+                      <td class="px-4 py-2 text-right">
                         <button type="button"
                                 @click="detachEvidence(item.value)"
-                                class="text-xs text-red-600 hover:underline">
+                                class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100">
                           Detach
                         </button>
                       </td>
@@ -1182,11 +1182,13 @@ function sectionOne(initial = {}, globalEvidence = []) {
 
 	    removeEvidenceFromLibrary(item) {
 	      if (!item?.id) return;
-	      if (!item.canRemove) {
-	        this.toastMessage('Cannot remove evidence that is already attached.', 'error');
-	        return;
-	      }
-	      window.dispatchEvent(new CustomEvent('evidence-remove-request', { detail: { id: item.id } }));
+	      window.dispatchEvent(new CustomEvent('evidence-remove-request', {
+	        detail: {
+	          id: item.id,
+	          name: item.label || 'this file',
+	          attachedCount: Number(item.entryCount || 0),
+	        },
+	      }));
 	    },
 
     hasLibraryEvidence() {
@@ -1769,4 +1771,3 @@ function sectionOne(initial = {}, globalEvidence = []) {
   }
 }
 </script>
-

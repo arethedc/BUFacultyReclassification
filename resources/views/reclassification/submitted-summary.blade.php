@@ -390,7 +390,118 @@
                     @continue
                 @endif
                 @php
+                    $sectionCode = (string) ($section->section_code ?? '');
+                    $order = collect(['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'b', 'c', 'b_prev', 'c_prev', 'd_prev', 'previous_points']);
+                    $orderIndex = $order->flip();
                     $entries = $section->entries->groupBy('criterion_key');
+                    $entryIsRemoved = function ($entry): bool {
+                        $data = is_array($entry?->data) ? $entry->data : [];
+                        return in_array(strtolower((string) ($data['is_removed'] ?? '')), ['1', 'true', 'yes', 'on'], true);
+                    };
+                    $activeEntriesFlat = collect($section->entries ?? [])->filter(fn ($entry) => !$entryIsRemoved($entry));
+                    $scoresByKey = $activeEntriesFlat
+                        ->groupBy('criterion_key')
+                        ->map(fn ($rows) => (float) collect($rows)->sum(fn ($entry) => (float) ($entry->points ?? 0)));
+                    $scoreFor = fn (string $key): float => (float) ($scoresByKey->get($key, 0));
+                    $inputValueFor = function (string $key) use ($section): float {
+                        $entry = collect($section->entries ?? [])->first(fn ($row) => (string) ($row->criterion_key ?? '') === $key);
+                        if (!$entry) return 0;
+                        $data = is_array($entry->data) ? $entry->data : [];
+                        $raw = $data['value'] ?? null;
+                        if (is_numeric($raw)) return (float) $raw;
+                        if (in_array($key, ['b_prev', 'c_prev', 'd_prev', 'previous_points'], true)) {
+                            return ((float) ($entry->points ?? 0)) * 3;
+                        }
+                        return is_numeric($entry->points ?? null) ? (float) $entry->points : 0;
+                    };
+                    $sectionMax = match($sectionCode) {
+                        '1' => 140,
+                        '2' => 120,
+                        '3' => 70,
+                        '4' => 40,
+                        '5' => 30,
+                        default => null,
+                    };
+                    $sectionPoints = (float) ($section->points_total ?? 0);
+
+                    $s1RawA8 = $scoreFor('a8');
+                    $s1RawA9 = $scoreFor('a9');
+                    $s1RawA = $scoreFor('a1') + $scoreFor('a2') + $scoreFor('a3') + $scoreFor('a4') + $scoreFor('a5') + $scoreFor('a6') + $scoreFor('a7') + min($s1RawA8, 15) + min($s1RawA9, 10);
+                    $s1BPrevThird = $inputValueFor('b_prev') / 3;
+                    $s1CPrevThird = $inputValueFor('c_prev') / 3;
+                    $s1RawB = $scoreFor('b') + $s1BPrevThird;
+                    $s1RawC = $scoreFor('c') + $s1CPrevThird;
+                    $s1CountedA = min($s1RawA, 140);
+                    $s1CountedB = min($s1RawB, 20);
+                    $s1CountedC = min($s1RawC, 20);
+                    $s1RawTotal = $s1RawA + $s1RawB + $s1RawC;
+                    $s1CountedTotal = min($s1CountedA + $s1CountedB + $s1CountedC, 140);
+
+                    $s3CriteriaKeys = collect(['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9']);
+                    $s3Subtotal = (float) $s3CriteriaKeys->sum(fn ($key) => $scoreFor($key));
+                    $s3PrevThird = $inputValueFor('previous_points') / 3;
+                    $s3RawTotal = $s3Subtotal + $s3PrevThird;
+                    $s3Counted = min($s3RawTotal, 70);
+                    $s3CriteriaMet = (int) $s3CriteriaKeys->filter(fn ($key) => $scoreFor($key) > 0)->count();
+
+                    $s4A1 = $scoreFor('a1');
+                    $s4A2 = $scoreFor('a2');
+                    $s4Teaching = min($s4A1 + $s4A2, 40);
+                    $s4Industry = min($scoreFor('b'), 20);
+                    $s4TrackIsA = $s4Teaching >= $s4Industry;
+                    $s4TrackLabel = $s4TrackIsA ? 'A. Teaching Experience' : 'B. Industry/Admin Experience';
+                    $s4IsPartTime = (($application->faculty?->facultyProfile?->employment_type ?? $application->faculty?->employment_type ?? 'full_time') === 'part_time');
+                    $s4ModeLabel = $s4IsPartTime ? 'Part-time (50%)' : 'Full-time (100%)';
+                    $s4RawCounted = max($s4Teaching, $s4Industry);
+                    $s4Final = min($s4RawCounted * ($s4IsPartTime ? 0.5 : 1), 40);
+
+                    $s5ARaw = $scoreFor('a');
+                    $s5ACapped = min($s5ARaw, 5);
+                    $s5PrevBThird = $inputValueFor('b_prev') / 3;
+                    $s5PrevCThird = $inputValueFor('c_prev') / 3;
+                    $s5PrevDThird = $inputValueFor('d_prev') / 3;
+                    $s5PrevThird = $inputValueFor('previous_points') / 3;
+                    $s5BRaw = $scoreFor('b') + $s5PrevBThird;
+                    $s5BCapped = min($s5BRaw, 10);
+                    $s5C1Raw = $scoreFor('c1');
+                    $s5C2Raw = $scoreFor('c2');
+                    $s5C3Raw = $scoreFor('c3');
+                    $s5C1Capped = min($s5C1Raw, 10);
+                    $s5C2Capped = min($s5C2Raw, 5);
+                    $s5C3Capped = min($s5C3Raw, 10);
+                    $s5CRaw = $s5C1Raw + $s5C2Raw + $s5C3Raw + $s5PrevCThird;
+                    $s5CCapped = min($s5C1Capped + $s5C2Capped + $s5C3Capped + $s5PrevCThird, 15);
+                    $s5DRaw = $scoreFor('d') + $s5PrevDThird;
+                    $s5DCapped = min($s5DRaw, 10);
+                    $s5Subtotal = $s5ACapped + $s5BCapped + $s5CCapped + $s5DCapped;
+                    $s5RawTotal = $s5Subtotal + $s5PrevThird;
+                    $s5Counted = min($s5RawTotal, 30);
+
+                    $summaryRaw = $sectionPoints;
+                    $summaryCounted = $sectionPoints;
+                    $summaryLimit = $sectionMax;
+                    $summaryWithinLimit = is_null($sectionMax) ? true : ($sectionPoints <= $sectionMax);
+                    if ($sectionCode === '1') {
+                        $summaryRaw = $s1RawTotal;
+                        $summaryCounted = $s1CountedTotal;
+                        $summaryLimit = 140;
+                        $summaryWithinLimit = $s1RawTotal <= 140;
+                    } elseif ($sectionCode === '3') {
+                        $summaryRaw = $s3RawTotal;
+                        $summaryCounted = $s3Counted;
+                        $summaryLimit = 70;
+                        $summaryWithinLimit = $s3RawTotal <= 70;
+                    } elseif ($sectionCode === '4') {
+                        $summaryRaw = $s4Final;
+                        $summaryCounted = $s4Final;
+                        $summaryLimit = 40;
+                        $summaryWithinLimit = $s4Final <= 40;
+                    } elseif ($sectionCode === '5') {
+                        $summaryRaw = $s5RawTotal;
+                        $summaryCounted = $s5Counted;
+                        $summaryLimit = 30;
+                        $summaryWithinLimit = $s5RawTotal <= 30;
+                    }
                 @endphp
 
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 overflow-hidden">
@@ -404,6 +515,186 @@
                         <div class="text-sm font-semibold text-gray-700">
                             Score: {{ number_format((float) $section->points_total, 2) }}
                         </div>
+                    </div>
+
+                    <div class="px-6 py-4 border-b bg-slate-50/70 space-y-3">
+                        <div class="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                                <div class="text-sm font-semibold text-slate-800">Section {{ $sectionCode }} Score Summary</div>
+                                <div class="mt-1 text-xs text-slate-600">
+                                    @if($sectionCode === '4')
+                                        Final: <span class="font-semibold text-slate-800">{{ number_format($summaryCounted, 2) }}</span>
+                                        <span class="text-slate-400">/ {{ number_format((float) $summaryLimit, 2) }}</span>
+                                        <span class="mx-1 text-slate-300">&middot;</span>
+                                        Track: <span class="font-semibold text-slate-800">{{ $s4TrackLabel }}</span>
+                                    @else
+                                        Raw: <span class="font-semibold text-slate-800">{{ number_format($summaryRaw, 2) }}</span>
+                                        <span class="text-slate-400">/ {{ number_format((float) $summaryLimit, 2) }}</span>
+                                        <span class="mx-1 text-slate-300">&middot;</span>
+                                        Counted: <span class="font-semibold text-slate-800">{{ number_format($summaryCounted, 2) }}</span>
+                                    @endif
+                                </div>
+                            </div>
+                            <div class="flex flex-wrap items-center gap-2">
+                                <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium {{ $summaryWithinLimit ? 'border-green-200 bg-green-50 text-green-700' : 'border-red-200 bg-red-50 text-red-700' }}">
+                                    {{ $summaryWithinLimit ? 'Within limit' : 'Over limit' }}
+                                </span>
+                                @if($sectionCode === '3')
+                                    <span class="inline-flex items-center rounded-full border px-2.5 py-1 text-[11px] font-medium {{ $s3CriteriaMet >= 1 ? 'border-green-200 bg-green-50 text-green-700' : 'border-amber-200 bg-amber-50 text-amber-700' }}">
+                                        {{ $s3CriteriaMet >= 1 ? 'Minimum criteria met (1/1)' : 'Need at least 1 criterion' }}
+                                    </span>
+                                @endif
+                                @if($sectionCode === '4')
+                                    <span class="inline-flex items-center rounded-full border border-gray-200 bg-white px-2.5 py-1 text-[11px] font-medium text-gray-700">
+                                        Counted track: <span class="ml-1 font-semibold">{{ $s4TrackLabel }}</span>
+                                    </span>
+                                    <span class="inline-flex items-center rounded-full border border-blue-200 bg-blue-50 px-2.5 py-1 text-[11px] font-medium text-blue-700">
+                                        Scoring mode: <span class="ml-1 font-semibold">{{ $s4ModeLabel }}</span>
+                                    </span>
+                                @endif
+                            </div>
+                        </div>
+
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                                <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Section Score</div>
+                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ number_format($sectionPoints, 2) }}</div>
+                            </div>
+                            <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
+                                <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Section Max</div>
+                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ $sectionMax !== null ? number_format((float) $sectionMax, 2) : '-' }}</div>
+                            </div>
+                        </div>
+
+                        @if($sectionCode === '1')
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">A. Academic Degree Earned</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1RawA, 2) }} <span class="text-sm text-gray-400">/ 140</span></div>
+                                    <div class="text-xs text-gray-500">Counted: <span class="font-medium text-gray-700">{{ number_format($s1CountedA, 2) }}</span></div>
+                                    <div class="mt-2 space-y-1 text-xs text-gray-500">
+                                        <div class="flex items-center justify-between">
+                                            <span>A8 Exams cap</span>
+                                            <span><span class="font-medium text-gray-700">{{ number_format($s1RawA8, 2) }}</span> <span class="text-gray-400">/ 15</span></span>
+                                        </div>
+                                        <div class="flex items-center justify-between">
+                                            <span>A9 Certifications cap</span>
+                                            <span><span class="font-medium text-gray-700">{{ number_format($s1RawA9, 2) }}</span> <span class="text-gray-400">/ 10</span></span>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="flex items-center justify-between">
+                                        <div class="text-xs text-gray-500">B. Specialized Training</div>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 20</span>
+                                    </div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1RawB, 2) }} <span class="text-sm text-gray-400">/ 20</span></div>
+                                    <div class="text-xs text-gray-500">Counted: <span class="font-medium text-gray-700">{{ number_format($s1CountedB, 2) }}</span></div>
+                                    <div class="mt-1 text-xs text-gray-500">Previous (1/3): {{ number_format($s1BPrevThird, 2) }}</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="flex items-center justify-between">
+                                        <div class="text-xs text-gray-500">C. Seminars / Workshops</div>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 20</span>
+                                    </div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1RawC, 2) }} <span class="text-sm text-gray-400">/ 20</span></div>
+                                    <div class="text-xs text-gray-500">Counted: <span class="font-medium text-gray-700">{{ number_format($s1CountedC, 2) }}</span></div>
+                                    <div class="mt-1 text-xs text-gray-500">Previous (1/3): {{ number_format($s1CPrevThird, 2) }}</div>
+                                </div>
+                            </div>
+                            <div class="text-xs text-slate-600">
+                                Raw total: <span class="font-semibold text-slate-800">{{ number_format($s1RawTotal, 2) }}</span>
+                                <span class="mx-2 text-slate-300">&middot;</span>
+                                Counted total: <span class="font-semibold text-slate-800">{{ number_format($s1CountedTotal, 2) }}</span>
+                            </div>
+                        @elseif($sectionCode === '3')
+                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">Criteria Met</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ $s3CriteriaMet }} <span class="text-sm text-gray-400">/ 9</span></div>
+                                    <div class="text-xs text-gray-500">Minimum required: {{ $s3CriteriaMet >= 1 ? '1/1 met' : '0/1' }}</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">Total (No Previous)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s3Subtotal, 2) }}</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">Previous Reclass (1/3)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s3PrevThird, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Input: {{ number_format($inputValueFor('previous_points'), 2) }}</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">Final</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s3RawTotal, 2) }} <span class="text-sm text-gray-400">/ 70</span></div>
+                                    <div class="text-xs text-gray-500">Counted: <span class="font-medium text-gray-700">{{ number_format($s3Counted, 2) }}</span></div>
+                                </div>
+                            </div>
+                        @elseif($sectionCode === '4')
+                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">A1 (Before BU)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s4A1, 2) }} <span class="text-sm text-gray-400">/ 20</span></div>
+                                    <div class="text-xs text-gray-500">2 pts/year (capped)</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">A2 (After BU)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s4A2, 2) }} <span class="text-sm text-gray-400">/ 40</span></div>
+                                    <div class="text-xs text-gray-500">3 pts/year (capped)</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">Teaching Total (A)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s4Teaching, 2) }} <span class="text-sm text-gray-400">/ 40</span></div>
+                                    <div class="text-xs text-gray-500">A1 + A2, capped at 40</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">Industry/Admin (B)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s4Industry, 2) }} <span class="text-sm text-gray-400">/ 20</span></div>
+                                    <div class="text-xs text-gray-500">2 pts/year (capped)</div>
+                                </div>
+                            </div>
+                            <div class="text-xs text-slate-600">
+                                Raw counted track: <span class="font-semibold text-slate-800">{{ number_format($s4RawCounted, 2) }}</span>
+                                <span class="mx-2 text-slate-300">&middot;</span>
+                                Deduction rate: <span class="font-semibold text-slate-800">{{ $s4IsPartTime ? '50%' : '100%' }}</span>
+                                <span class="mx-2 text-slate-300">&middot;</span>
+                                Final counted score: <span class="font-semibold text-slate-800">{{ number_format($s4Final, 2) }}</span>
+                                <span class="text-slate-400">/ 40</span>
+                            </div>
+                        @elseif($sectionCode === '5')
+                            <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">A (cap 5)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5ACapped, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5ARaw, 2) }}</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">B (cap 10)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5BCapped, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5BRaw, 2) }} &middot; Prev 1/3: {{ number_format($s5PrevBThird, 2) }}</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">C (cap 15)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5CCapped, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5CRaw, 2) }} &middot; Prev 1/3: {{ number_format($s5PrevCThird, 2) }}</div>
+                                    <div class="mt-1 text-xs text-gray-500">C1: {{ number_format($s5C1Raw, 2) }} (cap 10) &middot; C2: {{ number_format($s5C2Raw, 2) }} (cap 5) &middot; C3: {{ number_format($s5C3Raw, 2) }} (cap 10)</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">D (cap 10)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5DCapped, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5DRaw, 2) }} &middot; Prev 1/3: {{ number_format($s5PrevDThird, 2) }}</div>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="text-xs text-gray-500">Section 5 Previous (1/3)</div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5PrevThird, 2) }}</div>
+                                </div>
+                            </div>
+                            <div class="text-xs text-slate-600">
+                                Raw total: <span class="font-semibold text-slate-800">{{ number_format($s5RawTotal, 2) }}</span>
+                                <span class="mx-2 text-slate-300">&middot;</span>
+                                Counted total: <span class="font-semibold text-slate-800">{{ number_format($s5Counted, 2) }}</span>
+                            </div>
+                        @endif
+
                     </div>
 
                     <div class="p-6 space-y-6">
@@ -440,21 +731,71 @@
                                                         $data = is_array($entry->data) ? $entry->data : [];
                                                         $title = $entry->title ?: ($data['text'] ?? $data['title'] ?? 'Entry');
                                                         $evidences = $entry->evidences ?? collect();
+                                                        $ignoredDetailKeys = [
+                                                            'id',
+                                                            'evidence',
+                                                            'comments',
+                                                            'is_removed',
+                                                            'points',
+                                                            'counted',
+                                                            'removed_points_backup',
+                                                            'removed_points_raw_backup',
+                                                            'removed_at',
+                                                            'removed_by',
+                                                            'removed_source',
+                                                            'removed_by_user_id',
+                                                        ];
+                                                        $detailRows = [];
+                                                        foreach ($data as $key => $value) {
+                                                            $keyString = (string) $key;
+                                                            if (in_array($keyString, $ignoredDetailKeys, true)) {
+                                                                continue;
+                                                            }
+                                                            if (str_ends_with($keyString, '_id')) {
+                                                                continue;
+                                                            }
+                                                            if (is_array($value) || is_object($value)) {
+                                                                continue;
+                                                            }
+
+                                                            $raw = is_null($value) ? '' : trim((string) $value);
+                                                            if ($raw === '') {
+                                                                continue;
+                                                            }
+
+                                                            $label = ucwords(str_replace(['_', '-'], ' ', $keyString));
+                                                            $label = preg_replace('/\bBu\b/', 'BU', $label);
+
+                                                            $display = $raw;
+                                                            if (in_array(strtolower($raw), ['true', 'false'], true)) {
+                                                                $display = strtolower($raw) === 'true' ? 'Yes' : 'No';
+                                                            } elseif (str_contains($raw, '_') || str_contains($raw, '-')) {
+                                                                $display = ucwords(str_replace(['_', '-'], ' ', $raw));
+                                                            } elseif (ctype_lower($raw) && strlen($raw) <= 40 && !str_contains($raw, ' ')) {
+                                                                $display = ucfirst($raw);
+                                                            }
+
+                                                            $detailRows[] = [
+                                                                'label' => $label,
+                                                                'value' => $display,
+                                                            ];
+                                                        }
                                                     @endphp
                                                     <tr>
                                                         <td class="px-4 py-2 font-medium text-gray-800">{{ $title }}</td>
                                                         <td class="px-4 py-2 text-gray-600">
-                                                            <div class="space-y-1">
-                                                                @foreach($data as $key => $value)
-                                                                    @if($key === 'evidence')
-                                                                        @continue
-                                                                    @endif
-                                                                    <div>
-                                                                        <span class="text-gray-400">{{ ucfirst(str_replace('_',' ', $key)) }}:</span>
-                                                                        <span class="text-gray-700">{{ is_array($value) ? json_encode($value) : $value }}</span>
-                                                                    </div>
-                                                                @endforeach
-                                                            </div>
+                                                            @if(empty($detailRows))
+                                                                <span class="text-gray-400">No details</span>
+                                                            @else
+                                                                <div class="space-y-1">
+                                                                    @foreach($detailRows as $detail)
+                                                                        <div>
+                                                                            <span class="text-gray-400">{{ $detail['label'] }}:</span>
+                                                                            <span class="text-gray-700">{{ $detail['value'] }}</span>
+                                                                        </div>
+                                                                    @endforeach
+                                                                </div>
+                                                            @endif
                                                         </td>
                                                         <td class="px-4 py-2">
                                                             @if($evidences->isEmpty())

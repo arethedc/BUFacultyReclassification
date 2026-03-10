@@ -83,17 +83,7 @@
               </template>
             </div>
 
-            <p class="text-xs text-gray-600 mt-1">
-         <span class="font-semibold text-gray-800"
-      x-text="hasAnyRating() ? rawTotal() : '—'"></span>
-<span class="text-gray-400">/ 120</span>
-
-<span class="mx-2 text-gray-300">•</span>
-
-Counted (capped):
-<span class="font-semibold text-gray-800"
-      x-text="hasAnyRating() ? cappedTotal() : '—'"></span>
-            </p>
+           
           </div>
 
           <button type="button"

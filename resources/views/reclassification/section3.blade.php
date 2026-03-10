@@ -13,28 +13,7 @@
     STICKY HEADER (Score + Criteria Met + Caps)
     ======================== --}}
     <div
-      x-data="{ open:true, stuck:false, userOverride:false }"
-      x-init="
-        const onScroll = () => {
-          const nowStuck = window.scrollY > 140;
-
-          if (!stuck && nowStuck) {
-            stuck = true;
-            if (!userOverride) open = false;
-            return;
-          }
-
-          if (stuck && !nowStuck) {
-            stuck = false;
-            if (!userOverride) open = true;
-            return;
-          }
-
-          stuck = nowStuck;
-        };
-        window.addEventListener('scroll', onScroll, { passive:true });
-        onScroll();
-      "
+      x-data="{ open:true }"
       class="sticky top-20 z-20"
     >
       <div class="bg-white/95 backdrop-blur rounded-2xl border shadow-card">
@@ -74,17 +53,12 @@
               <span class="mx-2 text-gray-300">•</span>
               Criteria with entries: <span class="font-semibold text-gray-800" x-text="criteriaMet()"></span>
               <span class="text-gray-400">/ 9</span>
-              <span class="mx-2 text-gray-300">•</span>
-              Raw: <span class="font-semibold text-gray-800" x-text="rawTotal()"></span>
-              <span class="text-gray-400">/ 70</span>
-              <span class="mx-2 text-gray-300">•</span>
-              Counted (capped): <span class="font-semibold text-gray-800" x-text="cappedTotal()"></span>
-            </p>
+                </p>
           </div>
 
           <button
             type="button"
-            @click="userOverride = true; open = !open"
+            @click="open = !open"
             class="px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50"
           >
             <span x-text="open ? 'Hide details' : 'Show details'"></span>
@@ -97,8 +71,21 @@
             Subject to validation.
           </p>
 
-          <div class="mt-3 grid grid-cols-1 sm:grid-cols-4 gap-3">
-            <div class="rounded-xl border p-4">
+          <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
+                 <div class="rounded-xl border p-4 h-full">
+              <div class="flex items-center justify-between">
+                <p class="text-xs text-gray-500">Final Score</p>
+                <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 70</span>
+              </div>
+              <p class="text-xl font-semibold text-gray-800">
+                <span x-text="cappedTotal()"></span>
+                <span class="text-sm font-medium text-gray-400">/ 70</span>
+              </p>
+              <p class="mt-1 text-xs text-gray-500">
+                Raw: <span class="font-medium text-gray-700" x-text="rawTotal()"></span>
+              </p>
+            </div>
+            <div class="rounded-xl border p-4 h-full">
               <p class="text-xs text-gray-500">Total (No Previous)</p>
               <p class="text-xl font-semibold text-gray-800">
                 <span x-text="subtotal()"></span>
@@ -112,7 +99,7 @@
               </p>
             </div>
 
-            <div class="rounded-xl border p-4">
+            <div class="rounded-xl border p-4 h-full">
               <p class="text-xs text-gray-500">Previous Reclass (1/3)</p>
               <p class="text-xl font-semibold text-gray-800">
                 <span x-text="prevThird()"></span>
@@ -122,24 +109,9 @@
               </p>
             </div>
 
-            <div class="rounded-xl border p-4">
-              <p class="text-xs text-gray-500">Final (Raw)</p>
-              <p class="text-xl font-semibold text-gray-800">
-                <span x-text="rawTotal()"></span>
-                <span class="text-sm font-medium text-gray-400">/ 70</span>
-              </p>
-              <p class="mt-1 text-xs text-gray-500">
-                Counted: <span class="font-medium text-gray-700" x-text="cappedTotal()"></span>
-              </p>
-            </div>
 
-            <div class="rounded-xl border p-4">
-              <p class="text-xs text-gray-500">Evidence Library</p>
-              <p class="text-xl font-semibold text-gray-800">
-                <span x-text="evidenceCount()"></span>
-              </p>
-              <p class="mt-1 text-xs text-gray-500">files available</p>
-            </div>
+
+
           </div>
 
           <template x-if="Number(rawTotal()) > 70">
@@ -264,7 +236,7 @@
                 </td>
 
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c1', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c1', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Auto)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c1', i)" class="text-green-700">Counted</span>
@@ -408,7 +380,7 @@
                 </td>
 
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c2', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c2', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Auto)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c2', i)" class="text-green-700">Counted</span>
@@ -552,7 +524,7 @@
                 </td>
 
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c3', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c3', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Auto)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c3', i)" class="text-green-700">Counted</span>
@@ -708,7 +680,7 @@
                   </select>
                 </td>
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c4', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c4', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Auto)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c4', i)" class="text-green-700">Counted</span>
@@ -828,7 +800,7 @@
                   </select>
                 </td>
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c5', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c5', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Auto)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c5', i)" class="text-green-700">Counted</span>
@@ -960,7 +932,7 @@
                   </select>
                 </td>
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c6', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c6', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Auto)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c6', i)" class="text-green-700">Counted</span>
@@ -1092,7 +1064,7 @@
                   </select>
                 </td>
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c7', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c7', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Auto)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c7', i)" class="text-green-700">Counted</span>
@@ -1204,7 +1176,7 @@
                          placeholder="Enter case study / action research title">
                 </td>
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c8', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c8', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Fixed)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c8', i)" class="text-green-700">Counted</span>
@@ -1316,7 +1288,7 @@
                   </select>
                 </td>
                 <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c9', i)).toFixed(2)"></span>
+                  <span x-text="Number(rowPoints('c9', i)).toFixed(0)"></span>
                   <span class="text-xs text-gray-400">(Auto)</span>
                   <div class="mt-1 text-xs">
                     <span x-show="rowCounted('c9', i)" class="text-green-700">Counted</span>
@@ -1465,6 +1437,18 @@
                     <label class="flex items-center gap-3 p-3 rounded-xl border hover:bg-gray-50">
                       <input type="checkbox" class="rounded text-bu"
                              :value="item.value" x-model="evidenceSelection">
+                      <button type="button"
+                              @click.stop="openPreview(item)"
+                              :disabled="!item.url && !item.file"
+                              :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
+                              class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center transition">
+                        <template x-if="item.isImage && item.url">
+                          <img :src="item.url" alt="Evidence preview" class="h-full w-full object-cover">
+                        </template>
+                        <template x-if="!(item.isImage && item.url)">
+                          <span class="text-[10px] font-semibold text-gray-500" x-text="item.typeLabel || 'FILE'"></span>
+                        </template>
+                      </button>
                       <div class="flex-1 min-w-0">
                         <p class="text-sm font-medium text-gray-800 truncate" x-text="item.label"></p>
                         <div class="text-xs text-gray-500 flex items-center gap-2">
@@ -1475,16 +1459,10 @@
                       </div>
                   <div class="flex items-center gap-3">
                     <button type="button"
-                            @click.stop="openPreview(item)"
-                            class="text-xs text-bu hover:underline"
-                            :disabled="!item.url && !item.file">
-                      Preview
-                    </button>
-                    <button type="button"
                             @click.stop="removeEvidenceFromLibrary(item)"
-                            class="text-xs text-red-600 hover:underline"
-                            :disabled="!item.canRemove"
-                            :class="!item.canRemove ? 'opacity-50 cursor-not-allowed' : ''">
+                            class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100"
+                            :disabled="!item.id"
+                            :class="!item.id ? 'opacity-50 cursor-not-allowed' : ''">
                       Remove
                     </button>
                   </div>
@@ -1513,6 +1491,7 @@
                   <table class="w-full text-sm">
                     <thead class="bg-gray-50 text-left">
                       <tr>
+                        <th class="px-4 py-2">Image / Preview</th>
                         <th class="px-4 py-2">File</th>
                         <th class="px-4 py-2">Type</th>
                         <th class="px-4 py-2">Uploaded</th>
@@ -1523,25 +1502,31 @@
                       <template x-for="item in currentEvidenceItems()" :key="item.value">
                         <tr>
                           <td class="px-4 py-2">
+                            <button type="button"
+                                    @click="openPreview(item)"
+                                    :disabled="!item.url && !item.file"
+                                    :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
+                                    class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition">
+                              <template x-if="item.isImage && item.url">
+                                <img :src="item.url" alt="Evidence preview" class="h-full w-full object-cover">
+                              </template>
+                              <template x-if="!(item.isImage && item.url)">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-600" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                  <path d="M10 3C5.5 3 2.1 6 1 10c1.1 4 4.5 7 9 7s7.9-3 9-7c-1.1-4-4.5-7-9-7Zm0 11a4 4 0 1 1 0-8 4 4 0 0 1 0 8Z"/>
+                                  <path d="M10 8a2 2 0 1 0 0 4 2 2 0 0 0 0-4Z"/>
+                                </svg>
+                              </template>
+                            </button>
+                          </td>
+                          <td class="px-4 py-2">
                             <p class="font-medium text-gray-800" x-text="item.label"></p>
                           </td>
                           <td class="px-4 py-2 text-gray-500" x-text="item.typeLabel"></td>
                           <td class="px-4 py-2 text-gray-500" x-text="item.uploadedAt || (item.isNew ? 'New upload' : '')"></td>
-                          <td class="px-4 py-2 text-right space-x-2">
-                            <button type="button"
-                                    @click="openPreview(item)"
-                                    class="text-xs text-bu hover:underline"
-                                    :disabled="!item.url && !item.file">
-                              View
-                            </button>
-                            <button type="button"
-                                    @click="openSelectEvidence(currentRow.key, currentRow.index)"
-                                    class="text-xs text-gray-600 hover:underline">
-                              Change
-                            </button>
+                          <td class="px-4 py-2 text-right">
                             <button type="button"
                                     @click="detachEvidence(item.value)"
-                                    class="text-xs text-red-600 hover:underline">
+                                    class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-2.5 py-1 text-xs font-semibold text-red-700 transition hover:bg-red-100">
                               Detach
                             </button>
                           </td>
@@ -1744,11 +1729,13 @@ function sectionThree(initial = {}, globalEvidence = []) {
 
 	    removeEvidenceFromLibrary(item) {
 	      if (!item?.id) return;
-	      if (!item.canRemove) {
-	        this.toastMessage('Cannot remove evidence that is already attached.', 'error');
-	        return;
-	      }
-	      window.dispatchEvent(new CustomEvent('evidence-remove-request', { detail: { id: item.id } }));
+	      window.dispatchEvent(new CustomEvent('evidence-remove-request', {
+	        detail: {
+	          id: item.id,
+	          name: item.label || 'this file',
+	          attachedCount: Number(item.entryCount || 0),
+	        },
+	      }));
 	    },
 
     hasLibraryEvidence() {
@@ -2201,22 +2188,22 @@ function sectionThree(initial = {}, globalEvidence = []) {
       return this.bucketedRows(key).reduce((t, r) => t + Number(r.points || 0), 0);
     },
 
-    sum1() { return this.sumKey('c1').toFixed(2); },
-    sum2() { return this.sumKey('c2').toFixed(2); },
-    sum3() { return this.sumKey('c3').toFixed(2); },
-    sum4() { return this.sumKey('c4').toFixed(2); },
-    sum5() { return this.sumKey('c5').toFixed(2); },
-    sum6() { return this.sumKey('c6').toFixed(2); },
-    sum7() { return this.sumKey('c7').toFixed(2); },
-    sum8() { return this.sumKey('c8').toFixed(2); },
-    sum9() { return this.sumKey('c9').toFixed(2); },
+    sum1() { return this.sumKey('c1').toFixed(0); },
+    sum2() { return this.sumKey('c2').toFixed(0); },
+    sum3() { return this.sumKey('c3').toFixed(0); },
+    sum4() { return this.sumKey('c4').toFixed(0); },
+    sum5() { return this.sumKey('c5').toFixed(0); },
+    sum6() { return this.sumKey('c6').toFixed(0); },
+    sum7() { return this.sumKey('c7').toFixed(0); },
+    sum8() { return this.sumKey('c8').toFixed(0); },
+    sum9() { return this.sumKey('c9').toFixed(0); },
 
     subtotal() {
       const total =
         Number(this.sum1()) + Number(this.sum2()) + Number(this.sum3()) +
         Number(this.sum4()) + Number(this.sum5()) + Number(this.sum6()) +
         Number(this.sum7()) + Number(this.sum8()) + Number(this.sum9());
-      return total.toFixed(2);
+      return total.toFixed(0);
     },
 
     prevThird() {
@@ -2225,12 +2212,12 @@ function sectionThree(initial = {}, globalEvidence = []) {
     },
 
     rawTotal() {
-      return (Number(this.subtotal()) + Number(this.prevThird())).toFixed(2);
+      return (Number(this.subtotal()) + Number(this.prevThird())).toFixed(0);
     },
 
     cappedTotal() {
       const raw = Number(this.rawTotal());
-      return (raw > 70 ? 70 : raw).toFixed(2);
+      return (raw > 70 ? 70 : raw).toFixed(0);
     },
 
     criteriaMet() {
@@ -2256,4 +2243,3 @@ function sectionThree(initial = {}, globalEvidence = []) {
 </script>
 
 </form>
-

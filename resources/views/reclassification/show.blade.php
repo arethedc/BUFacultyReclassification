@@ -845,7 +845,7 @@
 
                     <div class="flex items-center gap-3">
                         <div class="text-xs text-gray-500">
-                            Total: <span class="font-semibold text-gray-800" x-text="totalPoints().toFixed(2)"></span>
+                            Total: <span class="font-semibold text-gray-800" x-text="totalPoints().toFixed(0)"></span>
                         </div>
                         <button type="button"
                                 @click="showScores = !showScores"
@@ -1374,6 +1374,8 @@
                 savedIndicatorTimer: null,
                 uploading: false,
                 deletingEvidenceIds: {},
+                evidenceDeleteConfirmOpen: false,
+                evidenceDeletePending: null,
                 commentsPanelOpen: commentsPanelDefaultOpen,
                 commentsSidebarCollapsed: false,
                 commentsPanelStorageKey: `faculty_comments_panel:${Number(applicationId || 0)}`,
@@ -1429,21 +1431,22 @@
                         }
                         this.requestEvidenceUpload();
                     };
-                    window.reclassificationDeleteEvidence = (evidenceId) => {
-                        const id = Number(evidenceId || 0);
+                    window.reclassificationDeleteEvidence = (evidenceId, options = {}) => {
+                        const id = Number(evidenceId || options?.id || 0);
                         if (!id) return;
                         const item = (this.globalEvidence || []).find((ev) => Number(ev.id || 0) === id);
                         if (!item) return;
-                        this.deleteLibraryEvidence(item);
+                        this.requestDeleteLibraryEvidence(item, options);
                     };
 
                     if (window.__reclassificationRemoveRequestHandler) {
                         window.removeEventListener('evidence-remove-request', window.__reclassificationRemoveRequestHandler);
                     }
                     window.__reclassificationRemoveRequestHandler = (event) => {
-                        const id = Number(event?.detail?.id || 0);
+                        const detail = event?.detail || {};
+                        const id = Number(detail.id || 0);
                         if (!id) return;
-                        window.reclassificationDeleteEvidence(id);
+                        window.reclassificationDeleteEvidence(id, detail);
                     };
                     window.addEventListener('evidence-remove-request', window.__reclassificationRemoveRequestHandler);
 
@@ -2455,37 +2458,80 @@
                         });
                 },
 
-                deleteLibraryEvidence(item) {
-                    if (!item || item.entry_id) return;
-                    const id = Number(item.id || 0);
+                requestDeleteLibraryEvidence(item, options = {}) {
+                    const id = Number(item?.id || options?.id || 0);
                     if (!id) return;
+                    const source = (this.globalEvidence || []).find((ev) => Number(ev.id || 0) === id) || item || {};
+                    const attachedCount = Number(options?.attachedCount ?? source.entry_count ?? 0);
+                    this.evidenceDeletePending = {
+                        id,
+                        name: String(options?.name || source.name || source.label || 'this file'),
+                        attachedCount,
+                    };
+                    this.evidenceDeleteConfirmOpen = true;
+                },
+
+                cancelDeleteLibraryEvidence() {
+                    this.evidenceDeleteConfirmOpen = false;
+                    this.evidenceDeletePending = null;
+                },
+
+                confirmDeleteLibraryEvidence() {
+                    if (!this.evidenceDeletePending) return;
+                    const pending = { ...this.evidenceDeletePending };
+                    this.cancelDeleteLibraryEvidence();
+                    this.deleteLibraryEvidence(pending, { force: Number(pending.attachedCount || 0) > 0 });
+                },
+
+                deleteLibraryEvidence(item, options = {}) {
+                    const id = Number(item?.id || options?.id || 0);
+                    if (!id) return;
+                    const source = (this.globalEvidence || []).find((ev) => Number(ev.id || 0) === id) || item || {};
+                    const attachedCount = Number(options?.attachedCount ?? source.entry_count ?? 0);
+                    const force = !!options?.force;
+                    if (attachedCount > 0 && !force) {
+                        this.requestDeleteLibraryEvidence(source, {
+                            id,
+                            attachedCount,
+                            name: source.name || source.label || 'this file',
+                        });
+                        return;
+                    }
                     if (this.deletingEvidenceIds[id]) return;
-                    if (!confirm('Remove this evidence file? This cannot be undone.')) return;
                     this.deletingEvidenceIds[id] = true;
-                    fetch(`${deleteBase}/${item.id}`, {
+                    fetch(`${deleteBase}/${id}`, {
                         method: 'DELETE',
                         credentials: 'same-origin',
                         headers: {
                             'X-CSRF-TOKEN': document.querySelector('meta[name=\"csrf-token\"]').getAttribute('content'),
                             'X-Requested-With': 'XMLHttpRequest',
                             'Accept': 'application/json',
+                            'Content-Type': 'application/json',
                         },
+                        body: JSON.stringify({ force }),
                     })
-                        .then((res) => {
+                        .then(async (res) => {
                             if (res.status === 404) {
                                 return { alreadyMissing: true };
                             }
-                            if (!res.ok) throw new Error('Failed');
+                            if (!res.ok) {
+                                let message = 'Failed';
+                                try {
+                                    const data = await res.json();
+                                    if (data?.message) message = data.message;
+                                } catch (error) {}
+                                throw new Error(message);
+                            }
                             return { alreadyMissing: false };
                         })
                         .then(({ alreadyMissing }) => {
-                            this.globalEvidence = (this.globalEvidence || []).filter((ev) => ev.id !== item.id);
+                            this.globalEvidence = (this.globalEvidence || []).filter((ev) => Number(ev.id || 0) !== id);
                             this.showToast(alreadyMissing ? 'Evidence already removed.' : 'Evidence removed.', alreadyMissing ? 'info' : 'success', 2000);
                             window.dispatchEvent(new CustomEvent('evidence-updated', { detail: { evidence: this.globalEvidence } }));
-                            window.dispatchEvent(new CustomEvent('evidence-detached', { detail: { id: item.id } }));
+                            window.dispatchEvent(new CustomEvent('evidence-detached', { detail: { id } }));
                         })
-                        .catch(() => {
-                            this.showToast('Remove failed.', 'error', 2200);
+                        .catch((error) => {
+                            this.showToast(error?.message || 'Remove failed.', 'error', 2200);
                         })
                         .finally(() => {
                             delete this.deletingEvidenceIds[id];
@@ -2495,7 +2541,8 @@
                 scoreChip(sectionId) {
                     const s = this.sections[String(sectionId)];
                     if (!s) return '--/--';
-                    return `${Number(s.points).toFixed(2)}/${Number(s.max || 0).toFixed(2)}`;
+                    const decimals = Number(sectionId) === 2 ? 2 : 0;
+                    return `${Number(s.points).toFixed(decimals)}/${Number(s.max || 0).toFixed(decimals)}`;
                 },
 
                 scoreChipClass(sectionId) {
@@ -2926,6 +2973,39 @@
             return false;
         };
     </script>
+
+    <div x-cloak x-show="evidenceDeleteConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40" @click="cancelDeleteLibraryEvidence()"></div>
+        <div class="relative w-full max-w-md mx-4 rounded-2xl border bg-white shadow-xl">
+            <div class="px-6 py-4 border-b">
+                <h3 class="text-base font-semibold text-gray-900">Remove Evidence</h3>
+            </div>
+            <div class="px-6 py-4 text-sm text-gray-700 space-y-3">
+                <p x-show="(evidenceDeletePending?.attachedCount || 0) > 0">
+                    This file is attached to other entries. Removing it will detach all links.
+                </p>
+                <p x-show="(evidenceDeletePending?.attachedCount || 0) <= 0">
+                    Are you sure you want to remove this file?
+                </p>
+                <p class="text-xs text-gray-500">
+                    File:
+                    <span class="font-medium text-gray-700" x-text="evidenceDeletePending?.name || '-'"></span>
+                </p>
+            </div>
+            <div class="px-6 py-4 border-t flex items-center justify-end gap-2">
+                <button type="button"
+                        @click="cancelDeleteLibraryEvidence()"
+                        class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                    Cancel
+                </button>
+                <button type="button"
+                        @click="confirmDeleteLibraryEvidence()"
+                        class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-100">
+                    Remove
+                </button>
+            </div>
+        </div>
+    </div>
 
     {{-- Library Preview --}}
     <div x-cloak x-show="libraryPreviewOpen" class="fixed inset-0 z-50 flex items-center justify-center">
