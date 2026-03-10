@@ -395,6 +395,13 @@
                 ];
             })
             ->values();
+        $jsonFlags = JSON_HEX_TAG | JSON_HEX_APOS | JSON_HEX_AMP | JSON_HEX_QUOT | JSON_INVALID_UTF8_SUBSTITUTE;
+        $commentCenterItemsJson = json_encode($commentCenterItems->all(), $jsonFlags) ?: '[]';
+        $commentCenterOpenCountJson = json_encode($commentCenterOpenCount, $jsonFlags) ?: '0';
+        $revisionPanelItemsJson = json_encode($revisionPanelItems->all(), $jsonFlags) ?: '[]';
+        $reviewerRoleJson = json_encode($reviewerRole, $jsonFlags) ?: '""';
+        $applicationIdJson = json_encode((int) $application->id, $jsonFlags) ?: '0';
+        $revisionBatchPlaceholdersJson = json_encode($revisionBatchPlaceholders->all(), $jsonFlags) ?: '[]';
     @endphp
 
     <x-slot name="header">
@@ -429,7 +436,7 @@
     <div class="py-10 bg-bu-muted min-h-screen">
         <div id="reviewer-content"
              data-async-state-keys="panelOpen,revisionPanelOpen,activeTab,activeRevisionTab,showDetailedRevisionLog,commentGroupsOpen,revisionGroupsOpen"
-             x-data="reviewerCommentCenter(@js($commentCenterItems->all()), @js($commentCenterOpenCount), @js($revisionPanelItems->all()), @js($reviewerRole), @js((int) $application->id), @js($revisionBatchPlaceholders->all()))"
+             x-data="reviewerCommentCenter({!! $commentCenterItemsJson !!}, {!! $commentCenterOpenCountJson !!}, {!! $revisionPanelItemsJson !!}, {!! $reviewerRoleJson !!}, {!! $applicationIdJson !!}, {!! $revisionBatchPlaceholdersJson !!})"
              x-init="init()"
              class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
             @if (session('success'))
