@@ -7,7 +7,7 @@ use App\Models\Department;
 use App\Models\FacultyProfile;
 use App\Models\FacultyHighestDegree;
 use App\Models\RankLevel;
-use App\Notifications\SetPasswordNotification;
+use App\Notifications\AccountActivationNotification;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -240,15 +240,18 @@ class UserController extends Controller
 
             // faculty-only
             'employee_no' => ['nullable', 'string', 'size:8', 'required_if:role,faculty', 'unique:faculty_profiles,employee_no', 'regex:/^\d{2}(0[1-9]|1[0-2])-\d{3}$/'],
-            'employment_type' => 'nullable|in:full_time,part_time',
+            'employment_type' => 'nullable|in:full_time,part_time|required_if:role,faculty',
             'rank_level_id' => 'nullable|exists:rank_levels,id|required_if:role,faculty',
             'teaching_rank' => 'nullable|string|max:100',
             'original_appointment_date' => 'nullable|date',
-            'highest_degree' => ['nullable', Rule::in(['bachelors', 'masters', 'doctorate'])],
+            'highest_degree' => ['nullable', Rule::in(['bachelors', 'masters', 'doctorate']), 'required_if:role,faculty'],
         ], [
             'email.unique' => 'Email is already in use.',
             'employee_no.unique' => 'Employee number already exists.',
             'employee_no.regex' => 'Employee number must follow YYMM-XXX format.',
+            'employment_type.required_if' => 'Employment type is required for faculty.',
+            'rank_level_id.required_if' => 'Academic rank level is required for faculty.',
+            'highest_degree.required_if' => 'Highest degree earned is required for faculty.',
         ]);
 
         if (
@@ -333,22 +336,17 @@ class UserController extends Controller
         }
 
         $message = 'User created successfully.';
-        if (!$isManualPassword) {
-            $token = Password::broker()->createToken($user);
-            try {
-                $user->notify(new SetPasswordNotification($token));
-                $message .= ' Invitation email sent with password setup link.';
-            } catch (\Throwable $e) {
-                Log::error('Failed to send password setup invitation email.', [
-                    'user_id' => (int) $user->id,
-                    'email' => (string) $user->email,
-                    'error' => $e->getMessage(),
-                ]);
-                $message .= ' Password setup email could not be sent. You may resend using Forgot Password.';
-            }
-        } elseif (method_exists($user, 'sendEmailVerificationNotification') && !$user->hasVerifiedEmail()) {
-            $user->sendEmailVerificationNotification();
-            $message .= ' Verification email sent.';
+        $token = Password::broker()->createToken($user);
+        try {
+            $user->notify(new AccountActivationNotification($token));
+            $message .= ' Activation email sent.';
+        } catch (\Throwable $e) {
+            Log::error('Failed to send activation email.', [
+                'user_id' => (int) $user->id,
+                'email' => (string) $user->email,
+                'error' => $e->getMessage(),
+            ]);
+            $message .= ' Activation email could not be sent.';
         }
 
         return redirect()

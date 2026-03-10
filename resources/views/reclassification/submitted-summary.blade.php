@@ -22,14 +22,52 @@
             </div>
             <div class="flex items-center gap-2">
                 @if($canRequestReturn)
-                    <form method="POST" action="{{ route('reclassification.request-return', $application) }}">
-                        @csrf
-                        <button type="submit"
-                                @disabled($hasPendingReturnRequest)
-                                class="px-4 py-2 rounded-xl border text-sm font-semibold {{ $hasPendingReturnRequest ? 'border-amber-200 bg-amber-50 text-amber-700 cursor-not-allowed' : 'border-amber-300 text-amber-700 hover:bg-amber-50' }}">
-                            {{ $hasPendingReturnRequest ? 'Return Requested' : 'Request Return' }}
-                        </button>
-                    </form>
+                    @php($requestReturnModalName = 'request-return-summary-' . $application->id)
+                    <button type="button"
+                            x-data=""
+                            x-on:click.prevent="$dispatch('open-modal', '{{ $requestReturnModalName }}')"
+                            @disabled($hasPendingReturnRequest)
+                            class="px-4 py-2 rounded-xl border text-sm font-semibold {{ $hasPendingReturnRequest ? 'border-amber-200 bg-amber-50 text-amber-700 cursor-not-allowed' : 'border-amber-300 text-amber-700 hover:bg-amber-50' }}">
+                        {{ $hasPendingReturnRequest ? 'Return Requested' : 'Request Return' }}
+                    </button>
+
+                    <x-modal name="{{ $requestReturnModalName }}" :show="$errors->has('return_request_reason')" focusable>
+                        <form method="POST" action="{{ route('reclassification.request-return', $application) }}" class="p-6">
+                            @csrf
+                            <h2 class="text-lg font-semibold text-gray-900">
+                                Are you sure you want to request return?
+                            </h2>
+                            <p class="mt-1 text-sm text-gray-600">
+                                Add your reason so the reviewer can process your request.
+                            </p>
+
+                            <div class="mt-4">
+                                <label for="return_request_reason_summary_{{ $application->id }}" class="block text-sm font-medium text-gray-700">
+                                    Reason / Comment
+                                </label>
+                                <textarea id="return_request_reason_summary_{{ $application->id }}"
+                                          name="return_request_reason"
+                                          rows="4"
+                                          maxlength="1000"
+                                          required
+                                          class="mt-1 block w-full rounded-lg border-gray-300 text-sm focus:border-bu focus:ring-bu"
+                                          placeholder="Enter your reason for requesting return...">{{ old('return_request_reason', (string) ($application->faculty_return_request_reason ?? '')) }}</textarea>
+                                <x-input-error :messages="$errors->get('return_request_reason')" class="mt-2" />
+                            </div>
+
+                            <div class="mt-6 flex justify-end gap-2">
+                                <button type="button"
+                                        x-on:click="$dispatch('close')"
+                                        class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                    Cancel
+                                </button>
+                                <button type="submit"
+                                        class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+                                    Confirm Request Return
+                                </button>
+                            </div>
+                        </form>
+                    </x-modal>
                 @endif
             </div>
         </div>
@@ -207,6 +245,9 @@
                     @if($hasPendingReturnRequest)
                         <div class="mt-1 text-xs text-amber-700">
                             Return request sent on {{ optional($application->faculty_return_requested_at)->format('M d, Y h:i A') }}.
+                            @if(!empty($application->faculty_return_request_reason))
+                                <span class="block mt-1">Reason: {{ $application->faculty_return_request_reason }}</span>
+                            @endif
                         </div>
                     @endif
                 </div>
@@ -421,21 +462,37 @@
                                                                     @foreach($evidences as $ev)
                                                                         @php
                                                                             $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
+                                                                            $mime = strtolower((string) ($ev->mime_type ?? ''));
+                                                                            $fileName = strtolower((string) ($ev->original_name ?? ''));
+                                                                            $isImage = str_starts_with($mime, 'image/')
+                                                                                || preg_match('/\.(jpg|jpeg|png|gif|webp|bmp|svg|tif|tiff|heic|heif)$/i', $fileName);
+                                                                            $isPdf = $mime === 'application/pdf' || str_ends_with($fileName, '.pdf');
                                                                         @endphp
                                                                         <div class="rounded-lg border p-3">
                                                                             <div class="flex items-center justify-between gap-3">
-                                                                                <div class="min-w-0">
+                                                                                <div class="min-w-0 flex items-center gap-2">
+                                                                                    <div class="shrink-0 h-8 w-8 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+                                                                                        @if($isImage && $url)
+                                                                                            <img src="{{ $url }}" alt="Evidence preview" class="h-full w-full object-cover">
+                                                                                        @elseif($isPdf)
+                                                                                            <span class="text-[10px] font-bold text-red-600">PDF</span>
+                                                                                        @else
+                                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                                                                <path d="M4 3.5A1.5 1.5 0 015.5 2h6.879a1.5 1.5 0 011.06.44l2.121 2.12a1.5 1.5 0 01.44 1.061V16.5A1.5 1.5 0 0114.5 18h-9A1.5 1.5 0 014 16.5v-13z" />
+                                                                                            </svg>
+                                                                                        @endif
+                                                                                    </div>
                                                                                     <div class="truncate font-medium text-gray-800">
                                                                                         {{ $ev->original_name ?? 'Evidence file' }}
                                                                                     </div>
                                                                                 </div>
                                                                                 <div class="shrink-0">
                                                                                     @if($url)
-                                                                                        <a href="{{ $url }}"
-                                                                                           target="_blank"
-                                                                                           class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                                                                                            View
-                                                                                        </a>
+                                                                                        <button type="button"
+                                                                                                onclick='window.BuEvidencePreview && window.BuEvidencePreview.open({ url: @json($url), name: @json($ev->original_name ?? "Evidence file"), mime: @json($ev->mime_type ?? "") })'
+                                                                                                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                                                                            Preview
+                                                                                        </button>
                                                                                     @else
                                                                                         <span class="text-xs text-gray-400">Unavailable</span>
                                                                                     @endif
@@ -534,6 +591,8 @@
 
         </div>
     </div>
+
+    @include('reclassification.partials.evidence-preview-modal')
 
     <script>
         function submittedSummary(init) {

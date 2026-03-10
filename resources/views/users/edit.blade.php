@@ -175,10 +175,10 @@
 
                                   if (payload.available) {
                                       this.emailCheckState = 'valid';
-                                      this.emailCheckMessage = payload.message || 'Email is available.';
+                                      this.emailCheckMessage = payload.message || 'This email address is available.';
                                   } else {
                                       this.emailCheckState = 'unavailable';
-                                      this.emailCheckMessage = payload.message || 'Email is already in use.';
+                                      this.emailCheckMessage = payload.message || 'This email address is already in use.';
                                   }
                               } catch (error) {
                                   this.emailCheckState = 'error';

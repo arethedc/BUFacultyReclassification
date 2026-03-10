@@ -466,7 +466,7 @@ class ReclassificationFormController extends Controller
 
             $snapshots[] = [
                 'key' => 'snapshot-' . ($returnTrail->id ?? ($index + 1)),
-                'label' => "{$ordinal} Returned - {$actorLabel}",
+                'label' => "{$ordinal} Return - {$actorLabel}",
                 'subtitle' => optional($returnedAt)->format('M d, Y g:i A'),
                 'threads' => $threadsForSnapshot,
             ];

@@ -45,11 +45,23 @@
                 <div class="grid grid-cols-1 gap-4 items-end">
                     <div class="w-full lg:w-[70%]">
                         <label class="block text-xs font-semibold text-gray-600">Search</label>
-                        <input type="text"
-                               name="q"
-                               value="{{ $q }}"
-                               placeholder="Search name, email, role, or employee no."
-                               class="mt-1 h-11 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm focus:border-bu focus:ring-bu">
+                        <div class="mt-1 flex items-center gap-2">
+                            <input type="text"
+                                   name="q"
+                                   value="{{ $q }}"
+                                   placeholder="Search name, email, role, or employee no."
+                                   class="h-11 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm focus:border-bu focus:ring-bu">
+                            <button type="button"
+                                    data-table-reload
+                                    data-reload-target="#users-results"
+                                    class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                                    title="Reload table"
+                                    aria-label="Reload table">
+                                <svg data-reload-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 
@@ -124,6 +136,7 @@
                                             $metaLabel = $user->facultyProfile?->employee_no
                                                 ? 'Employee No. ' . $user->facultyProfile->employee_no
                                                 : 'User ID #' . $user->id;
+                                            $isEmailVerified = !empty($user->email_verified_at);
                                         @endphp
                                         <tr class="transition-colors hover:bg-gray-50/80">
                                             <td class="px-6 py-4 align-top">
@@ -132,6 +145,11 @@
                                                        class="font-semibold text-gray-900 hover:text-bu hover:underline underline-offset-2">
                                                         {{ $user->name }}
                                                     </a>
+                                                    @if(!$isEmailVerified)
+                                                        <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs border border-amber-200 bg-amber-50 text-amber-700">
+                                                            Not verified
+                                                        </span>
+                                                    @endif
                                                     @if($status === 'all')
                                                         <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs {{ $user->status === 'active' ? 'bg-green-100 text-green-700' : 'bg-gray-200 text-gray-600' }}">
                                                             {{ ucfirst($user->status) }}

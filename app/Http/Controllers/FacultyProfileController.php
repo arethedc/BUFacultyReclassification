@@ -111,6 +111,11 @@ class FacultyProfileController extends Controller
             ->where('role', 'faculty')
             ->with(['department', 'facultyProfile' . (\Illuminate\Support\Facades\Schema::hasTable('rank_levels') ? '.rankLevel' : '')]);
 
+        // Manage Faculty should only list activated (email-verified) faculty accounts.
+        if (Schema::hasColumn('users', 'email_verified_at')) {
+            $query->whereNotNull('email_verified_at');
+        }
+
         // ✅ hide inactive by default
         if ($status !== 'all') {
             $query->where('status', $status);

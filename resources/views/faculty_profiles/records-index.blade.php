@@ -33,11 +33,23 @@
                 <div class="grid grid-cols-1 gap-4 items-end">
                     <div class="w-full lg:w-[70%]">
                         <label class="block text-xs font-semibold text-gray-600">Search</label>
-                        <input type="text"
-                               name="q"
-                               value="{{ $q }}"
-                               placeholder="Search name, email, or employee no."
-                               class="mt-1 h-11 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm focus:border-bu focus:ring-bu">
+                        <div class="mt-1 flex items-center gap-2">
+                            <input type="text"
+                                   name="q"
+                                   value="{{ $q }}"
+                                   placeholder="Search name, email, or employee no."
+                                   class="h-11 w-full rounded-xl border border-gray-300 bg-white px-4 text-sm focus:border-bu focus:ring-bu">
+                            <button type="button"
+                                    data-table-reload
+                                    data-reload-target="#faculty-records-results"
+                                    class="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-600 hover:bg-gray-50"
+                                    title="Reload table"
+                                    aria-label="Reload table">
+                                <svg data-reload-icon xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" class="h-4 w-4" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
+                                    <path stroke-linecap="round" stroke-linejoin="round" d="M20 12a8 8 0 1 1-2.34-5.66M20 4v6h-6"/>
+                                </svg>
+                            </button>
+                        </div>
                     </div>
                 </div>
 

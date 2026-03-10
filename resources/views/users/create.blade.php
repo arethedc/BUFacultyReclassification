@@ -105,6 +105,11 @@
 
                         return !this.$refs.create_form.checkValidity();
                     },
+                    isCreateFacultyLocked() {
+                        const _tick = this.validationTick;
+                        if (this.role !== 'faculty') return false;
+                        return this.hasInvalidNativeFields();
+                    },
                     async checkCreateEmailAvailability(immediate = false) {
                         if (!this.$refs.email) return this.emailCheckState;
 
@@ -152,10 +157,10 @@
 
                                 if (payload.available) {
                                     this.emailCheckState = 'valid';
-                                    this.emailCheckMessage = payload.message || 'Email is available.';
+                                    this.emailCheckMessage = payload.message || 'This email address is available.';
                                 } else {
                                     this.emailCheckState = 'unavailable';
-                                    this.emailCheckMessage = payload.message || 'Email is already in use.';
+                                    this.emailCheckMessage = payload.message || 'This email address is already in use.';
                                 }
                             } catch (error) {
                                 this.emailCheckState = 'error';
@@ -252,7 +257,6 @@
                     },
                     isCreateSubmitLocked() {
                         const _tick = this.validationTick;
-                        if (this.hasInvalidNativeFields()) return true;
                         if (this.manualPassword && this.passwordsMismatch()) return true;
                         if (!this.$refs.email) return false;
                         if (this.hasEmailServerError) return true;
@@ -275,7 +279,16 @@
                 }"
                 method="POST"
                 action="{{ $actionRoute ?? route('users.store') }}"
-                @submit="if (isCreateSubmitLocked()) { $event.preventDefault(); }"
+                @submit="
+                    if (hasInvalidNativeFields()) {
+                        $event.preventDefault();
+                        $refs.create_form.reportValidity();
+                        return;
+                    }
+                    if (isCreateSubmitLocked()) {
+                        $event.preventDefault();
+                    }
+                "
                 @input="bumpValidationTick()"
                 @change="bumpValidationTick()"
                 x-ref="create_form"
@@ -294,6 +307,12 @@
                         </ul>
                     </div>
                 @endif
+                <div class="bg-white rounded-xl border border-gray-200 px-4 py-3">
+                    <p class="text-sm text-gray-600">
+                        <span class="font-medium text-gray-700">Required fields</span> are marked with
+                        <span class="text-red-600">*</span>.
+                    </p>
+                </div>
 
                 {{-- =========================
                     STEP 1: ROLE SELECTION
@@ -359,15 +378,15 @@
                                 Set password manually
                             </label>
                             <p class="mt-1 text-xs text-gray-500" x-show="!manualPassword">
-                                If unchecked, the system generates a temporary password and sends a password setup email.
+                                The user will receive an activation email with a Verify Email and Set Password link.
                             </p>
                             <p class="mt-1 text-xs text-gray-500" x-show="manualPassword">
-                                If checked, enter password and confirmation below.
+                                You may set an initial password, but the user must still activate via email.
                             </p>
                         </div>
 
                         <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700">Email Address</label>
+                            <label class="block text-sm font-medium text-gray-700">Email <span class="text-red-600">*</span></label>
                             <input
                                 type="email"
                                 x-ref="email"
@@ -393,7 +412,7 @@
                         </div>
 
                         <div x-show="manualPassword" x-transition>
-                            <label class="block text-sm font-medium text-gray-700">Password</label>
+                            <label class="block text-sm font-medium text-gray-700">New Password <span class="text-red-600">*</span></label>
                             <div class="relative mt-1">
                                 <input
                                     x-bind:type="showManualPassword ? 'text' : 'password'"
@@ -426,7 +445,7 @@
                         </div>
 
                         <div x-show="manualPassword" x-transition>
-                            <label class="block text-sm font-medium text-gray-700">Confirm Password</label>
+                            <label class="block text-sm font-medium text-gray-700">Confirm Password <span class="text-red-600">*</span></label>
                             <div class="relative mt-1">
                                 <input
                                     x-bind:type="showManualPasswordConfirmation ? 'text' : 'password'"
@@ -482,7 +501,7 @@
                     <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">First Name</label>
+                            <label class="block text-sm font-medium text-gray-700">First Name <span class="text-red-600">*</span></label>
                             <input
                                 type="text"
                                 name="first_name"
@@ -497,7 +516,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Last Name</label>
+                            <label class="block text-sm font-medium text-gray-700">Last Name <span class="text-red-600">*</span></label>
                             <input
                                 type="text"
                                 name="last_name"
@@ -541,7 +560,7 @@
 
                         {{-- ✅ Department required for faculty/dean (matches controller rule) --}}
                         <div x-show="role === 'faculty' || role === 'dean'" x-transition class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700">Department</label>
+                            <label class="block text-sm font-medium text-gray-700">Department <span class="text-red-600">*</span></label>
 
                             @if(!empty($lockDepartment) && !empty($defaultDepartmentId))
                                 <div class="mt-1 w-full md:w-1/2 rounded-xl border border-gray-200 bg-gray-50 px-4 py-2 text-sm text-gray-700">
@@ -591,7 +610,7 @@
 
                         <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-gray-700">
-                                Employee Number / Staff ID
+                                Employee Number <span class="text-red-600">*</span>
                             </label>
 
                             <input
@@ -629,13 +648,14 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Employment Type</label>
+                            <label class="block text-sm font-medium text-gray-700">Employment Type <span class="text-red-600">*</span></label>
 
                             @php $emp = old('employment_type', 'full_time'); @endphp
 
                             <div class="mt-3 flex gap-8">
                                 <label class="inline-flex items-center gap-2 text-sm">
                                     <input type="radio" name="employment_type" value="full_time"
+                                           :required="role === 'faculty'"
                                            class="text-bu focus:ring-bu"
                                            {{ $emp === 'full_time' ? 'checked' : '' }}>
                                     Full-time
@@ -655,7 +675,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Academic Rank Level</label>
+                            <label class="block text-sm font-medium text-gray-700">Academic Rank Level <span class="text-red-600">*</span></label>
 
                             <select
                                 name="rank_level_id"
@@ -677,7 +697,7 @@
                         </div>
 
                         <div>
-                            <label class="block text-sm font-medium text-gray-700">Highest Degree Earned</label>
+                            <label class="block text-sm font-medium text-gray-700">Highest Degree Earned <span class="text-red-600">*</span></label>
                             <select
                                 name="highest_degree"
                                 :required="role === 'faculty'"
@@ -727,13 +747,24 @@
                         Cancel
                     </a>
 
-                    <button type="submit"
-                            :disabled="isCreateSubmitLocked()"
-                            :class="isCreateSubmitLocked() ? 'opacity-60 cursor-not-allowed' : ''"
-                            class="px-6 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft
-                                   focus:ring-2 focus:ring-bu focus:ring-offset-2 transition">
-                        {{ $submitLabel }}
-                    </button>
+                    <div x-data="{ showLockedTip: false }"
+                         class="relative"
+                         @mouseenter="if (isCreateFacultyLocked()) showLockedTip = true"
+                         @mouseleave="showLockedTip = false"
+                         @click="if (isCreateFacultyLocked()) { $event.preventDefault(); showLockedTip = true; window.setTimeout(() => showLockedTip = false, 1800); }">
+                        <button type="submit"
+                                :disabled="isCreateFacultyLocked() || isCreateSubmitLocked()"
+                                :class="(isCreateFacultyLocked() || isCreateSubmitLocked()) ? 'opacity-60 cursor-not-allowed' : ''"
+                                class="px-6 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft
+                                       focus:ring-2 focus:ring-bu focus:ring-offset-2 transition">
+                            {{ $submitLabel }}
+                        </button>
+                        <div x-cloak
+                             x-show="showLockedTip && isCreateFacultyLocked()"
+                             class="absolute right-0 -top-11 z-20 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
+                            Answer all required fields (*)
+                        </div>
+                    </div>
                 </div>
 
             </form>

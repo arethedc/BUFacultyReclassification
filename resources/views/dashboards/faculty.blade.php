@@ -410,14 +410,52 @@
                                         View Submission
                                     </a>
                                     @if($canRequestReturn)
-                                        <form method="POST" action="{{ route('reclassification.request-return', $currentSubmission) }}">
-                                            @csrf
-                                            <button type="submit"
-                                                    @disabled($hasPendingReturnRequest)
-                                                    class="px-4 py-2 rounded-xl border text-sm font-semibold {{ $hasPendingReturnRequest ? 'border-amber-200 bg-amber-50 text-amber-700 cursor-not-allowed' : 'border-amber-300 text-amber-700 hover:bg-amber-50' }}">
-                                                {{ $hasPendingReturnRequest ? 'Return Requested' : 'Request Return' }}
-                                            </button>
-                                        </form>
+                                        @php($requestReturnModalName = 'request-return-' . $currentSubmission->id)
+                                        <button type="button"
+                                                x-data=""
+                                                x-on:click.prevent="$dispatch('open-modal', '{{ $requestReturnModalName }}')"
+                                                @disabled($hasPendingReturnRequest)
+                                                class="px-4 py-2 rounded-xl border text-sm font-semibold {{ $hasPendingReturnRequest ? 'border-amber-200 bg-amber-50 text-amber-700 cursor-not-allowed' : 'border-amber-300 text-amber-700 hover:bg-amber-50' }}">
+                                            {{ $hasPendingReturnRequest ? 'Return Requested' : 'Request Return' }}
+                                        </button>
+
+                                        <x-modal name="{{ $requestReturnModalName }}" :show="$errors->has('return_request_reason')" focusable>
+                                            <form method="POST" action="{{ route('reclassification.request-return', $currentSubmission) }}" class="p-6">
+                                                @csrf
+                                                <h2 class="text-lg font-semibold text-gray-900">
+                                                    Are you sure you want to request return?
+                                                </h2>
+                                                <p class="mt-1 text-sm text-gray-600">
+                                                    Add your reason so the reviewer can process your request.
+                                                </p>
+
+                                                <div class="mt-4">
+                                                    <label for="return_request_reason_{{ $currentSubmission->id }}" class="block text-sm font-medium text-gray-700">
+                                                        Reason / Comment
+                                                    </label>
+                                                    <textarea id="return_request_reason_{{ $currentSubmission->id }}"
+                                                              name="return_request_reason"
+                                                              rows="4"
+                                                              maxlength="1000"
+                                                              required
+                                                              class="mt-1 block w-full rounded-lg border-gray-300 text-sm focus:border-bu focus:ring-bu"
+                                                              placeholder="Enter your reason for requesting return...">{{ old('return_request_reason', (string) ($currentSubmission->faculty_return_request_reason ?? '')) }}</textarea>
+                                                    <x-input-error :messages="$errors->get('return_request_reason')" class="mt-2" />
+                                                </div>
+
+                                                <div class="mt-6 flex justify-end gap-2">
+                                                    <button type="button"
+                                                            x-on:click="$dispatch('close')"
+                                                            class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                                        Cancel
+                                                    </button>
+                                                    <button type="submit"
+                                                            class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+                                                        Confirm Request Return
+                                                    </button>
+                                                </div>
+                                            </form>
+                                        </x-modal>
                                     @endif
                                 @endif
                             </div>
@@ -425,6 +463,9 @@
                         @if($hasPendingReturnRequest)
                             <div class="mt-3 text-xs text-amber-700">
                                 Return request sent on {{ optional($currentSubmission->faculty_return_requested_at)->format('M d, Y h:i A') }}.
+                                @if(!empty($currentSubmission->faculty_return_request_reason))
+                                    <span class="block mt-1">Reason: {{ $currentSubmission->faculty_return_request_reason }}</span>
+                                @endif
                             </div>
                         @endif
                     @else

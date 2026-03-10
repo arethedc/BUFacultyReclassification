@@ -27,6 +27,7 @@ class ReclassificationApplication extends Model
         'rejection_finalized_at',
         'faculty_return_requested_by_user_id',
         'faculty_return_requested_at',
+        'faculty_return_request_reason',
     ];
 
     protected $casts = [

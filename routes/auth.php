@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Auth\AuthenticatedSessionController;
+use App\Http\Controllers\Auth\AccountActivationController;
 use App\Http\Controllers\Auth\ConfirmablePasswordController;
 use App\Http\Controllers\Auth\EmailVerificationNotificationController;
 use App\Http\Controllers\Auth\EmailVerificationPromptController;
@@ -27,6 +28,12 @@ Route::middleware('guest')->group(function () {
 
     Route::post('forgot-password', [PasswordResetLinkController::class, 'store'])
         ->name('password.email');
+
+    Route::get('activate/{id}/{hash}', [AccountActivationController::class, 'verify'])
+        ->name('activation.verify');
+    Route::post('activate/resend', [AccountActivationController::class, 'resend'])
+        ->middleware('throttle:6,1')
+        ->name('activation.resend');
 
     Route::get('reset-password/{token}', [NewPasswordController::class, 'create'])
         ->name('password.reset');

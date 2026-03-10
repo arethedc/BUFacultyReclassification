@@ -845,7 +845,7 @@
 
                     <div class="flex items-center gap-3">
                         <div class="text-xs text-gray-500">
-                            Total: <span class="font-semibold text-gray-800" x-text="totalPoints().toFixed(0)"></span>
+                            Total: <span class="font-semibold text-gray-800" x-text="totalPoints().toFixed(2)"></span>
                         </div>
                         <button type="button"
                                 @click="showScores = !showScores"
@@ -877,7 +877,7 @@
                         <button type="button" data-section-nav
                                 @click="navTo('review')"
                                 class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border border-gray-200 hover:bg-gray-50 text-sm text-gray-700">
-                            <span class="font-semibold">Review</span>
+                            <span class="font-semibold">Summary</span>
                         </button>
                     </div>
                 </div>
@@ -2495,7 +2495,7 @@
                 scoreChip(sectionId) {
                     const s = this.sections[String(sectionId)];
                     if (!s) return '--/--';
-                    return `${Number(s.points).toFixed(0)}/${s.max}`;
+                    return `${Number(s.points).toFixed(2)}/${Number(s.max || 0).toFixed(2)}`;
                 },
 
                 scoreChipClass(sectionId) {

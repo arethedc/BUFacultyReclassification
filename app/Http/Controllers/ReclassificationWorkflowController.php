@@ -260,6 +260,9 @@ class ReclassificationWorkflowController extends Controller
         if (Schema::hasColumn('reclassification_applications', 'faculty_return_requested_by_user_id')) {
             $payload['faculty_return_requested_by_user_id'] = null;
         }
+        if (Schema::hasColumn('reclassification_applications', 'faculty_return_request_reason')) {
+            $payload['faculty_return_request_reason'] = null;
+        }
 
         return $payload;
     }
@@ -581,12 +584,22 @@ class ReclassificationWorkflowController extends Controller
             ]);
         }
 
+        $validated = $request->validate([
+            'return_request_reason' => ['required', 'string', 'max:1000'],
+        ], [
+            'return_request_reason.required' => 'Please add a reason before requesting return.',
+        ]);
+        $reason = trim((string) ($validated['return_request_reason'] ?? ''));
+
         $updates = [];
         if (Schema::hasColumn('reclassification_applications', 'faculty_return_requested_at')) {
             $updates['faculty_return_requested_at'] = now();
         }
         if (Schema::hasColumn('reclassification_applications', 'faculty_return_requested_by_user_id')) {
             $updates['faculty_return_requested_by_user_id'] = $request->user()->id;
+        }
+        if (Schema::hasColumn('reclassification_applications', 'faculty_return_request_reason')) {
+            $updates['faculty_return_request_reason'] = $reason;
         }
         if (!empty($updates)) {
             $application->update($updates);
@@ -600,7 +613,7 @@ class ReclassificationWorkflowController extends Controller
             (string) ($application->current_step ?? ''),
             (string) ($application->current_step ?? ''),
             'faculty_request_return',
-            "Faculty requested return while in {$currentStage}.",
+            "Faculty requested return while in {$currentStage}. Reason: {$reason}",
             [],
             $request->user()
         );

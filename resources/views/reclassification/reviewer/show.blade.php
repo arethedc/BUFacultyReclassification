@@ -383,6 +383,18 @@
                 ];
             })
             ->values();
+        $revisionBatchPlaceholders = $returnTrails
+            ->map(function ($trail) use ($returnSnapshotMetaById) {
+                $trailId = (int) ($trail->id ?? 0);
+                $snapshotMeta = $returnSnapshotMetaById->get($trailId, []);
+                return [
+                    'key' => 'return_' . $trailId,
+                    'label' => ((string) ($snapshotMeta['label'] ?? 'Return') . ' - ' . (string) ($snapshotMeta['reviewer'] ?? 'Reviewer')),
+                    'dateLabel' => (string) ($snapshotMeta['date_label'] ?? optional($trail->created_at)->format('M d, Y g:i A')),
+                    'sortAt' => optional($trail->created_at)->toDateTimeString(),
+                ];
+            })
+            ->values();
     @endphp
 
     <x-slot name="header">
@@ -417,7 +429,7 @@
     <div class="py-10 bg-bu-muted min-h-screen">
         <div id="reviewer-content"
              data-async-state-keys="panelOpen,revisionPanelOpen,activeTab,activeRevisionTab,showDetailedRevisionLog,commentGroupsOpen,revisionGroupsOpen"
-             x-data="reviewerCommentCenter(@js($commentCenterItems->all()), @js($commentCenterOpenCount), @js($revisionPanelItems->all()), @js($reviewerRole), @js((int) $application->id))"
+             x-data="reviewerCommentCenter(@js($commentCenterItems->all()), @js($commentCenterOpenCount), @js($revisionPanelItems->all()), @js($reviewerRole), @js((int) $application->id), @js($revisionBatchPlaceholders->all()))"
              x-init="init()"
              class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
             @if (session('success'))
@@ -848,6 +860,12 @@
                                 </div>
                             </div>
 
+                            <template x-if="!batch.sections.length">
+                                <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-3 text-xs text-gray-500">
+                                    No changes happened.
+                                </div>
+                            </template>
+
                             <template x-for="group in batch.sections" :key="`${batch.key}-${group.section}`">
                                 <div class="rounded-lg border border-gray-200 bg-white overflow-hidden">
                                     <button type="button"
@@ -1018,24 +1036,72 @@
                         @if($canReturnPerPaper || $canForwardPerPaper)
                             <div class="flex items-center gap-2">
                                 @if($canReturnPerPaper)
-                                    <form method="POST" action="{{ route('reclassification.return', $application) }}">
-                                        @csrf
-                                        <button type="submit"
-                                                @disabled($returnActionLocked)
-                                                class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold {{ $returnActionLocked ? 'opacity-60 cursor-not-allowed' : '' }}">
-                                            Return to Faculty
-                                        </button>
-                                    </form>
+                                    @php($confirmReturnModalNameTop = 'confirm-return-top-' . $application->id)
+                                    <button type="button"
+                                            x-data=""
+                                            x-on:click.prevent="$dispatch('open-modal', '{{ $confirmReturnModalNameTop }}')"
+                                            @disabled($returnActionLocked)
+                                            class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold {{ $returnActionLocked ? 'opacity-60 cursor-not-allowed' : '' }}">
+                                        Return to Faculty
+                                    </button>
+
+                                    <x-modal name="{{ $confirmReturnModalNameTop }}" focusable>
+                                        <form method="POST" action="{{ route('reclassification.return', $application) }}" class="p-6">
+                                            @csrf
+                                            <h2 class="text-lg font-semibold text-gray-900">
+                                                Are you sure you want to return this to faculty?
+                                            </h2>
+                                            <p class="mt-1 text-sm text-gray-600">
+                                                The submission will move back to faculty for revision.
+                                            </p>
+
+                                            <div class="mt-6 flex justify-end gap-2">
+                                                <button type="button"
+                                                        x-on:click="$dispatch('close')"
+                                                        class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                                    Cancel
+                                                </button>
+                                                <button type="submit"
+                                                        class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+                                                    Confirm Return to Faculty
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </x-modal>
                                 @endif
                                 @if($canForwardPerPaper)
-                                    <form method="POST" action="{{ route('reclassification.forward', $application) }}">
-                                        @csrf
-                                        <button type="submit"
-                                                @disabled($forwardBlocked)
-                                                class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft {{ $forwardBlocked ? 'opacity-60 cursor-not-allowed' : '' }}">
-                                            {{ $nextLabel }}
-                                        </button>
-                                    </form>
+                                    @php($confirmForwardModalNameTop = 'confirm-forward-top-' . $application->id)
+                                    <button type="button"
+                                            x-data=""
+                                            x-on:click.prevent="$dispatch('open-modal', '{{ $confirmForwardModalNameTop }}')"
+                                            @disabled($forwardBlocked)
+                                            class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft {{ $forwardBlocked ? 'opacity-60 cursor-not-allowed' : '' }}">
+                                        {{ $nextLabel }}
+                                    </button>
+
+                                    <x-modal name="{{ $confirmForwardModalNameTop }}" focusable>
+                                        <form method="POST" action="{{ route('reclassification.forward', $application) }}" class="p-6">
+                                            @csrf
+                                            <h2 class="text-lg font-semibold text-gray-900">
+                                                Are you sure you want to continue?
+                                            </h2>
+                                            <p class="mt-1 text-sm text-gray-600">
+                                                This will proceed with: <span class="font-semibold">{{ $nextLabel }}</span>.
+                                            </p>
+
+                                            <div class="mt-6 flex justify-end gap-2">
+                                                <button type="button"
+                                                        x-on:click="$dispatch('close')"
+                                                        class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                                    Cancel
+                                                </button>
+                                                <button type="submit"
+                                                        class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold hover:bg-bu-dark">
+                                                    Confirm {{ $nextLabel }}
+                                                </button>
+                                            </div>
+                                        </form>
+                                    </x-modal>
                                 @endif
                             </div>
                             @if($canReturnPerPaper && $returnBlocked)
@@ -1132,18 +1198,53 @@
                             <p class="mt-1 text-sm text-amber-800">
                                 {{ $application->faculty?->name ?? 'Faculty member' }} requested this paper to be returned for revision.
                             </p>
+                            @if(!empty($application->faculty_return_request_reason))
+                                <p class="mt-1 text-sm text-amber-800">
+                                    Reason: {{ $application->faculty_return_request_reason }}
+                                </p>
+                            @endif
                             <p class="mt-1 text-xs text-amber-700">
                                 Requested on {{ optional($application->faculty_return_requested_at)->format('M d, Y h:i A') ?? '-' }}.
                             </p>
                         </div>
                         @if($canReturnPerPaper)
-                            <form method="POST" action="{{ route('reclassification.return', $application) }}">
-                                @csrf
-                                <button type="submit"
-                                        class="px-4 py-2 rounded-xl border border-amber-300 bg-white text-amber-800 text-sm font-semibold hover:bg-amber-100">
-                                    Approve Request
-                                </button>
-                            </form>
+                            @php($confirmApproveReturnRequestModalName = 'confirm-approve-request-' . $application->id)
+                            <button type="button"
+                                    x-data=""
+                                    x-on:click.prevent="$dispatch('open-modal', '{{ $confirmApproveReturnRequestModalName }}')"
+                                    class="px-4 py-2 rounded-xl border border-amber-300 bg-white text-amber-800 text-sm font-semibold hover:bg-amber-100">
+                                Approve Request
+                            </button>
+
+                            <x-modal name="{{ $confirmApproveReturnRequestModalName }}" focusable>
+                                <form method="POST" action="{{ route('reclassification.return', $application) }}" class="p-6">
+                                    @csrf
+                                    <h2 class="text-lg font-semibold text-gray-900">
+                                        Are you sure you want to approve this return request?
+                                    </h2>
+                                    <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                        <div class="text-xs font-semibold text-amber-900">Faculty reason</div>
+                                        <div class="mt-1 text-sm text-amber-800">
+                                            {{ !empty($application->faculty_return_request_reason) ? $application->faculty_return_request_reason : 'No reason provided.' }}
+                                        </div>
+                                    </div>
+                                    <p class="mt-3 text-sm text-gray-600">
+                                        The submission will be returned to faculty for revision.
+                                    </p>
+
+                                    <div class="mt-6 flex justify-end gap-2">
+                                        <button type="button"
+                                                x-on:click="$dispatch('close')"
+                                                class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                            Cancel
+                                        </button>
+                                        <button type="submit"
+                                                class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+                                            Confirm Approve Request
+                                        </button>
+                                    </div>
+                                </form>
+                            </x-modal>
                         @endif
                     </div>
                 </div>
@@ -1770,21 +1871,37 @@
                                                                     @foreach($evidences as $ev)
                                                                         @php
                                                                             $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
+                                                                            $mime = strtolower((string) ($ev->mime_type ?? ''));
+                                                                            $fileName = strtolower((string) ($ev->original_name ?? ''));
+                                                                            $isImage = str_starts_with($mime, 'image/')
+                                                                                || preg_match('/\.(jpg|jpeg|png|gif|webp|bmp|svg|tif|tiff|heic|heif)$/i', $fileName);
+                                                                            $isPdf = $mime === 'application/pdf' || str_ends_with($fileName, '.pdf');
                                                                         @endphp
                                                                         <div class="rounded-lg border p-3">
                                                                             <div class="flex items-center justify-between gap-3">
-                                                                                <div class="min-w-0">
+                                                                                <div class="min-w-0 flex items-center gap-2">
+                                                                                    <div class="shrink-0 h-8 w-8 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+                                                                                        @if($isImage && $url)
+                                                                                            <img src="{{ $url }}" alt="Evidence preview" class="h-full w-full object-cover">
+                                                                                        @elseif($isPdf)
+                                                                                            <span class="text-[10px] font-bold text-red-600">PDF</span>
+                                                                                        @else
+                                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                                                                <path d="M4 3.5A1.5 1.5 0 015.5 2h6.879a1.5 1.5 0 011.06.44l2.121 2.12a1.5 1.5 0 01.44 1.061V16.5A1.5 1.5 0 0114.5 18h-9A1.5 1.5 0 014 16.5v-13z" />
+                                                                                            </svg>
+                                                                                        @endif
+                                                                                    </div>
                                                                                     <div class="truncate font-medium text-gray-800">
                                                                                         {{ $ev->original_name ?? 'Evidence file' }}
                                                                                     </div>
                                                                                 </div>
                                                                                 <div class="shrink-0">
                                                                                     @if($url)
-                                                                                        <a href="{{ $url }}"
-                                                                                           target="_blank"
-                                                                                           class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
-                                                                                            View
-                                                                                        </a>
+                                                                                        <button type="button"
+                                                                                                onclick='window.BuEvidencePreview && window.BuEvidencePreview.open({ url: @json($url), name: @json($ev->original_name ?? "Evidence file"), mime: @json($ev->mime_type ?? "") })'
+                                                                                                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                                                                                            Preview
+                                                                                        </button>
                                                                                     @else
                                                                                         <span class="text-xs text-gray-400">Unavailable</span>
                                                                                     @endif
@@ -2227,22 +2344,69 @@
                             <p class="text-xs text-gray-500">Quick access to return or forward at the bottom of the page.</p>
                         </div>
                         <div class="flex flex-wrap items-center gap-2">
-                            <form method="POST" action="{{ route('reclassification.return', $application) }}">
-                                @csrf
-                                <button type="submit"
-                                        @disabled($returnActionLocked)
-                                        class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold {{ $returnActionLocked ? 'opacity-60 cursor-not-allowed' : '' }}">
-                                    Return to Faculty
-                                </button>
-                            </form>
-                            <form method="POST" action="{{ route('reclassification.forward', $application) }}">
-                                @csrf
-                                <button type="submit"
-                                        @disabled($forwardBlocked)
-                                        class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft {{ $forwardBlocked ? 'opacity-60 cursor-not-allowed' : '' }}">
-                                    {{ $nextLabel }}
-                                </button>
-                            </form>
+                            @php($confirmReturnModalNameBottom = 'confirm-return-bottom-' . $application->id)
+                            <button type="button"
+                                    x-data=""
+                                    x-on:click.prevent="$dispatch('open-modal', '{{ $confirmReturnModalNameBottom }}')"
+                                    @disabled($returnActionLocked)
+                                    class="px-4 py-2 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 text-sm font-semibold {{ $returnActionLocked ? 'opacity-60 cursor-not-allowed' : '' }}">
+                                Return to Faculty
+                            </button>
+                            <x-modal name="{{ $confirmReturnModalNameBottom }}" focusable>
+                                <form method="POST" action="{{ route('reclassification.return', $application) }}" class="p-6">
+                                    @csrf
+                                    <h2 class="text-lg font-semibold text-gray-900">
+                                        Are you sure you want to return this to faculty?
+                                    </h2>
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        The submission will move back to faculty for revision.
+                                    </p>
+
+                                    <div class="mt-6 flex justify-end gap-2">
+                                        <button type="button"
+                                                x-on:click="$dispatch('close')"
+                                                class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                            Cancel
+                                        </button>
+                                        <button type="submit"
+                                                class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+                                            Confirm Return to Faculty
+                                        </button>
+                                    </div>
+                                </form>
+                            </x-modal>
+
+                            @php($confirmForwardModalNameBottom = 'confirm-forward-bottom-' . $application->id)
+                            <button type="button"
+                                    x-data=""
+                                    x-on:click.prevent="$dispatch('open-modal', '{{ $confirmForwardModalNameBottom }}')"
+                                    @disabled($forwardBlocked)
+                                    class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft {{ $forwardBlocked ? 'opacity-60 cursor-not-allowed' : '' }}">
+                                {{ $nextLabel }}
+                            </button>
+                            <x-modal name="{{ $confirmForwardModalNameBottom }}" focusable>
+                                <form method="POST" action="{{ route('reclassification.forward', $application) }}" class="p-6">
+                                    @csrf
+                                    <h2 class="text-lg font-semibold text-gray-900">
+                                        Are you sure you want to continue?
+                                    </h2>
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        This will proceed with: <span class="font-semibold">{{ $nextLabel }}</span>.
+                                    </p>
+
+                                    <div class="mt-6 flex justify-end gap-2">
+                                        <button type="button"
+                                                x-on:click="$dispatch('close')"
+                                                class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                            Cancel
+                                        </button>
+                                        <button type="submit"
+                                                class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold hover:bg-bu-dark">
+                                            Confirm {{ $nextLabel }}
+                                        </button>
+                                    </div>
+                                </form>
+                            </x-modal>
                         </div>
                     </div>
                     @if($returnBlocked)
@@ -2266,8 +2430,10 @@
         <span aria-hidden="true">&uarr;</span>
     </button>
 
+    @include('reclassification.partials.evidence-preview-modal')
+
     <script>
-        function reviewerCommentCenter(initialItems, initialOpenCount, initialRevisionItems, reviewerRole, applicationId) {
+        function reviewerCommentCenter(initialItems, initialOpenCount, initialRevisionItems, reviewerRole, applicationId, initialRevisionBatchPlaceholders) {
             return {
                 panelOpen: false,
                 revisionPanelOpen: false,
@@ -2283,6 +2449,7 @@
                 reviewerRole: String(reviewerRole || '').toLowerCase(),
                 openCount: Number(initialOpenCount || 0),
                 revisionItems: Array.isArray(initialRevisionItems) ? initialRevisionItems : [],
+                revisionBatchPlaceholders: Array.isArray(initialRevisionBatchPlaceholders) ? initialRevisionBatchPlaceholders : [],
                 revisionCount: 0,
                 activeRevisionTab: 'all',
                 commentGroupsOpen: {},
@@ -2747,6 +2914,19 @@
                 groupedRevisionBatches() {
                     const batches = [];
                     const map = new Map();
+                    (this.revisionBatchPlaceholders || []).forEach((placeholder) => {
+                        const key = String(placeholder?.key || '').trim();
+                        if (!key || map.has(key)) return;
+                        const batch = {
+                            key,
+                            label: String(placeholder?.label || 'Return'),
+                            dateLabel: String(placeholder?.dateLabel || ''),
+                            sortAt: String(placeholder?.sortAt || ''),
+                            items: [],
+                        };
+                        map.set(key, batch);
+                        batches.push(batch);
+                    });
                     this.filteredRevisionItems().forEach((item) => {
                         const key = String(item.batch_key || 'initial');
                         if (!map.has(key)) {

@@ -236,6 +236,7 @@
                                     history.replaceState({}, '', nextUrl.toString());
                                 }
                                 bindAutoSubmitFilters(document);
+                                bindTableReloadButtons(document);
                                 window.BuUx?.bindSubmitFeedback?.(document);
                                 window.BuUx?.bindActionLoading?.(document);
                                 if (window.Alpine && typeof window.Alpine.initTree === 'function') {
@@ -332,6 +333,69 @@
                 });
             };
 
+            const bindTableReloadButtons = (scope = document) => {
+                scope.querySelectorAll('[data-table-reload]').forEach((button) => {
+                    if (button.dataset.tableReloadBound === '1') return;
+                    button.dataset.tableReloadBound = '1';
+
+                    button.addEventListener('click', async (event) => {
+                        event.preventDefault();
+
+                        if (button.dataset.reloadBusy === '1') return;
+
+                        const targetSelector = button.dataset.reloadTarget
+                            || button.closest('form')?.dataset.autoSubmitTarget
+                            || '';
+                        if (!targetSelector) return;
+
+                        const currentPanel = document.querySelector(targetSelector);
+                        if (!currentPanel) return;
+
+                        button.dataset.reloadBusy = '1';
+                        button.classList.add('opacity-70', 'cursor-wait');
+                        const icon = button.querySelector('[data-reload-icon]');
+                        if (icon) icon.classList.add('animate-spin');
+
+                        window.BuUx?.panel?.setRefreshing(targetSelector, true, 'Refreshing table...');
+
+                        try {
+                            const response = await fetch(window.location.href, {
+                                method: 'GET',
+                                credentials: 'same-origin',
+                                headers: {
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'X-UX-Background': '1',
+                                },
+                            });
+                            if (!response.ok) throw new Error('Refresh failed');
+
+                            const html = await response.text();
+                            const parsed = new DOMParser().parseFromString(html, 'text/html');
+                            const incoming = parsed.querySelector(targetSelector);
+                            const current = document.querySelector(targetSelector);
+                            if (!incoming || !current) throw new Error('Refresh target not found');
+
+                            current.replaceWith(incoming);
+                            bindAutoSubmitFilters(document);
+                            bindTableReloadButtons(document);
+                            window.BuUx?.bindSubmitFeedback?.(document);
+                            window.BuUx?.bindActionLoading?.(document);
+                            if (window.Alpine && typeof window.Alpine.initTree === 'function') {
+                                window.Alpine.initTree(incoming);
+                            }
+                            window.BuUx?.announce?.('Table refreshed.');
+                        } catch (error) {
+                            window.BuUx?.toast?.('Could not refresh table. Please try again.', 'error');
+                        } finally {
+                            button.dataset.reloadBusy = '0';
+                            button.classList.remove('opacity-70', 'cursor-wait');
+                            if (icon) icon.classList.remove('animate-spin');
+                            window.BuUx?.panel?.setRefreshing(targetSelector, false);
+                        }
+                    });
+                });
+            };
+
             const initAutoRefreshPanels = () => {
                 window.__autoRefreshTimers = window.__autoRefreshTimers || {};
                 const textHash = (value) => {
@@ -408,6 +472,7 @@
                             target.replaceWith(incoming);
                             incoming.dataset.autoRefreshHash = incomingHash;
                             bindAutoSubmitFilters(document);
+                            bindTableReloadButtons(document);
                             window.BuUx?.bindSubmitFeedback?.(document);
                             window.BuUx?.bindActionLoading?.(document);
                             if (window.Alpine && typeof window.Alpine.initTree === 'function') {
@@ -455,6 +520,7 @@
                 });
 
                 bindAutoSubmitFilters(document);
+                bindTableReloadButtons(document);
                 initAutoRefreshPanels();
                 window.BuUx?.bindActionLoading?.(document);
             });

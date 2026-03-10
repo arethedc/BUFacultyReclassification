@@ -9,6 +9,7 @@ use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Password;
+use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Str;
 use Illuminate\Validation\Rules;
 use Illuminate\View\View;
@@ -22,7 +23,6 @@ class NewPasswordController extends Controller
     {
         $email = (string) $request->query('email', '');
         $token = (string) $request->route('token');
-        $isSetupLink = $request->boolean('setup');
 
         if ($email === '' || $token === '') {
             return redirect()
@@ -35,12 +35,6 @@ class NewPasswordController extends Controller
             return redirect()
                 ->route('login')
                 ->with('status', 'This set-password link is invalid or already used.');
-        }
-
-        if ($isSetupLink && method_exists($user, 'hasVerifiedEmail') && $user->hasVerifiedEmail()) {
-            return redirect()
-                ->route('login')
-                ->with('status', 'Your password is already set. Please log in.');
         }
 
         if (!Password::broker()->tokenExists($user, $token)) {
@@ -71,12 +65,23 @@ class NewPasswordController extends Controller
         $status = Password::reset(
             $request->only('email', 'password', 'password_confirmation', 'token'),
             function (User $user) use ($request) {
-                $user->forceFill([
+                $payload = [
                     'password' => Hash::make($request->password),
                     'remember_token' => Str::random(60),
-                ])->save();
+                ];
 
-                if (method_exists($user, 'hasVerifiedEmail') && !$user->hasVerifiedEmail()) {
+                // Password reset link ownership is treated as email verification.
+                if (Schema::hasColumn('users', 'email_verified_at') && empty($user->email_verified_at)) {
+                    $payload['email_verified_at'] = now();
+                }
+
+                $user->forceFill($payload)->save();
+
+                if (method_exists($user, 'refresh')) {
+                    $user->refresh();
+                }
+
+                if (Schema::hasColumn('users', 'email_verified_at') && empty($user->email_verified_at)) {
                     $user->forceFill([
                         'email_verified_at' => now(),
                     ])->save();
