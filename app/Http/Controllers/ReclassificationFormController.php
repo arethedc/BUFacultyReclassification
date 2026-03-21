@@ -1141,8 +1141,7 @@ class ReclassificationFormController extends Controller
         }
 
         return redirect()
-            ->route('reclassification.section', $number)
-            ->with('success', 'Section saved.');
+            ->route('reclassification.section', $number);
     }
 
     private function buildSectionChangeSnapshot(int $sectionId): array

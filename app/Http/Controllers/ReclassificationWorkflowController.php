@@ -752,7 +752,7 @@ class ReclassificationWorkflowController extends Controller
         }
 
         return redirect()
-            ->route('faculty.dashboard')
+            ->route('reclassification.submitted-summary.show', $application)
             ->with('success', "You have submitted your reclassification for {$periodLabel}.");
     }
 

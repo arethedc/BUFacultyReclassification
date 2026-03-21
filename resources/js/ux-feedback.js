@@ -300,23 +300,52 @@ const isInternalLink = (anchor) => {
 
 const bindNavigationProgress = () => {
     if (!progressBar) return;
+    let navFallbackTimer = null;
+
+    const startWithFallback = () => {
+        progressBar.start();
+        if (navFallbackTimer) {
+            clearTimeout(navFallbackTimer);
+        }
+        // Safety fallback: if navigation is prevented or interrupted,
+        // auto-finish so the top bar never gets stuck.
+        navFallbackTimer = window.setTimeout(() => {
+            progressBar.done();
+            navFallbackTimer = null;
+        }, 4500);
+    };
+
+    const clearFallback = () => {
+        if (!navFallbackTimer) return;
+        clearTimeout(navFallbackTimer);
+        navFallbackTimer = null;
+    };
 
     document.addEventListener('click', (event) => {
         const anchor = event.target.closest('a[href]');
         if (!isInternalLink(anchor)) return;
+        if (event.defaultPrevented) return;
         if (anchor.dataset.noProgress === 'true') return;
-        progressBar.start();
+        startWithFallback();
     });
 
     document.addEventListener('submit', (event) => {
         const form = event.target;
         if (!(form instanceof HTMLFormElement)) return;
+        if (event.defaultPrevented) return;
+        if (form.matches('[data-async-action]')) return;
         if (form.dataset.noProgress === 'true') return;
-        progressBar.start();
+        startWithFallback();
     });
 
-    window.addEventListener('pageshow', () => progressBar.done());
-    window.addEventListener('load', () => progressBar.done());
+    window.addEventListener('pageshow', () => {
+        clearFallback();
+        progressBar.done();
+    });
+    window.addEventListener('load', () => {
+        clearFallback();
+        progressBar.done();
+    });
 };
 
 const installFetchProgress = () => {

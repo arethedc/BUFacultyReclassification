@@ -243,11 +243,6 @@
 
                   <td class="p-2">
                     <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                            :class="rowEvidenceCount('a', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                        <span x-text="rowEvidenceCount('a', i) > 0 ? `Evidence attached (${rowEvidenceCount('a', i)})` : 'No evidence'"></span>
-                      </span>
-
                       <button type="button"
                               @click="openSelectEvidence('a', i)"
                               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -407,11 +402,6 @@
 
                   <td class="p-2">
                     <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                            :class="rowEvidenceCount('b', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                        <span x-text="rowEvidenceCount('b', i) > 0 ? `Evidence attached (${rowEvidenceCount('b', i)})` : 'No evidence'"></span>
-                      </span>
-
                       <button type="button"
                               @click="openSelectEvidence('b', i)"
                               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -566,11 +556,6 @@
                     </td>
                     <td class="p-2">
                       <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                              :class="rowEvidenceCount('c1', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                          <span x-text="rowEvidenceCount('c1', i) > 0 ? `Evidence attached (${rowEvidenceCount('c1', i)})` : 'No evidence'"></span>
-                        </span>
-
                         <button type="button"
                                 @click="openSelectEvidence('c1', i)"
                                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -689,11 +674,6 @@
                     </td>
                     <td class="p-2">
                       <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                              :class="rowEvidenceCount('c2', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                          <span x-text="rowEvidenceCount('c2', i) > 0 ? `Evidence attached (${rowEvidenceCount('c2', i)})` : 'No evidence'"></span>
-                        </span>
-
                         <button type="button"
                                 @click="openSelectEvidence('c2', i)"
                                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -813,11 +793,6 @@
                     </td>
                     <td class="p-2">
                       <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                        <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                              :class="rowEvidenceCount('c3', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                          <span x-text="rowEvidenceCount('c3', i) > 0 ? `Evidence attached (${rowEvidenceCount('c3', i)})` : 'No evidence'"></span>
-                        </span>
-
                         <button type="button"
                                 @click="openSelectEvidence('c3', i)"
                                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -962,11 +937,6 @@
 
                   <td class="p-2">
                     <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                            :class="rowEvidenceCount('d', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                        <span x-text="rowEvidenceCount('d', i) > 0 ? `Evidence attached (${rowEvidenceCount('d', i)})` : 'No evidence'"></span>
-                      </span>
-
                       <button type="button"
                               @click="openSelectEvidence('d', i)"
                               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">

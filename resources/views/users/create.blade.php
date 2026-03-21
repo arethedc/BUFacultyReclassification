@@ -37,6 +37,8 @@
                     password: '',
                     passwordConfirmation: '',
                     validationTick: 0,
+                    createSubmitting: false,
+                    initialCreateSnapshot: null,
                     showManualPassword: false,
                     showManualPasswordConfirmation: false,
                     createEmailAvailabilityUrl: @js(route('users.create-email-availability')),
@@ -49,6 +51,10 @@
                     employeeCheckMessage: '',
                     employeeCheckTimer: null,
                     hasEmployeeNoServerError: @js($errors->has('employee_no')),
+                    createLeaveModalOpen: false,
+                    createLeaveAction: '',
+                    createLeaveUrl: '',
+                    suppressCreateBeforeUnload: false,
                     formatEmployeeNo(value) {
                         const digits = String(value || '').replace(/\D/g, '').slice(0, 7);
                         return digits.length > 4
@@ -84,7 +90,77 @@
                             ) {
                                 this.checkCreateEmployeeNoAvailability(true);
                             }
+                            this.initialCreateSnapshot = this.serializeCreateForm();
                         });
+
+                        if (window.__createFormReloadKeyGuard) {
+                            window.removeEventListener('keydown', window.__createFormReloadKeyGuard, true);
+                        }
+                        window.__createFormReloadKeyGuard = (event) => {
+                            const key = String(event?.key || '').toLowerCase();
+                            const isReloadKey = key === 'f5' || ((event.ctrlKey || event.metaKey) && key === 'r');
+                            if (!isReloadKey) return;
+                            if (!this.hasCreateUnsavedChanges() || this.createSubmitting) return;
+                            event.preventDefault();
+                            event.stopPropagation();
+                            this.openCreateLeaveModal('reload');
+                        };
+                        window.addEventListener('keydown', window.__createFormReloadKeyGuard, true);
+
+                        window.addEventListener('beforeunload', (event) => {
+                            if (!this.suppressCreateBeforeUnload && !this.createSubmitting && this.hasCreateUnsavedChanges()) {
+                                event.preventDefault();
+                                event.returnValue = '';
+                            }
+                        });
+                    },
+                    serializeCreateForm() {
+                        if (!this.$refs.create_form) return '';
+                        const data = new FormData(this.$refs.create_form);
+                        const pairs = [];
+                        for (const [key, value] of data.entries()) {
+                            if (key === '_token') continue;
+                            pairs.push(`${key}=${String(value)}`);
+                        }
+                        pairs.sort();
+                        return pairs.join('&');
+                    },
+                    hasCreateUnsavedChanges() {
+                        if (this.initialCreateSnapshot === null) return false;
+                        return this.serializeCreateForm() !== this.initialCreateSnapshot;
+                    },
+                    openCreateLeaveModal(action = 'navigate', url = '') {
+                        if (!this.hasCreateUnsavedChanges() || this.createSubmitting) {
+                            if (action === 'reload') {
+                                window.location.reload();
+                                return;
+                            }
+                            if (action === 'navigate' && url) {
+                                window.location.href = url;
+                            }
+                            return;
+                        }
+                        this.createLeaveAction = String(action || 'navigate');
+                        this.createLeaveUrl = String(url || '');
+                        this.createLeaveModalOpen = true;
+                    },
+                    closeCreateLeaveModal() {
+                        this.createLeaveModalOpen = false;
+                        this.createLeaveAction = '';
+                        this.createLeaveUrl = '';
+                    },
+                    continueCreateLeave() {
+                        const action = this.createLeaveAction;
+                        const url = this.createLeaveUrl;
+                        this.closeCreateLeaveModal();
+                        this.suppressCreateBeforeUnload = true;
+                        if (action === 'reload') {
+                            window.location.reload();
+                            return;
+                        }
+                        if (action === 'navigate' && url) {
+                            window.location.href = url;
+                        }
                     },
                     hasPasswordValues() {
                         return this.password.length > 0 || this.passwordConfirmation.length > 0;
@@ -287,7 +363,9 @@
                     }
                     if (isCreateSubmitLocked()) {
                         $event.preventDefault();
+                        return;
                     }
+                    createSubmitting = true;
                 "
                 @input="bumpValidationTick()"
                 @change="bumpValidationTick()"
@@ -743,6 +821,7 @@
                 ========================== --}}
                 <div class="pt-6 border-t flex justify-end gap-4">
                     <a href="{{ $backRoute }}"
+                       @click.prevent="openCreateLeaveModal('navigate', '{{ $backRoute }}')"
                        class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
                         Cancel
                     </a>
@@ -763,6 +842,38 @@
                              x-show="showLockedTip && isCreateFacultyLocked()"
                              class="absolute right-0 -top-11 z-20 whitespace-nowrap rounded-lg bg-gray-900 px-3 py-1.5 text-xs font-medium text-white shadow-lg">
                             Answer all required fields (*)
+                        </div>
+                    </div>
+                </div>
+
+                <div x-cloak x-show="createLeaveModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+                    <div class="absolute inset-0 bg-black/40" @click="closeCreateLeaveModal()"></div>
+                    <div class="relative w-full max-w-lg mx-4 rounded-2xl border bg-white shadow-xl">
+                        <div class="px-6 py-4 border-b">
+                            <h3 class="text-base font-semibold text-gray-900">Unsaved Changes</h3>
+                            <p class="mt-1 text-sm text-gray-600">
+                                You have unsaved changes in this form.
+                            </p>
+                        </div>
+                        <div class="px-6 py-4 space-y-3">
+                            <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                <div class="font-semibold">Leave this page?</div>
+                                <p class="mt-1 text-xs text-amber-800">
+                                    If you continue, your current inputs in Create User/Create Faculty may be lost.
+                                </p>
+                            </div>
+                        </div>
+                        <div class="px-6 py-4 border-t flex items-center justify-end gap-2">
+                            <button type="button"
+                                    @click="closeCreateLeaveModal()"
+                                    class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
+                                Stay
+                            </button>
+                            <button type="button"
+                                    @click="continueCreateLeave()"
+                                    class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-100">
+                                Leave Without Saving
+                            </button>
                         </div>
                     </div>
                 </div>

@@ -41,7 +41,9 @@ return [
         'public' => [
             'driver' => 'local',
             'root' => storage_path('app/public'),
-            'url' => rtrim(env('APP_URL', 'http://localhost'), '/').'/storage',
+            // Keep this relative by default to avoid localhost/127.0.0.1 host mismatches in dev.
+            // Set FILESYSTEM_PUBLIC_URL in env when an absolute asset host is required.
+            'url' => env('FILESYSTEM_PUBLIC_URL', '/storage'),
             'visibility' => 'public',
             'throw' => false,
             'report' => false,

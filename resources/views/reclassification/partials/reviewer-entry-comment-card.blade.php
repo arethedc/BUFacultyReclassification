@@ -29,8 +29,38 @@
         ->where('parent_id', $comment->id)
         ->sortBy('created_at')
         ->values();
+    $initialEditVisibility = (string) ($comment->visibility ?? 'faculty_visible');
+    $initialEditActionType = (string) ($comment->action_type ?? ($initialEditVisibility === 'internal' ? 'info' : 'requires_action'));
+    $canEditThisThread = $canManageThisThread
+        && (string) ($comment->status ?? 'open') === 'open'
+        && $replies->isEmpty();
 @endphp
-<div class="rounded-lg border border-gray-200 bg-white p-2.5 text-left space-y-1">
+<div class="rounded-lg border border-gray-200 bg-white p-2.5 text-left space-y-1"
+     x-data="{
+        editOpen: false,
+        editBody: @js(trim((string) ($comment->body ?? ''))),
+        editVisibility: @js($initialEditVisibility),
+        editActionType: @js($initialEditActionType),
+        openEdit() {
+            this.editOpen = true;
+        },
+        canSaveEdit() {
+            const hasBody = String(this.editBody || '').trim() !== '';
+            const visibility = String(this.editVisibility || '').trim();
+            if (!hasBody || visibility === '') return false;
+            if (visibility === 'faculty_visible') {
+                return String(this.editActionType || '').trim() !== '';
+            }
+            return true;
+        },
+        resetEdit() {
+            this.editBody = @js(trim((string) ($comment->body ?? '')));
+            this.editVisibility = @js($initialEditVisibility);
+            this.editActionType = @js($initialEditActionType);
+            this.editOpen = false;
+        }
+     }"
+     @click.window="if (editOpen && !$refs.editForm?.contains($event.target) && !$refs.editToggle?.contains($event.target)) resetEdit()">
     <div class="flex items-center justify-between gap-2">
         <div class="text-[11px] font-semibold text-gray-800">
             {{ $comment->author?->name ?? 'Reviewer' }} - {{ optional($comment->created_at)->format('M d, Y g:i A') }}
@@ -44,6 +74,20 @@
                     {{ $commentActionLabel }}
                 </span>
             @endif
+        </div>
+    </div>
+    <div class="text-[10px] font-semibold text-gray-500">Reviewer Comment:</div>
+    <div class="flex items-start justify-between gap-2" x-show="!editOpen">
+        <div class="min-w-0 text-[13px] leading-5 text-gray-800 break-words">{{ $comment->body }}</div>
+        <div class="shrink-0 flex items-center gap-1.5">
+            @if($canEditThisThread)
+                <button type="button"
+                        x-ref="editToggle"
+                        @click="openEdit()"
+                        class="px-2 py-0.5 rounded border border-blue-200 bg-blue-50 text-[10px] font-semibold text-blue-700 hover:bg-blue-100">
+                    Edit
+                </button>
+            @endif
             @if($canManageThisThread && ($comment->status ?? 'open') !== 'resolved')
                 <form method="POST"
                       action="{{ route('reclassification.row-comments.destroy', $comment) }}"
@@ -51,6 +95,11 @@
                       data-async-refresh-target="#reviewer-content"
                       data-loading-text="Removing..."
                       data-loading-message="Removing comment..."
+                      data-confirm-modal="1"
+                      data-confirm-title="Remove Comment"
+                      data-confirm-confirm-text="Remove"
+                      data-confirm-cancel-text="Cancel"
+                      data-confirm-destructive="1"
                       data-confirm="Remove this comment thread?">
                     @csrf
                     @method('DELETE')
@@ -62,8 +111,95 @@
             @endif
         </div>
     </div>
-    <div class="text-[10px] font-semibold text-gray-500">Reviewer Comment:</div>
-    <div class="text-[13px] leading-5 text-gray-800 break-words">{{ $comment->body }}</div>
+    @if($canEditThisThread)
+        <div x-show="editOpen"
+             x-ref="editForm"
+             x-cloak
+             class="mt-1 rounded-lg border border-gray-200 bg-gray-50 p-2.5">
+            <form method="POST"
+                  action="{{ route('reclassification.row-comments.update', $comment) }}"
+                  data-async-action
+                  data-async-refresh-target="#reviewer-content"
+                  data-loading-text="Saving..."
+                  data-loading-message="Updating comment..."
+                  class="grid grid-cols-1 gap-2 md:grid-cols-7 md:items-end">
+                @csrf
+                <div class="md:col-span-3">
+                    <label class="text-xs text-gray-600">Edit comment</label>
+                    <textarea name="body"
+                              rows="2"
+                              required
+                              x-model="editBody"
+                              class="mt-1 w-full rounded-lg border-gray-300 text-xs"
+                              placeholder="Edit comment..."></textarea>
+                </div>
+                <div class="md:col-span-1">
+                    <label class="text-xs text-gray-600">Visibility</label>
+                    <div class="mt-1 space-y-1.5 text-xs">
+                        <label class="flex items-center gap-2 text-gray-700">
+                            <input type="radio"
+                                   name="visibility"
+                                   value="faculty_visible"
+                                   x-model="editVisibility"
+                                   required
+                                   class="border-gray-300 text-bu focus:ring-bu">
+                            <span>Visible to faculty</span>
+                        </label>
+                        <label class="flex items-center gap-2 text-gray-700">
+                            <input type="radio"
+                                   name="visibility"
+                                   value="internal"
+                                   x-model="editVisibility"
+                                   class="border-gray-300 text-bu focus:ring-bu">
+                            <span>Internal</span>
+                        </label>
+                    </div>
+                </div>
+                <template x-if="editVisibility === 'faculty_visible'">
+                    <div class="md:col-span-1">
+                        <label class="text-xs text-gray-600">Type</label>
+                        <div class="mt-1 space-y-1.5 text-xs">
+                            <label class="flex items-center gap-2 text-gray-700">
+                                <input type="radio"
+                                       name="action_type"
+                                       value="requires_action"
+                                       x-model="editActionType"
+                                       required
+                                       class="border-gray-300 text-bu focus:ring-bu">
+                                <span>Action required</span>
+                            </label>
+                            <label class="flex items-center gap-2 text-gray-700">
+                                <input type="radio"
+                                       name="action_type"
+                                       value="info"
+                                       x-model="editActionType"
+                                       class="border-gray-300 text-bu focus:ring-bu">
+                                <span>FYI</span>
+                            </label>
+                        </div>
+                    </div>
+                </template>
+                <template x-if="editVisibility === 'internal'">
+                    <input type="hidden" name="action_type" value="info">
+                </template>
+                <div class="mt-1 flex justify-end gap-2 md:col-span-2 md:col-start-6 md:mt-0 md:self-end md:justify-end">
+                    <button type="submit"
+                            x-bind:disabled="!canSaveEdit()"
+                            x-bind:class="canSaveEdit()
+                                ? 'bg-bu text-white hover:bg-bu-dark border-transparent'
+                                : 'bg-gray-200 text-gray-500 cursor-not-allowed border-transparent'"
+                            class="rounded-lg border px-3 py-1 text-xs font-semibold leading-4 transition">
+                        Save
+                    </button>
+                    <button type="button"
+                            @click="resetEdit()"
+                            class="rounded-lg border border-gray-300 bg-white px-3 py-1 text-xs font-semibold leading-4 text-gray-700 hover:bg-gray-50">
+                        Cancel
+                    </button>
+                </div>
+            </form>
+        </div>
+    @endif
 
     @if($replies->isNotEmpty())
         <div class="mt-1 rounded-md border-t border-gray-200 pt-1 space-y-1.5">
@@ -84,6 +220,10 @@
                             $replyAuthorRole = strtolower((string) ($reply->author?->role ?? ''));
                             $canManageFollowUp = $currentReviewerRole !== '' && $replyAuthorRole === $currentReviewerRole;
                         @endphp
+                    </div>
+                    <div class="mt-0.5 text-[10px] font-semibold text-gray-500">{{ $replyLabel }}:</div>
+                    <div class="mt-0.5 flex items-start justify-between gap-2">
+                        <div class="min-w-0 break-words text-[13px] leading-5 text-gray-800">{{ $reply->body }}</div>
                         @if($isFollowUpConcern && $canManageFollowUp)
                             <form method="POST"
                                   action="{{ route('reclassification.row-comments.destroy', $reply) }}"
@@ -91,7 +231,13 @@
                                   data-async-refresh-target="#reviewer-content"
                                   data-loading-text="Removing..."
                                   data-loading-message="Removing follow-up concern..."
-                                  data-confirm="Remove this follow-up concern?">
+                                  data-confirm-modal="1"
+                                  data-confirm-title="Remove Follow-up Comment"
+                                  data-confirm-confirm-text="Remove"
+                                  data-confirm-cancel-text="Cancel"
+                                  data-confirm-destructive="1"
+                                  data-confirm="Remove this follow-up concern?"
+                                  class="shrink-0">
                                 @csrf
                                 @method('DELETE')
                                 <button type="submit"
@@ -101,8 +247,6 @@
                             </form>
                         @endif
                     </div>
-                    <div class="mt-0.5 text-[10px] font-semibold text-gray-500">{{ $replyLabel }}:</div>
-                    <div class="mt-0.5 break-words text-[13px] leading-5 text-gray-800">{{ $reply->body }}</div>
                 </div>
             @endforeach
         </div>

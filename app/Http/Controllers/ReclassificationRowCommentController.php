@@ -435,6 +435,66 @@ class ReclassificationRowCommentController extends Controller
         return $this->respond($request, 'Resolved status undone. Comment is addressed again.');
     }
 
+    public function update(Request $request, ReclassificationRowComment $comment)
+    {
+        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+
+        $comment->loadMissing(['author', 'user', 'entry']);
+        $application = $comment->application()->with('faculty')->firstOrFail();
+        $this->assertReviewerOwnsCurrentStage($request, $application);
+        $this->assertCommentOwnedByCurrentReviewerRole($request, $comment);
+
+        abort_unless($comment->parent_id === null, 422, 'Only top-level comments can be edited.');
+        abort_unless((string) ($comment->status ?? 'open') === 'open', 422, 'Only open comments can be edited.');
+        abort_unless(
+            !$this->isEntryRemoved($comment->entry),
+            422,
+            'Cannot edit a comment tied to a removed entry.'
+        );
+
+        $hasReplies = ReclassificationRowComment::query()
+            ->where('parent_id', $comment->id)
+            ->exists();
+        abort_unless(!$hasReplies, 422, 'Comments with replies cannot be edited.');
+
+        $validated = $request->validate([
+            'body' => ['required', 'string', 'max:5000'],
+            'visibility' => ['required', 'in:faculty_visible,internal'],
+            'action_type' => ['nullable', 'required_if:visibility,faculty_visible', 'in:requires_action,info'],
+        ]);
+
+        $body = trim((string) $validated['body']);
+        $visibility = (string) ($validated['visibility'] ?? 'faculty_visible');
+        $hasActionTypeColumn = Schema::hasColumn('reclassification_row_comments', 'action_type');
+        $actionType = $visibility === 'internal'
+            ? 'info'
+            : (string) ($validated['action_type'] ?? 'requires_action');
+
+        $currentActionType = (string) ($comment->action_type ?? '');
+        $isUnchanged = $body === trim((string) ($comment->body ?? ''))
+            && $visibility === (string) ($comment->visibility ?? 'faculty_visible')
+            && (!$hasActionTypeColumn || $actionType === $currentActionType);
+
+        if ($isUnchanged) {
+            return $this->respond($request, 'No changes to save.');
+        }
+
+        $payload = [
+            'body' => $body,
+            'visibility' => $visibility,
+            'status' => 'open',
+            'resolved_by_user_id' => null,
+            'resolved_at' => null,
+        ];
+        if ($hasActionTypeColumn) {
+            $payload['action_type'] = $actionType;
+        }
+
+        $comment->update($payload);
+
+        return $this->respond($request, 'Comment updated.');
+    }
+
     public function destroy(Request $request, ReclassificationRowComment $comment)
     {
         abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);

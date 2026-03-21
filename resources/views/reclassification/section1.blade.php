@@ -193,11 +193,6 @@ Instruction: Kindly check the corresponding points in the blanks and write the F
     <input type="hidden" name="section1[a1][id]" :value="a1Id || ''">
     <label class="block text-xs text-gray-600 mb-1">Evidence for Latin honors</label>
     <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-      <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-            :class="rowEvidenceCount('a1') > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-        <span x-text="rowEvidenceCount('a1') > 0 ? `Evidence attached (${rowEvidenceCount('a1')})` : 'No evidence'"></span>
-      </span>
-
       <button type="button"
               @click="openSelectEvidence('a1')"
               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -316,11 +311,6 @@ $tables = [
 
               @elseif($col === 'Evidence')
                 <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                  <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                        :class="rowEvidenceCount('{{ $cfg['key'] }}', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                    <span x-text="rowEvidenceCount('{{ $cfg['key'] }}', i) > 0 ? `Evidence attached (${rowEvidenceCount('{{ $cfg['key'] }}', i)})` : 'No evidence'"></span>
-                  </span>
-
                   <button type="button"
                           @click="openSelectEvidence('{{ $cfg['key'] }}', i)"
                           class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -533,11 +523,6 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
 
             <td class="px-3 py-2">
               <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                      :class="rowEvidenceCount('b', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                  <span x-text="rowEvidenceCount('b', i) > 0 ? `Evidence attached (${rowEvidenceCount('b', i)})` : 'No evidence'"></span>
-                </span>
-
                 <button type="button"
                         @click="openSelectEvidence('b', i)"
                         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -708,11 +693,6 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
 
             <td class="px-3 py-2">
               <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                      :class="rowEvidenceCount('c', i) > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                  <span x-text="rowEvidenceCount('c', i) > 0 ? `Evidence attached (${rowEvidenceCount('c', i)})` : 'No evidence'"></span>
-                </span>
-
                 <button type="button"
                         @click="openSelectEvidence('c', i)"
                         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">

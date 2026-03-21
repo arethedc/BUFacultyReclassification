@@ -190,11 +190,6 @@
                         <div class="mt-3" x-show="a1Years > 0 || (a1Comments || []).length" data-evidence-block="a1">
                             <label class="block text-xs text-gray-600 mb-1">Evidence</label>
                             <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                                      :class="rowEvidenceCount('a1') > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                                    <span x-text="rowEvidenceCount('a1') > 0 ? `Evidence attached (${rowEvidenceCount('a1')})` : 'No evidence'"></span>
-                                </span>
-
                                 <button type="button"
                                         @click="openSelectEvidence('a1')"
                                         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -268,11 +263,6 @@
                         <div class="mt-3" x-show="a2Years > 0 || (a2Comments || []).length" data-evidence-block="a2">
                             <label class="block text-xs text-gray-600 mb-1">Evidence</label>
                             <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                                      :class="rowEvidenceCount('a2') > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                                    <span x-text="rowEvidenceCount('a2') > 0 ? `Evidence attached (${rowEvidenceCount('a2')})` : 'No evidence'"></span>
-                                </span>
-
                                 <button type="button"
                                         @click="openSelectEvidence('a2')"
                                         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -368,11 +358,6 @@
                     <div class="mt-3" x-show="(bYears > 0 && bUnlocked()) || (bComments || []).length" data-evidence-block="b">
                         <label class="block text-xs text-gray-600 mb-1">Evidence</label>
                         <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                            <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium"
-                                  :class="rowEvidenceCount('b') > 0 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-gray-50 text-gray-600 border border-gray-200'">
-                                <span x-text="rowEvidenceCount('b') > 0 ? `Evidence attached (${rowEvidenceCount('b')})` : 'No evidence'"></span>
-                            </span>
-
                             <button type="button"
                                     @click="openSelectEvidence('b')"
                                     class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">

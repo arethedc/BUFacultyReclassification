@@ -5,9 +5,16 @@
               confirmation: '',
               showPassword: false,
               showConfirmation: false,
-              get hasMinLength() { return this.password.length >= 8; },
+              get hasMinLength() { return this.password.length >= 6; },
+              get hasNumber() { return /\d/.test(this.password); },
+              get hasLowercase() { return /[a-z]/.test(this.password); },
+              get hasUppercase() { return /[A-Z]/.test(this.password); },
+              get hasSpecial() { return /[^A-Za-z0-9]/.test(this.password); },
+              get meetsAllPasswordRules() {
+                  return this.hasMinLength && this.hasNumber && this.hasLowercase && this.hasUppercase && this.hasSpecial;
+              },
               get matches() { return this.password !== '' && this.password === this.confirmation; },
-              get canSubmit() { return this.hasMinLength && this.matches; }
+              get canSubmit() { return this.meetsAllPasswordRules && this.matches; }
           }">
         @csrf
 
@@ -30,7 +37,7 @@
                               x-bind:type="showPassword ? 'text' : 'password'"
                               name="password"
                               required
-                              minlength="8"
+                              minlength="6"
                               x-model="password"
                               autocomplete="new-password" />
                 <button type="button"
@@ -47,9 +54,28 @@
                     </svg>
                 </button>
             </div>
-            <p class="mt-1 text-xs text-gray-500">
-                Minimum of 8 characters.
-            </p>
+            <div class="mt-3 space-y-1.5">
+                <div class="flex items-center gap-2 text-sm" x-bind:class="hasMinLength ? 'text-green-600' : 'text-red-500'">
+                    <span class="font-semibold" x-text="hasMinLength ? '✓' : '×'"></span>
+                    <span>Has at least 6 characters</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm" x-bind:class="hasNumber ? 'text-green-600' : 'text-red-500'">
+                    <span class="font-semibold" x-text="hasNumber ? '✓' : '×'"></span>
+                    <span>Includes number</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm" x-bind:class="hasLowercase ? 'text-green-600' : 'text-red-500'">
+                    <span class="font-semibold" x-text="hasLowercase ? '✓' : '×'"></span>
+                    <span>Includes lowercase letter</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm" x-bind:class="hasUppercase ? 'text-green-600' : 'text-red-500'">
+                    <span class="font-semibold" x-text="hasUppercase ? '✓' : '×'"></span>
+                    <span>Includes uppercase letter</span>
+                </div>
+                <div class="flex items-center gap-2 text-sm" x-bind:class="hasSpecial ? 'text-green-600' : 'text-red-500'">
+                    <span class="font-semibold" x-text="hasSpecial ? '✓' : '×'"></span>
+                    <span>Includes special symbol</span>
+                </div>
+            </div>
             <x-input-error :messages="$errors->get('password')" class="mt-2" />
         </div>
 
@@ -62,7 +88,7 @@
                                     x-bind:type="showConfirmation ? 'text' : 'password'"
                                     name="password_confirmation"
                                     required
-                                    minlength="8"
+                                    minlength="6"
                                     x-model="confirmation"
                                     autocomplete="new-password" />
                 <button type="button"

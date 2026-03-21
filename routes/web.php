@@ -659,6 +659,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
         Route::post('/row-comments/{comment}/resolve', [ReclassificationRowCommentController::class, 'resolve'])
             ->name('reclassification.row-comments.resolve');
+        Route::post('/row-comments/{comment}/update', [ReclassificationRowCommentController::class, 'update'])
+            ->name('reclassification.row-comments.update');
         Route::post('/row-comments/{comment}/undo-resolve', [ReclassificationRowCommentController::class, 'undoResolve'])
             ->name('reclassification.row-comments.undo-resolve');
         Route::post('/row-comments/{comment}/reopen', [ReclassificationRowCommentController::class, 'reopen'])

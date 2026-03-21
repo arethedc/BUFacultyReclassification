@@ -75,6 +75,14 @@
         </div>
     </x-slot>
 
+    @if (session('success'))
+        <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 pt-6">
+            <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+                {{ session('success') }}
+            </div>
+        </div>
+    @endif
+
     @php
         $sections = $application->sections->sortBy('section_code');
         $sectionsByCode = $sections->keyBy('section_code');
@@ -143,7 +151,7 @@
                 'c7' => 'C7. Artistic Works',
                 'c8' => 'C8. Editorial Work',
                 'c9' => 'C9. Professional Output',
-                'previous_points' => 'Previous Reclassification (1/3)',
+                'previous_points' => 'Section 3 Previous Reclassification (1/3)',
             ],
             '4' => [
                 'a1' => 'A1. Actual Services Outside BU',
@@ -157,10 +165,10 @@
                 'c2' => 'C2. Extension/Outreach',
                 'c3' => 'C3. University Activities',
                 'd' => 'D. Community Involvement',
-                'b_prev' => 'B. Previous Reclassification (1/3)',
-                'c_prev' => 'C. Previous Reclassification (1/3)',
-                'd_prev' => 'D. Previous Reclassification (1/3)',
-                'previous_points' => 'Previous Reclassification (1/3)',
+                'b_prev' => 'B. Section 5 Previous Reclassification (1/3)',
+                'c_prev' => 'C. Section 5 Previous Reclassification (1/3)',
+                'd_prev' => 'D. Section 5 Previous Reclassification (1/3)',
+                'previous_points' => 'Section 5 Previous Reclassification (1/3)',
             ],
         ];
 
@@ -235,6 +243,15 @@
             $summaryAllowedRankLabel = ($summaryRankLabels[$summaryDesired] ?? 'Not eligible')
                 . ($summaryAllowedLetter ? (' - ' . $summaryAllowedLetter) : '');
         }
+
+        $section2DeanRatings = data_get($section2Review ?? [], 'ratings.dean', []);
+        $section2HasDeanInput = collect($section2DeanRatings)
+            ->filter(fn ($value) => is_numeric($value) && (float) $value > 0)
+            ->isNotEmpty();
+        $section2PointsIncluded = $section2HasDeanInput || ((float) data_get($section2Review ?? [], 'points.total', 0)) > 0;
+
+        $summaryPointsRankDisplay = $section2PointsIncluded ? $summaryPointsRankLabel : 'Not yet available';
+        $summaryAllowedRankDisplay = $section2PointsIncluded ? $summaryAllowedRankLabel : 'Not yet available';
     @endphp
 
     <div class="py-10 bg-bu-muted min-h-screen">
@@ -315,11 +332,11 @@
                         <div class="space-y-2 text-sm text-gray-700">
                             <div>
                                 <div class="text-xs text-gray-500">Rank Based on Points</div>
-                                <div class="font-semibold text-gray-800">{{ $summaryPointsRankLabel }}</div>
+                                <div class="font-semibold text-gray-800">{{ $summaryPointsRankDisplay }}</div>
                             </div>
                             <div>
                                 <div class="text-xs text-gray-500">Allowed Rank (Rules Applied)</div>
-                                <div class="font-semibold text-gray-800">{{ $summaryAllowedRankLabel }}</div>
+                                <div class="font-semibold text-gray-800">{{ $summaryAllowedRankDisplay }}</div>
                             </div>
                             <div class="text-xs text-gray-500">
                                 Total points: <span class="font-semibold text-gray-800">{{ number_format((float) $summaryTotalPoints, 2) }}</span>
@@ -332,8 +349,8 @@
                     <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700 space-y-2">
                         <div class="font-semibold text-gray-800">Reminder</div>
                         <div>This summary is read-only.</div>
-                        <div>If revisions are requested, you will be notified.</div>
-                        <div class="text-gray-500">Section II points are not included yet.</div>
+                        <div>If revisions are requested, you will be notified. You may also request a return if needed.</div>
+                        <div class="text-gray-500">{{ $section2PointsIncluded ? 'Section II points are included.' : 'Section II points are not included yet.' }}</div>
                     </div>
                 </div>
             </div>
@@ -391,9 +408,21 @@
                 @endif
                 @php
                     $sectionCode = (string) ($section->section_code ?? '');
-                    $order = collect(['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'b', 'c', 'b_prev', 'c_prev', 'd_prev', 'previous_points']);
-                    $orderIndex = $order->flip();
-                    $entries = $section->entries->groupBy('criterion_key');
+                    $sectionOrder = match ($sectionCode) {
+                        '1' => ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'b', 'c', 'b_prev', 'c_prev'],
+                        '3' => ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'previous_points'],
+                        '4' => ['a1', 'a2', 'b'],
+                        '5' => ['a', 'b', 'c1', 'c2', 'c3', 'd', 'b_prev', 'c_prev', 'd_prev', 'previous_points'],
+                        default => ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7', 'a8', 'a9', 'b', 'c', 'b_prev', 'c_prev', 'd_prev', 'previous_points'],
+                    };
+                    $orderIndex = collect($sectionOrder)->flip();
+                    $entries = $section->entries
+                        ->groupBy(fn ($entry) => strtolower((string) ($entry->criterion_key ?? '')))
+                        ->sortBy(function ($rows, $criterionKey) use ($orderIndex) {
+                            $normalizedKey = strtolower((string) $criterionKey);
+                            $weight = (int) ($orderIndex->get($normalizedKey, 9999));
+                            return sprintf('%04d-%s', $weight, $normalizedKey);
+                        });
                     $entryIsRemoved = function ($entry): bool {
                         $data = is_array($entry?->data) ? $entry->data : [];
                         return in_array(strtolower((string) ($data['is_removed'] ?? '')), ['1', 'true', 'yes', 'on'], true);
@@ -505,19 +534,16 @@
                 @endphp
 
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 overflow-hidden">
-                    <div class="px-6 py-4 border-b flex items-center justify-between">
+                    <div class="px-6 py-4 border-b">
                         <div>
                             <h3 class="text-lg font-semibold text-gray-800">
                                 Section {{ $section->section_code }}
                             </h3>
                             <p class="text-sm text-gray-500">{{ $section->title ?? '' }}</p>
                         </div>
-                        <div class="text-sm font-semibold text-gray-700">
-                            Score: {{ number_format((float) $section->points_total, 2) }}
-                        </div>
                     </div>
 
-                    <div class="px-6 py-4 border-b bg-slate-50/70 space-y-3">
+                    <div class="px-6 py-4 border-b bg-white/95 backdrop-blur space-y-3">
                         <div class="flex flex-wrap items-start justify-between gap-2">
                             <div>
                                 <div class="text-sm font-semibold text-slate-800">Section {{ $sectionCode }} Score Summary</div>
@@ -555,143 +581,155 @@
                             </div>
                         </div>
 
-                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                            <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                                <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Section Score</div>
-                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ number_format($sectionPoints, 2) }}</div>
-                            </div>
-                            <div class="rounded-xl border border-slate-200 bg-white px-3 py-2.5">
-                                <div class="text-[11px] font-medium uppercase tracking-wide text-slate-500">Section Max</div>
-                                <div class="mt-1 text-sm font-semibold text-slate-900">{{ $sectionMax !== null ? number_format((float) $sectionMax, 2) : '-' }}</div>
-                            </div>
-                        </div>
-
                         @if($sectionCode === '1')
                             <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">A. Academic Degree Earned</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1RawA, 2) }} <span class="text-sm text-gray-400">/ 140</span></div>
-                                    <div class="text-xs text-gray-500">Counted: <span class="font-medium text-gray-700">{{ number_format($s1CountedA, 2) }}</span></div>
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-gray-500">Final Score</p>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 140</span>
+                                    </div>
+                                    <p class="text-xl font-semibold text-gray-800">
+                                        {{ number_format($s1CountedTotal, 0) }} <span class="text-sm font-medium text-gray-400">/ 140</span>
+                                    </p>
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Raw: <span class="font-medium text-gray-700">{{ number_format($s1RawTotal, 0) }}</span>
+                                    </p>
+                                </div>
+
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-gray-500">A. Academic Degree Earned</p>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 140</span>
+                                    </div>
+                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1CountedA, 0) }} <span class="text-sm text-gray-400">/ 140</span></div>
+                                    <div class="text-xs text-gray-500">Raw: <span class="font-medium text-gray-700">{{ number_format($s1RawA, 0) }}</span></div>
                                     <div class="mt-2 space-y-1 text-xs text-gray-500">
                                         <div class="flex items-center justify-between">
                                             <span>A8 Exams cap</span>
-                                            <span><span class="font-medium text-gray-700">{{ number_format($s1RawA8, 2) }}</span> <span class="text-gray-400">/ 15</span></span>
+                                            <span><span class="font-medium text-gray-700">{{ number_format($s1RawA8, 0) }}</span> <span class="text-gray-400">/ 15</span></span>
                                         </div>
                                         <div class="flex items-center justify-between">
                                             <span>A9 Certifications cap</span>
-                                            <span><span class="font-medium text-gray-700">{{ number_format($s1RawA9, 2) }}</span> <span class="text-gray-400">/ 10</span></span>
+                                            <span><span class="font-medium text-gray-700">{{ number_format($s1RawA9, 0) }}</span> <span class="text-gray-400">/ 10</span></span>
                                         </div>
                                     </div>
                                 </div>
-                                <div class="rounded-xl border p-4 bg-white">
-                                    <div class="flex items-center justify-between">
-                                        <div class="text-xs text-gray-500">B. Specialized Training</div>
-                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 20</span>
+
+                                <div class="rounded-xl border p-4 bg-white space-y-3">
+                                    <div>
+                                        <div class="flex items-center justify-between">
+                                            <p class="text-xs text-gray-500">B. Specialized Training</p>
+                                            <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 20</span>
+                                        </div>
+                                        <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1CountedB, 0) }} <span class="text-sm text-gray-400">/ 20</span></div>
+                                        <div class="text-xs text-gray-500">Previous B: <span class="font-medium text-gray-700">{{ number_format($s1BPrevThird, 2) }}</span></div>
+                                        <div class="text-xs text-gray-500">Raw: <span class="font-medium text-gray-700">{{ number_format($s1RawB, 0) }}</span></div>
                                     </div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1RawB, 2) }} <span class="text-sm text-gray-400">/ 20</span></div>
-                                    <div class="text-xs text-gray-500">Counted: <span class="font-medium text-gray-700">{{ number_format($s1CountedB, 2) }}</span></div>
-                                    <div class="mt-1 text-xs text-gray-500">Previous (1/3): {{ number_format($s1BPrevThird, 2) }}</div>
-                                </div>
-                                <div class="rounded-xl border p-4 bg-white">
-                                    <div class="flex items-center justify-between">
-                                        <div class="text-xs text-gray-500">C. Seminars / Workshops</div>
-                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 20</span>
+
+                                    <div class="border-t pt-3">
+                                        <div class="flex items-center justify-between">
+                                            <p class="text-xs text-gray-500">C. Seminars/Workshops</p>
+                                            <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 20</span>
+                                        </div>
+                                        <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1CountedC, 0) }} <span class="text-sm text-gray-400">/ 20</span></div>
+                                        <div class="text-xs text-gray-500">Previous C: <span class="font-medium text-gray-700">{{ number_format($s1CPrevThird, 2) }}</span></div>
+                                        <div class="text-xs text-gray-500">Raw: <span class="font-medium text-gray-700">{{ number_format($s1RawC, 0) }}</span></div>
                                     </div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s1RawC, 2) }} <span class="text-sm text-gray-400">/ 20</span></div>
-                                    <div class="text-xs text-gray-500">Counted: <span class="font-medium text-gray-700">{{ number_format($s1CountedC, 2) }}</span></div>
-                                    <div class="mt-1 text-xs text-gray-500">Previous (1/3): {{ number_format($s1CPrevThird, 2) }}</div>
                                 </div>
                             </div>
-                            <div class="text-xs text-slate-600">
-                                Raw total: <span class="font-semibold text-slate-800">{{ number_format($s1RawTotal, 2) }}</span>
-                                <span class="mx-2 text-slate-300">&middot;</span>
-                                Counted total: <span class="font-semibold text-slate-800">{{ number_format($s1CountedTotal, 2) }}</span>
-                            </div>
+
                         @elseif($sectionCode === '3')
-                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                            <div class="text-xs text-gray-600">
+                                Minimum required:
+                                <span class="font-semibold text-gray-800">{{ $s3CriteriaMet >= 1 ? '1/1' : '0/1' }}</span>
+                                <span class="mx-2 text-gray-300">&middot;</span>
+                                Criteria with entries:
+                                <span class="font-semibold text-gray-800">{{ $s3CriteriaMet }}</span>
+                                <span class="text-gray-400">/ 9</span>
+                            </div>
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">Criteria Met</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ $s3CriteriaMet }} <span class="text-sm text-gray-400">/ 9</span></div>
-                                    <div class="text-xs text-gray-500">Minimum required: {{ $s3CriteriaMet >= 1 ? '1/1 met' : '0/1' }}</div>
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-gray-500">Final Score</p>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 70</span>
+                                    </div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s3Counted, 0) }} <span class="text-sm text-gray-400">/ 70</span></div>
+                                    <p class="mt-1 text-xs text-gray-500">Raw: <span class="font-medium text-gray-700">{{ number_format($s3RawTotal, 0) }}</span></p>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
                                     <div class="text-xs text-gray-500">Total (No Previous)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s3Subtotal, 2) }}</div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s3Subtotal, 0) }}</div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">Previous Reclass (1/3)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s3PrevThird, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Section 3 Previous Reclassification (1/3)</div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s3PrevThird, 2) }}</div>
                                     <div class="text-xs text-gray-500">Input: {{ number_format($inputValueFor('previous_points'), 2) }}</div>
-                                </div>
-                                <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">Final</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s3RawTotal, 2) }} <span class="text-sm text-gray-400">/ 70</span></div>
-                                    <div class="text-xs text-gray-500">Counted: <span class="font-medium text-gray-700">{{ number_format($s3Counted, 2) }}</span></div>
                                 </div>
                             </div>
                         @elseif($sectionCode === '4')
-                            <div class="grid grid-cols-1 sm:grid-cols-4 gap-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
                                 <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">A1 (Before BU)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s4A1, 2) }} <span class="text-sm text-gray-400">/ 20</span></div>
-                                    <div class="text-xs text-gray-500">2 pts/year (capped)</div>
-                                </div>
-                                <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">A2 (After BU)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s4A2, 2) }} <span class="text-sm text-gray-400">/ 40</span></div>
-                                    <div class="text-xs text-gray-500">3 pts/year (capped)</div>
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-gray-500">Final Score</p>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 40</span>
+                                    </div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s4Final, 0) }} <span class="text-sm text-gray-400">/ 40</span></div>
+                                    <div class="text-xs text-gray-500">Counted track: <span class="font-medium text-gray-700">{{ $s4TrackLabel }}</span></div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
                                     <div class="text-xs text-gray-500">Teaching Total (A)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s4Teaching, 2) }} <span class="text-sm text-gray-400">/ 40</span></div>
-                                    <div class="text-xs text-gray-500">A1 + A2, capped at 40</div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s4Teaching, 0) }} <span class="text-sm text-gray-400">/ 40</span></div>
+                                    <div class="text-xs text-gray-500">A1 + A2, then cap</div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
                                     <div class="text-xs text-gray-500">Industry/Admin (B)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s4Industry, 2) }} <span class="text-sm text-gray-400">/ 20</span></div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s4Industry, 0) }} <span class="text-sm text-gray-400">/ 20</span></div>
                                     <div class="text-xs text-gray-500">2 pts/year (capped)</div>
                                 </div>
                             </div>
-                            <div class="text-xs text-slate-600">
-                                Raw counted track: <span class="font-semibold text-slate-800">{{ number_format($s4RawCounted, 2) }}</span>
-                                <span class="mx-2 text-slate-300">&middot;</span>
-                                Deduction rate: <span class="font-semibold text-slate-800">{{ $s4IsPartTime ? '50%' : '100%' }}</span>
-                                <span class="mx-2 text-slate-300">&middot;</span>
-                                Final counted score: <span class="font-semibold text-slate-800">{{ number_format($s4Final, 2) }}</span>
-                                <span class="text-slate-400">/ 40</span>
-                            </div>
+                            @if($s4IsPartTime)
+                                <p class="mt-2 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+                                    Part-time selected: 50% deduction is applied on the final counted score.
+                                </p>
+                            @endif
                         @elseif($sectionCode === '5')
-                            <div class="grid grid-cols-1 sm:grid-cols-5 gap-3">
+                            <div class="grid grid-cols-1 sm:grid-cols-3 xl:grid-cols-6 gap-3">
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <div class="flex items-center justify-between">
+                                        <p class="text-xs text-gray-500">Final Score</p>
+                                        <span class="text-[11px] px-2 py-0.5 rounded-full border bg-gray-50 text-gray-600">Max 30</span>
+                                    </div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s5Counted, 0) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5RawTotal, 0) }}</div>
+                                </div>
                                 <div class="rounded-xl border p-4 bg-white">
                                     <div class="text-xs text-gray-500">A (cap 5)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5ACapped, 2) }}</div>
-                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5ARaw, 2) }}</div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s5ACapped, 0) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5ARaw, 0) }}</div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
                                     <div class="text-xs text-gray-500">B (cap 10)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5BCapped, 2) }}</div>
-                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5BRaw, 2) }} &middot; Prev 1/3: {{ number_format($s5PrevBThird, 2) }}</div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s5BCapped, 0) }}</div>
+                                    <div class="text-xs text-gray-500 mt-1">Previous B (1/3): {{ number_format($s5PrevBThird, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5BRaw, 0) }}</div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
                                     <div class="text-xs text-gray-500">C (cap 15)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5CCapped, 2) }}</div>
-                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5CRaw, 2) }} &middot; Prev 1/3: {{ number_format($s5PrevCThird, 2) }}</div>
-                                    <div class="mt-1 text-xs text-gray-500">C1: {{ number_format($s5C1Raw, 2) }} (cap 10) &middot; C2: {{ number_format($s5C2Raw, 2) }} (cap 5) &middot; C3: {{ number_format($s5C3Raw, 2) }} (cap 10)</div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s5CCapped, 0) }}</div>
+                                    <div class="text-xs text-gray-500 mt-1">Previous C (1/3): {{ number_format($s5PrevCThird, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5CRaw, 0) }}</div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
                                     <div class="text-xs text-gray-500">D (cap 10)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5DCapped, 2) }}</div>
-                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5DRaw, 2) }} &middot; Prev 1/3: {{ number_format($s5PrevDThird, 2) }}</div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s5DCapped, 0) }}</div>
+                                    <div class="text-xs text-gray-500 mt-1">Previous D (1/3): {{ number_format($s5PrevDThird, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Raw: {{ number_format($s5DRaw, 0) }}</div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">Section 5 Previous (1/3)</div>
-                                    <div class="mt-1 text-lg font-semibold text-gray-800">{{ number_format($s5PrevThird, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Section 5 (1/3)</div>
+                                    <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s5PrevThird, 2) }}</div>
+                                    <div class="text-xs text-gray-500">Input: {{ number_format($inputValueFor('previous_points'), 2) }}</div>
                                 </div>
-                            </div>
-                            <div class="text-xs text-slate-600">
-                                Raw total: <span class="font-semibold text-slate-800">{{ number_format($s5RawTotal, 2) }}</span>
-                                <span class="mx-2 text-slate-300">&middot;</span>
-                                Counted total: <span class="font-semibold text-slate-800">{{ number_format($s5Counted, 2) }}</span>
                             </div>
                         @endif
 
@@ -706,6 +744,7 @@
                                     $label = $criterionLabels[$section->section_code][$criterionKey]
                                         ?? ($rows->first()?->title ?? strtoupper($criterionKey));
                                     $rowsPoints = $rows->sum('points');
+                                    $isPreviousReclassificationCriterion = in_array($criterionKey, ['b_prev', 'c_prev', 'd_prev', 'previous_points'], true);
                                 @endphp
                                 @if($section->section_code === '4' && $criterionKey === 'b' && $rowsPoints <= 0)
                                     @continue
@@ -716,13 +755,18 @@
                                     </div>
 
                                     <div class="overflow-x-auto border rounded-xl">
-                                        <table class="min-w-full text-sm">
+                                        <table class="min-w-full table-fixed text-sm">
                                             <thead class="bg-gray-50 text-gray-600">
                                                 <tr>
-                                                    <th class="px-4 py-2 text-left">Entry</th>
-                                                    <th class="px-4 py-2 text-left">Details</th>
-                                                    <th class="px-4 py-2 text-left">Evidence</th>
-                                                    <th class="px-4 py-2 text-right">Points</th>
+                                                    <th @class([
+                                                            'px-4 py-2 text-left',
+                                                            'w-[85%]' => $isPreviousReclassificationCriterion,
+                                                            'w-[55%]' => !$isPreviousReclassificationCriterion,
+                                                        ])>Details</th>
+                                                    @unless($isPreviousReclassificationCriterion)
+                                                        <th class="px-4 py-2 text-left w-[30%]">Evidence</th>
+                                                    @endunless
+                                                    <th class="px-4 py-2 text-right w-[15%]">Points</th>
                                                 </tr>
                                             </thead>
                                             <tbody class="divide-y">
@@ -730,6 +774,8 @@
                                                     @php
                                                         $data = is_array($entry->data) ? $entry->data : [];
                                                         $title = $entry->title ?: ($data['text'] ?? $data['title'] ?? 'Entry');
+                                                        $showTitleInDetails = trim((string) $title) !== '' && strtolower(trim((string) $title)) !== 'entry';
+                                                        $titleComparable = preg_replace('/\s+/', ' ', mb_strtolower(trim((string) $title)));
                                                         $evidences = $entry->evidences ?? collect();
                                                         $ignoredDetailKeys = [
                                                             'id',
@@ -762,6 +808,10 @@
                                                             if ($raw === '') {
                                                                 continue;
                                                             }
+                                                            $rawComparable = preg_replace('/\s+/', ' ', mb_strtolower($raw));
+                                                            if ($showTitleInDetails && in_array($keyString, ['title', 'text'], true) && $rawComparable === $titleComparable) {
+                                                                continue;
+                                                            }
 
                                                             $label = ucwords(str_replace(['_', '-'], ' ', $keyString));
                                                             $label = preg_replace('/\bBu\b/', 'BU', $label);
@@ -782,8 +832,14 @@
                                                         }
                                                     @endphp
                                                     <tr>
-                                                        <td class="px-4 py-2 font-medium text-gray-800">{{ $title }}</td>
-                                                        <td class="px-4 py-2 text-gray-600">
+                                                        <td @class([
+                                                                'px-4 py-2 text-gray-600 align-top',
+                                                                'w-[85%]' => $isPreviousReclassificationCriterion,
+                                                                'w-[55%]' => !$isPreviousReclassificationCriterion,
+                                                            ])>
+                                                            @if($showTitleInDetails)
+                                                                <div class="mb-1 font-medium text-gray-800">Title: {{ $title }}</div>
+                                                            @endif
                                                             @if(empty($detailRows))
                                                                 <span class="text-gray-400">No details</span>
                                                             @else
@@ -797,58 +853,60 @@
                                                                 </div>
                                                             @endif
                                                         </td>
-                                                        <td class="px-4 py-2">
-                                                            @if($evidences->isEmpty())
-                                                                <span class="text-gray-400">None</span>
-                                                            @else
-                                                                <div class="space-y-2">
-                                                                    @foreach($evidences as $ev)
-                                                                        @php
-                                                                            $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
-                                                                            $mime = strtolower((string) ($ev->mime_type ?? ''));
-                                                                            $fileName = strtolower((string) ($ev->original_name ?? ''));
-                                                                            $isImage = str_starts_with($mime, 'image/')
-                                                                                || preg_match('/\.(jpg|jpeg|png|gif|webp|bmp|svg|tif|tiff|heic|heif)$/i', $fileName);
-                                                                            $isPdf = $mime === 'application/pdf' || str_ends_with($fileName, '.pdf');
-                                                                        @endphp
-                                                                        <div class="rounded-lg border p-3">
-                                                                            <div class="flex items-center justify-between gap-3">
-                                                                                <div class="min-w-0 flex items-center gap-2">
-                                                                                    <div class="shrink-0 h-8 w-8 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
-                                                                                        @if($isImage && $url)
-                                                                                            <img src="{{ $url }}" alt="Evidence preview" class="h-full w-full object-cover">
-                                                                                        @elseif($isPdf)
-                                                                                            <span class="text-[10px] font-bold text-red-600">PDF</span>
+                                                        @unless($isPreviousReclassificationCriterion)
+                                                            <td class="px-4 py-2 w-[30%] align-top">
+                                                                @if($evidences->isEmpty())
+                                                                    <span class="text-gray-400">None</span>
+                                                                @else
+                                                                    <div class="space-y-2">
+                                                                        @foreach($evidences as $ev)
+                                                                            @php
+                                                                                $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
+                                                                                $mime = strtolower((string) ($ev->mime_type ?? ''));
+                                                                                $fileName = strtolower((string) ($ev->original_name ?? ''));
+                                                                                $isImage = str_starts_with($mime, 'image/')
+                                                                                    || preg_match('/\.(jpg|jpeg|png|gif|webp|bmp|svg|tif|tiff|heic|heif)$/i', $fileName);
+                                                                                $isPdf = $mime === 'application/pdf' || str_ends_with($fileName, '.pdf');
+                                                                            @endphp
+                                                                            <div class="rounded-lg border p-3">
+                                                                                <div class="flex items-center justify-between gap-3">
+                                                                                    <div class="min-w-0 flex items-center gap-2">
+                                                                                        <div class="shrink-0 h-8 w-8 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
+                                                                                            @if($isImage && $url)
+                                                                                                <img src="{{ $url }}" alt="Evidence preview" class="h-full w-full object-cover">
+                                                                                            @elseif($isPdf)
+                                                                                                <span class="text-[10px] font-bold text-red-600">PDF</span>
+                                                                                            @else
+                                                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                                                                                                    <path d="M4 3.5A1.5 1.5 0 015.5 2h6.879a1.5 1.5 0 011.06.44l2.121 2.12a1.5 1.5 0 01.44 1.061V16.5A1.5 1.5 0 0114.5 18h-9A1.5 1.5 0 014 16.5v-13z" />
+                                                                                                </svg>
+                                                                                            @endif
+                                                                                        </div>
+                                                                                        <div class="truncate font-medium text-gray-800">
+                                                                                            {{ $ev->original_name ?? 'Evidence file' }}
+                                                                                        </div>
+                                                                                    </div>
+                                                                                    <div class="shrink-0">
+                                                                                        @if($url)
+                                                                                            <button type="button"
+                                                                                                    class="js-evidence-preview-trigger inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                                                                    data-evidence-url="{{ $url }}"
+                                                                                                    data-evidence-name="{{ $ev->original_name ?? 'Evidence file' }}"
+                                                                                                    data-evidence-mime="{{ $ev->mime_type ?? '' }}">
+                                                                                                View
+                                                                                            </button>
                                                                                         @else
-                                                                                            <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                                                                <path d="M4 3.5A1.5 1.5 0 015.5 2h6.879a1.5 1.5 0 011.06.44l2.121 2.12a1.5 1.5 0 01.44 1.061V16.5A1.5 1.5 0 0114.5 18h-9A1.5 1.5 0 014 16.5v-13z" />
-                                                                                            </svg>
+                                                                                            <span class="text-xs text-gray-400">Unavailable</span>
                                                                                         @endif
                                                                                     </div>
-                                                                                    <div class="truncate font-medium text-gray-800">
-                                                                                        {{ $ev->original_name ?? 'Evidence file' }}
-                                                                                    </div>
-                                                                                </div>
-                                                                                <div class="shrink-0">
-                                                                                    @if($url)
-                                                                                        <button type="button"
-                                                                                                class="js-evidence-preview-trigger inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                                                                                                data-evidence-url="{{ $url }}"
-                                                                                                data-evidence-name="{{ $ev->original_name ?? 'Evidence file' }}"
-                                                                                                data-evidence-mime="{{ $ev->mime_type ?? '' }}">
-                                                                                            Preview
-                                                                                        </button>
-                                                                                    @else
-                                                                                        <span class="text-xs text-gray-400">Unavailable</span>
-                                                                                    @endif
                                                                                 </div>
                                                                             </div>
-                                                                        </div>
-                                                                    @endforeach
-                                                                </div>
-                                                            @endif
-                                                        </td>
-                                                        <td class="px-4 py-2 text-right font-semibold text-gray-800">
+                                                                        @endforeach
+                                                                    </div>
+                                                                @endif
+                                                            </td>
+                                                        @endunless
+                                                        <td class="px-4 py-2 text-right font-semibold text-gray-800 w-[15%] align-top">
                                                             {{ number_format((float) $entry->points, 2) }}
                                                         </td>
                                                     </tr>
@@ -869,21 +927,98 @@
                         $rDe = $ratings['dean'] ?? [];
                         $rCh = $ratings['chair'] ?? [];
                         $rSt = $ratings['student'] ?? [];
+                        $s2Weighted = (float) ($points['weighted'] ?? 0);
+                        $s2PreviousInput = (float) ($points['previous'] ?? 0);
+                        $s2PreviousThird = $s2PreviousInput / 3;
+                        $s2RawTotal = $s2Weighted + $s2PreviousThird;
+                        $s2Counted = (float) ($points['total'] ?? 0);
                     @endphp
                     <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-                        <div class="px-6 py-4 border-b">
-                            <h3 class="text-lg font-semibold text-gray-800">Section II " Instructional Competence</h3>
-                            <p class="text-sm text-gray-500">Ratings from Dean, Chair, and Students (read-only).</p>
+                        <div class="px-6 py-4 border-b bg-white/95 backdrop-blur space-y-3">
+                            <div class="flex flex-wrap items-center gap-2">
+                                <h3 class="text-sm sm:text-base font-semibold text-gray-800">
+                                    Section II Score Summary
+                                </h3>
+                                <span class="inline-flex items-center px-2.5 py-1 rounded-full text-[11px] font-medium {{ $s2RawTotal <= 120 ? 'bg-green-50 text-green-700 border border-green-200' : 'bg-red-50 text-red-700 border border-red-200' }}">
+                                    {{ $s2RawTotal <= 120 ? 'Within limit' : 'Over limit' }}
+                                </span>
+                            </div>
+
+                            <p class="text-xs text-gray-500">
+                                Equivalent points follow the rating tables. Weighted totals: Dean × 0.40, Chair × 0.30, Student × 0.30. + 1/3 of previous reclassification points.
+                            </p>
+
+                            <div class="rounded-xl border bg-white p-4">
+                                <div class="text-xs font-semibold uppercase tracking-wide text-gray-600">Dean Inputted Scores</div>
+                                <div class="mt-2 grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                                    <div class="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2">
+                                        <div class="text-gray-500">Item 1</div>
+                                        <div class="font-semibold text-gray-800">{{ is_numeric($rDe['i1'] ?? null) ? number_format((float) $rDe['i1'], 2) : '-' }}</div>
+                                    </div>
+                                    <div class="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2">
+                                        <div class="text-gray-500">Item 2</div>
+                                        <div class="font-semibold text-gray-800">{{ is_numeric($rDe['i2'] ?? null) ? number_format((float) $rDe['i2'], 2) : '-' }}</div>
+                                    </div>
+                                    <div class="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2">
+                                        <div class="text-gray-500">Item 3</div>
+                                        <div class="font-semibold text-gray-800">{{ is_numeric($rDe['i3'] ?? null) ? number_format((float) $rDe['i3'], 2) : '-' }}</div>
+                                    </div>
+                                    <div class="rounded-lg border border-gray-200 bg-gray-50 px-2.5 py-2">
+                                        <div class="text-gray-500">Item 4</div>
+                                        <div class="font-semibold text-gray-800">{{ is_numeric($rDe['i4'] ?? null) ? number_format((float) $rDe['i4'], 2) : '-' }}</div>
+                                    </div>
+                                </div>
+                                <div class="mt-2 text-xs text-gray-600">
+                                    Dean equivalent points:
+                                    <span class="font-semibold text-gray-800">{{ number_format((float) ($points['dean'] ?? 0), 2) }}</span>
+                                </div>
+                            </div>
+
+                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <p class="text-xs text-gray-500">Weighted Total (No Previous)</p>
+                                    <p class="text-xl font-semibold text-gray-800">{{ number_format($s2Weighted, 2) }}</p>
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Dean pts: <span class="font-medium text-gray-700">{{ number_format((float) ($points['dean'] ?? 0), 2) }}</span>
+                                        <span class="mx-1 text-gray-300">&middot;</span>
+                                        Chair pts: <span class="font-medium text-gray-700">{{ number_format((float) ($points['chair'] ?? 0), 2) }}</span>
+                                        <span class="mx-1 text-gray-300">&middot;</span>
+                                        Student pts: <span class="font-medium text-gray-700">{{ number_format((float) ($points['student'] ?? 0), 2) }}</span>
+                                    </p>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <p class="text-xs text-gray-500">Previous Reclass (1/3)</p>
+                                    <p class="text-xl font-semibold text-gray-800">{{ number_format($s2PreviousThird, 2) }}</p>
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Input: <span class="font-medium text-gray-700">{{ number_format($s2PreviousInput, 2) }}</span>
+                                    </p>
+                                </div>
+                                <div class="rounded-xl border p-4 bg-white">
+                                    <p class="text-xs text-gray-500">Final (Raw)</p>
+                                    <p class="text-xl font-semibold text-gray-800">
+                                        {{ number_format($s2RawTotal, 2) }} <span class="text-sm font-medium text-gray-400">/ 120</span>
+                                    </p>
+                                    <p class="mt-1 text-xs text-gray-500">
+                                        Counted: <span class="font-medium text-gray-700">{{ number_format($s2Counted, 2) }}</span>
+                                    </p>
+                                </div>
+                            </div>
+
+                            @if($s2RawTotal > 120)
+                                <p class="text-xs text-red-600">
+                                    Your raw total exceeds the 120-point limit. Excess points will not be counted.
+                                </p>
+                            @endif
                         </div>
                         <div class="p-6 space-y-4">
                             <div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
                                 <div class="rounded-xl border p-4">
                                     <div class="text-sm font-semibold text-gray-800">Dean Ratings</div>
                                     <div class="mt-2 space-y-1 text-sm text-gray-700">
-                                        <div>Item 1: {{ $rDe['i1'] ?? '"' }}</div>
-                                        <div>Item 2: {{ $rDe['i2'] ?? '"' }}</div>
-                                        <div>Item 3: {{ $rDe['i3'] ?? '"' }}</div>
-                                        <div>Item 4: {{ $rDe['i4'] ?? '"' }}</div>
+                                        <div>Item 1: {{ is_numeric($rDe['i1'] ?? null) ? number_format((float) $rDe['i1'], 2) : '-' }}</div>
+                                        <div>Item 2: {{ is_numeric($rDe['i2'] ?? null) ? number_format((float) $rDe['i2'], 2) : '-' }}</div>
+                                        <div>Item 3: {{ is_numeric($rDe['i3'] ?? null) ? number_format((float) $rDe['i3'], 2) : '-' }}</div>
+                                        <div>Item 4: {{ is_numeric($rDe['i4'] ?? null) ? number_format((float) $rDe['i4'], 2) : '-' }}</div>
                                     </div>
                                     <div class="mt-2 text-xs text-gray-500">Points: {{ number_format((float) ($points['dean'] ?? 0), 2) }}</div>
                                 </div>
@@ -891,10 +1026,10 @@
                                 <div class="rounded-xl border p-4">
                                     <div class="text-sm font-semibold text-gray-800">Chair Ratings</div>
                                     <div class="mt-2 space-y-1 text-sm text-gray-700">
-                                        <div>Item 1: {{ $rCh['i1'] ?? '"' }}</div>
-                                        <div>Item 2: {{ $rCh['i2'] ?? '"' }}</div>
-                                        <div>Item 3: {{ $rCh['i3'] ?? '"' }}</div>
-                                        <div>Item 4: {{ $rCh['i4'] ?? '"' }}</div>
+                                        <div>Item 1: {{ is_numeric($rCh['i1'] ?? null) ? number_format((float) $rCh['i1'], 2) : '-' }}</div>
+                                        <div>Item 2: {{ is_numeric($rCh['i2'] ?? null) ? number_format((float) $rCh['i2'], 2) : '-' }}</div>
+                                        <div>Item 3: {{ is_numeric($rCh['i3'] ?? null) ? number_format((float) $rCh['i3'], 2) : '-' }}</div>
+                                        <div>Item 4: {{ is_numeric($rCh['i4'] ?? null) ? number_format((float) $rCh['i4'], 2) : '-' }}</div>
                                     </div>
                                     <div class="mt-2 text-xs text-gray-500">Points: {{ number_format((float) ($points['chair'] ?? 0), 2) }}</div>
                                 </div>
@@ -902,27 +1037,12 @@
                                 <div class="rounded-xl border p-4">
                                     <div class="text-sm font-semibold text-gray-800">Student Ratings</div>
                                     <div class="mt-2 space-y-1 text-sm text-gray-700">
-                                        <div>Item 1: {{ $rSt['i1'] ?? '"' }}</div>
-                                        <div>Item 2: {{ $rSt['i2'] ?? '"' }}</div>
-                                        <div>Item 3: {{ $rSt['i3'] ?? '"' }}</div>
-                                        <div>Item 4: {{ $rSt['i4'] ?? '"' }}</div>
+                                        <div>Item 1: {{ is_numeric($rSt['i1'] ?? null) ? number_format((float) $rSt['i1'], 2) : '-' }}</div>
+                                        <div>Item 2: {{ is_numeric($rSt['i2'] ?? null) ? number_format((float) $rSt['i2'], 2) : '-' }}</div>
+                                        <div>Item 3: {{ is_numeric($rSt['i3'] ?? null) ? number_format((float) $rSt['i3'], 2) : '-' }}</div>
+                                        <div>Item 4: {{ is_numeric($rSt['i4'] ?? null) ? number_format((float) $rSt['i4'], 2) : '-' }}</div>
                                     </div>
                                     <div class="mt-2 text-xs text-gray-500">Points: {{ number_format((float) ($points['student'] ?? 0), 2) }}</div>
-                                </div>
-                            </div>
-
-                            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3 text-sm">
-                                <div class="rounded-xl border p-4">
-                                    <div class="text-xs text-gray-500">Weighted Total</div>
-                                    <div class="text-lg font-semibold text-gray-800">{{ number_format((float) ($points['weighted'] ?? 0), 2) }}</div>
-                                </div>
-                                <div class="rounded-xl border p-4">
-                                    <div class="text-xs text-gray-500">Previous Reclass (1/3)</div>
-                                    <div class="text-lg font-semibold text-gray-800">{{ number_format((float) (($points['previous'] ?? 0) / 3), 2) }}</div>
-                                </div>
-                                <div class="rounded-xl border p-4">
-                                    <div class="text-xs text-gray-500">Section II Total (Capped)</div>
-                                    <div class="text-lg font-semibold text-gray-800">{{ number_format((float) ($points['total'] ?? 0), 2) }}</div>
                                 </div>
                             </div>
                         </div>

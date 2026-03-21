@@ -15,6 +15,104 @@
         if (!indicator || !indicatorMessage || !indicatorSpinner) return;
 
         const csrf = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        const isTruthyFlag = (value) => ['1', 'true', 'yes', 'on', 'modal'].includes(String(value || '').toLowerCase());
+        let confirmModalRefs = null;
+
+        const ensureConfirmModal = () => {
+            if (confirmModalRefs) return confirmModalRefs;
+
+            const modal = document.createElement('div');
+            modal.id = 'async-confirm-modal';
+            modal.className = 'hidden fixed inset-0 z-[120]';
+            modal.innerHTML = `
+                <div data-confirm-overlay class="absolute inset-0 bg-black/40"></div>
+                <div class="relative z-[121] flex min-h-full items-center justify-center p-4">
+                    <div class="w-full max-w-lg rounded-2xl border border-gray-200 bg-white shadow-xl">
+                        <div class="border-b border-gray-200 px-6 py-4">
+                            <h3 data-confirm-title class="text-lg font-semibold text-gray-900">Please confirm</h3>
+                        </div>
+                        <div class="px-6 py-4">
+                            <p data-confirm-message class="text-sm text-gray-700 leading-6"></p>
+                        </div>
+                        <div class="flex justify-end gap-2 border-t border-gray-200 px-6 py-4">
+                            <button type="button" data-confirm-cancel class="rounded-xl border border-gray-300 bg-white px-4 py-2 text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                Cancel
+                            </button>
+                            <button type="button" data-confirm-accept class="rounded-xl border border-red-200 bg-red-50 px-4 py-2 text-sm font-semibold text-red-700 hover:bg-red-100">
+                                Confirm
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            `;
+            document.body.appendChild(modal);
+
+            confirmModalRefs = {
+                modal,
+                overlay: modal.querySelector('[data-confirm-overlay]'),
+                title: modal.querySelector('[data-confirm-title]'),
+                message: modal.querySelector('[data-confirm-message]'),
+                cancel: modal.querySelector('[data-confirm-cancel]'),
+                accept: modal.querySelector('[data-confirm-accept]'),
+            };
+
+            return confirmModalRefs;
+        };
+
+        const openConfirmModal = ({
+            title = 'Please confirm',
+            message = '',
+            confirmText = 'Confirm',
+            cancelText = 'Cancel',
+            destructive = false,
+        } = {}) => {
+            const refs = ensureConfirmModal();
+            refs.title.textContent = title;
+            refs.message.textContent = message;
+            refs.cancel.textContent = cancelText;
+            refs.accept.textContent = confirmText;
+
+            refs.accept.classList.remove(
+                'border-red-200', 'bg-red-50', 'text-red-700', 'hover:bg-red-100',
+                'border-bu', 'bg-bu', 'text-white', 'hover:bg-bu-dark'
+            );
+            if (destructive) {
+                refs.accept.classList.add('border-red-200', 'bg-red-50', 'text-red-700', 'hover:bg-red-100');
+            } else {
+                refs.accept.classList.add('border-bu', 'bg-bu', 'text-white', 'hover:bg-bu-dark');
+            }
+
+            refs.modal.classList.remove('hidden');
+
+            return new Promise((resolve) => {
+                let resolved = false;
+                const close = (result) => {
+                    if (resolved) return;
+                    resolved = true;
+                    refs.modal.classList.add('hidden');
+                    refs.cancel.removeEventListener('click', onCancel);
+                    refs.accept.removeEventListener('click', onAccept);
+                    refs.overlay.removeEventListener('click', onOverlay);
+                    document.removeEventListener('keydown', onKeydown);
+                    resolve(result);
+                };
+                const onCancel = () => close(false);
+                const onAccept = () => close(true);
+                const onOverlay = (event) => {
+                    if (event.target === refs.overlay) close(false);
+                };
+                const onKeydown = (event) => {
+                    if (event.key === 'Escape') close(false);
+                };
+
+                refs.cancel.addEventListener('click', onCancel);
+                refs.accept.addEventListener('click', onAccept);
+                refs.overlay.addEventListener('click', onOverlay);
+                document.addEventListener('keydown', onKeydown);
+
+                window.requestAnimationFrame(() => refs.accept.focus());
+            });
+        };
 
         const setIndicator = (message, tone = 'info', loading = false) => {
             const toneClass = {
@@ -187,8 +285,20 @@
                     const submitter = event.submitter instanceof HTMLElement ? event.submitter : null;
 
                     const confirmText = form.dataset.confirm || '';
-                    if (confirmText && !window.confirm(confirmText)) {
-                        return;
+                    if (confirmText) {
+                        let confirmed = false;
+                        if (isTruthyFlag(form.dataset.confirmModal)) {
+                            confirmed = await openConfirmModal({
+                                title: form.dataset.confirmTitle || 'Please confirm',
+                                message: confirmText,
+                                confirmText: form.dataset.confirmConfirmText || 'Confirm',
+                                cancelText: form.dataset.confirmCancelText || 'Cancel',
+                                destructive: isTruthyFlag(form.dataset.confirmDestructive),
+                            });
+                        } else {
+                            confirmed = window.confirm(confirmText);
+                        }
+                        if (!confirmed) return;
                     }
 
                     if (form.dataset.asyncBusy === '1') {

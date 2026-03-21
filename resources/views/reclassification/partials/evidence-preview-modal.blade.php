@@ -6,8 +6,7 @@
     <div class="relative mx-auto my-4 h-[calc(100vh-2rem)] w-[min(96vw,1100px)] rounded-2xl border border-gray-200 bg-white shadow-2xl flex flex-col">
         <div class="flex items-center justify-between gap-3 border-b border-gray-200 px-4 py-3">
             <div class="min-w-0">
-                <div class="truncate text-sm font-semibold text-gray-800" id="evidence-preview-title">Evidence Preview</div>
-                <div class="text-xs text-gray-500">Preview file without leaving this page.</div>
+                <div class="truncate text-sm font-semibold text-gray-800" id="evidence-preview-title">Evidence View</div>
             </div>
             <div class="flex items-center gap-2">
                 <a id="evidence-preview-open-tab"
@@ -78,7 +77,7 @@
             const previewUrl = String(url || '').trim();
             if (!previewUrl) return;
 
-            const fileName = String(name || 'Evidence Preview');
+            const fileName = String(name || 'Evidence View');
             const mimeType = String(mime || '').toLowerCase();
             const lowerName = fileName.toLowerCase();
             const isImage = mimeType.startsWith('image/')
@@ -115,7 +114,7 @@
             event.preventDefault();
             open({
                 url: trigger.getAttribute('data-evidence-url') || '',
-                name: trigger.getAttribute('data-evidence-name') || 'Evidence Preview',
+                name: trigger.getAttribute('data-evidence-name') || 'Evidence View',
                 mime: trigger.getAttribute('data-evidence-mime') || '',
             });
         });

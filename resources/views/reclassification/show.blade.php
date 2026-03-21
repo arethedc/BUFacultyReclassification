@@ -1129,7 +1129,7 @@
                                 <form id="final-submit-form"
                                       method="POST"
                                       action="{{ route('reclassification.submit', $application->id) }}"
-                                      @submit.prevent="submitFinal($event)">
+                                      @submit.prevent="openFinalSubmitModal($event)">
                                     @csrf
                                     <button type="submit"
                                             class="px-6 py-2.5 rounded-xl bg-bu text-white font-semibold"
@@ -1365,12 +1365,17 @@
                  draftSaveInFlight: false,
                  autosaveTimer: null,
                  autosaveDelayMs: 8000,
-                 localDraftTimers: {},
-                 dirtySections: {},
-                 restoringLocalDraft: false,
+                localDraftTimers: {},
+                dirtySections: {},
+                restoringLocalDraft: false,
+                leaveConfirmOpen: false,
+                leaveConfirmAction: '',
+                leaveConfirmUrl: '',
+                suppressBeforeUnloadPrompt: false,
                 pendingUploads: [],
                 savingDraft: false,
                 finalSubmitting: false,
+                finalSubmitModalOpen: false,
                 savedIndicatorTimer: null,
                 uploading: false,
                 deletingEvidenceIds: {},
@@ -1419,7 +1424,7 @@
                     window.reclassificationFinalSubmit = () => {
                         const form = document.getElementById('final-submit-form');
                         if (!form) return;
-                        this.submitFinal({ target: form });
+                        this.openFinalSubmitModal({ target: form });
                     };
                     window.reclassificationToast = (message, type = 'info', timeout = 3000) => {
                         this.showToast(message, type, timeout);
@@ -1463,6 +1468,42 @@
                         event.stopImmediatePropagation();
                     };
                     document.addEventListener('click', window.__reclassificationSectionNavGuard, true);
+
+                    if (window.__reclassificationGlobalLeaveGuard) {
+                        document.removeEventListener('click', window.__reclassificationGlobalLeaveGuard, true);
+                    }
+                    window.__reclassificationGlobalLeaveGuard = (event) => {
+                        if (event.defaultPrevented) return;
+                        if (event.button !== 0) return;
+                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+                        const link = event?.target?.closest?.('a[href]');
+                        if (!link) return;
+                        if (link.hasAttribute('data-section-nav')) return;
+                        if (link.hasAttribute('data-skip-leave-guard')) return;
+                        const href = String(link.getAttribute('href') || '').trim();
+                        if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) return;
+                        if (String(link.getAttribute('target') || '').toLowerCase() === '_blank') return;
+                        if (String(link.getAttribute('download') || '').trim() !== '') return;
+                        if (!this.hasPendingUnsavedChanges()) return;
+                        event.preventDefault();
+                        event.stopImmediatePropagation();
+                        this.openLeaveConfirmModal('navigate', { url: link.href });
+                    };
+                    document.addEventListener('click', window.__reclassificationGlobalLeaveGuard, true);
+
+                    if (window.__reclassificationReloadKeyGuard) {
+                        window.removeEventListener('keydown', window.__reclassificationReloadKeyGuard, true);
+                    }
+                    window.__reclassificationReloadKeyGuard = (event) => {
+                        const key = String(event?.key || '').toLowerCase();
+                        const isReloadKey = key === 'f5' || ((event.ctrlKey || event.metaKey) && key === 'r');
+                        if (!isReloadKey) return;
+                        if (!this.hasPendingUnsavedChanges()) return;
+                        event.preventDefault();
+                        event.stopPropagation();
+                        this.openLeaveConfirmModal('reload');
+                    };
+                    window.addEventListener('keydown', window.__reclassificationReloadKeyGuard, true);
 
                     this.bindDraftProtection();
                     this.updateBackToTopVisibility();
@@ -1512,6 +1553,59 @@
                     }
                 },
 
+                hasPendingUnsavedChanges() {
+                    return this.hasDirtyChanges()
+                        && !this.finalSubmitting
+                        && !this.draftSaveInFlight
+                        && !this.suppressBeforeUnloadPrompt;
+                },
+
+                openLeaveConfirmModal(action = 'navigate', payload = {}) {
+                    this.leaveConfirmAction = String(action || 'navigate');
+                    this.leaveConfirmUrl = String(payload?.url || '');
+                    this.leaveConfirmOpen = true;
+                },
+
+                closeLeaveConfirmModal() {
+                    if (this.draftSaveInFlight || this.finalSubmitting) return;
+                    this.leaveConfirmOpen = false;
+                    this.leaveConfirmAction = '';
+                    this.leaveConfirmUrl = '';
+                },
+
+                confirmLeaveWithoutSaving() {
+                    const action = this.leaveConfirmAction;
+                    const url = this.leaveConfirmUrl;
+                    this.closeLeaveConfirmModal();
+                    this.suppressBeforeUnloadPrompt = true;
+
+                    if (action === 'reload') {
+                        window.location.reload();
+                        return;
+                    }
+                    if (action === 'navigate' && url) {
+                        window.location.href = url;
+                    }
+                },
+
+                saveDraftAndLeave() {
+                    if (this.draftSaveInFlight || this.finalSubmitting) return;
+                    const action = this.leaveConfirmAction;
+                    const url = this.leaveConfirmUrl;
+                    this.saveDirtySectionsDraft('manual')
+                        .finally(() => {
+                            this.closeLeaveConfirmModal();
+                            this.suppressBeforeUnloadPrompt = true;
+                            if (action === 'reload') {
+                                window.location.reload();
+                                return;
+                            }
+                            if (action === 'navigate' && url) {
+                                window.location.href = url;
+                            }
+                        });
+                },
+
                 setHeaderSavedIndicator(visible, text = 'Saved') {
                     const badge = document.getElementById('header-save-draft-status');
                     if (!badge) return;
@@ -1553,6 +1647,7 @@
                     });
 
                     window.addEventListener('beforeunload', (event) => {
+                        if (this.suppressBeforeUnloadPrompt || this.finalSubmitting || this.draftSaveInFlight) return;
                         if (!this.hasDirtyChanges()) return;
                         this.persistAllLocalDrafts();
                         event.preventDefault();
@@ -2262,11 +2357,32 @@
                     if (!this.hasMinBuYears) return 'Cannot submit: At least 3 years of service in BU is required.';
                     if (!this.hasResearchEquivalentNow()) return 'Cannot submit: At least one research output/equivalent is required.';
                     if (this.getOpenRequiredCommentCount() > 0) return 'Cannot submit: Please address all action-required reviewer comments first.';
-                    return 'Ready to submit. A confirmation prompt will appear.';
+                    return 'Ready to submit.';
                 },
 
-                finalSubmitConfirmMessage() {
-                    return "Are you sure you want to final submit this reclassification?\n\nPlease make sure all required documents are complete.\n\nOnly one submission is allowed per period, and you cannot fully revise after final submit unless a reviewer returns the form.";
+                openFinalSubmitModal(event = null) {
+                    if (this.finalSubmitting) return;
+                    if (!this.canSubmitByPeriod) {
+                        this.showToast('Submission window is closed. Save draft only.', 'error', 3000);
+                        return;
+                    }
+                    if (!this.canFinalSubmit()) return;
+                    const form = event?.target || document.getElementById('final-submit-form');
+                    if (!form) return;
+                    this.finalSubmitModalOpen = true;
+                },
+
+                closeFinalSubmitModal() {
+                    if (this.finalSubmitting) return;
+                    this.finalSubmitModalOpen = false;
+                },
+
+                confirmFinalSubmit() {
+                    if (this.finalSubmitting) return;
+                    const form = document.getElementById('final-submit-form');
+                    if (!form) return;
+                    this.finalSubmitModalOpen = false;
+                    this.submitFinal({ target: form }, { fromModal: true });
                 },
 
                 evidenceCount() {
@@ -2677,13 +2793,18 @@
                     return this.saveFormsDraft(forms, 'manual');
                 },
 
-                submitFinal(event) {
+                submitFinal(event, options = {}) {
                     if (this.finalSubmitting) return;
                     if (!this.canSubmitByPeriod) {
                         this.showToast('Submission window is closed. Save draft only.', 'error', 3000);
                         return;
                     }
                     if (!this.canFinalSubmit()) return;
+
+                    if (!options?.fromModal) {
+                        this.openFinalSubmitModal(event);
+                        return;
+                    }
 
                     const forms = this.editableForms();
                     if (window.validateFormRows) {
@@ -2703,17 +2824,19 @@
                         }
                     }
 
-                    if (!window.confirm(this.finalSubmitConfirmMessage())) return;
-
                     const form = event?.target;
                     if (!form) return;
 
                     this.finalSubmitting = true;
+                    this.suppressBeforeUnloadPrompt = false;
+                    let didSubmit = false;
                     const formsToSave = this.editableForms();
 
                     if (!formsToSave.length) {
                         this.showToast('Submitting...', 'info', 1200);
+                        this.suppressBeforeUnloadPrompt = true;
                         form.submit();
+                        didSubmit = true;
                         this.finalSubmitting = false;
                         return;
                     }
@@ -2724,10 +2847,15 @@
                                 this.showToast('Please fix save errors before final submit.', 'error', 3000);
                                 return;
                             }
+                            this.suppressBeforeUnloadPrompt = true;
                             form.submit();
+                            didSubmit = true;
                         })
                         .finally(() => {
                             this.finalSubmitting = false;
+                            if (!didSubmit) {
+                                this.suppressBeforeUnloadPrompt = false;
+                            }
                         });
                 },
             };
@@ -2973,6 +3101,85 @@
             return false;
         };
     </script>
+
+    <div x-cloak x-show="finalSubmitModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40" @click="closeFinalSubmitModal()"></div>
+        <div class="relative w-full max-w-lg mx-4 rounded-2xl border bg-white shadow-xl">
+            <div class="px-6 py-4 border-b">
+                <h3 class="text-base font-semibold text-gray-900">
+                    Confirm {{ ($application->status ?? '') === 'returned_to_faculty' ? 'Resubmit' : 'Final Submit' }}
+                </h3>
+                <p class="mt-1 text-sm text-gray-600">
+                    Please make sure your entries and evidence are complete before continuing.
+                </p>
+            </div>
+            <div class="px-6 py-4 space-y-3">
+                <div class="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-sm text-blue-900">
+                    <div class="font-semibold">Submission note</div>
+                    <p class="mt-1 text-xs text-blue-800">
+                        After you submit, we will redirect you to your Submitted Summary page so you can review your final paper.
+                    </p>
+                </div>
+                <p class="text-xs text-gray-500">
+                    You can still request a return while your paper is under reviewer stages.
+                </p>
+            </div>
+            <div class="px-6 py-4 border-t flex items-center justify-end gap-2">
+                <button type="button"
+                        @click="closeFinalSubmitModal()"
+                        :disabled="finalSubmitting"
+                        class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
+                    Cancel
+                </button>
+                <button type="button"
+                        @click="confirmFinalSubmit()"
+                        :disabled="finalSubmitting"
+                        class="inline-flex items-center rounded-lg bg-bu px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-bu-dark disabled:opacity-60 disabled:cursor-not-allowed">
+                    <span x-text="finalSubmitting ? 'Submitting...' : '{{ ($application->status ?? '') === 'returned_to_faculty' ? 'Confirm Resubmit' : 'Confirm Final Submit' }}'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div x-cloak x-show="leaveConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center">
+        <div class="absolute inset-0 bg-black/40" @click="closeLeaveConfirmModal()"></div>
+        <div class="relative w-full max-w-lg mx-4 rounded-2xl border bg-white shadow-xl">
+            <div class="px-6 py-4 border-b">
+                <h3 class="text-base font-semibold text-gray-900">Unsaved Changes</h3>
+                <p class="mt-1 text-sm text-gray-600">
+                    You have unsaved changes in this form.
+                </p>
+            </div>
+            <div class="px-6 py-4 space-y-3">
+                <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                    <div class="font-semibold">Leave this page?</div>
+                    <p class="mt-1 text-xs text-amber-800">
+                        If you continue without saving, your latest edits may be lost.
+                    </p>
+                </div>
+            </div>
+            <div class="px-6 py-4 border-t flex items-center justify-end gap-2">
+                <button type="button"
+                        @click="closeLeaveConfirmModal()"
+                        :disabled="draftSaveInFlight || finalSubmitting"
+                        class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
+                    Stay
+                </button>
+                <button type="button"
+                        @click="confirmLeaveWithoutSaving()"
+                        :disabled="draftSaveInFlight || finalSubmitting"
+                        class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed">
+                    Leave Without Saving
+                </button>
+                <button type="button"
+                        @click="saveDraftAndLeave()"
+                        :disabled="draftSaveInFlight || finalSubmitting"
+                        class="inline-flex items-center rounded-lg bg-bu px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-bu-dark disabled:opacity-60 disabled:cursor-not-allowed">
+                    <span x-text="draftSaveInFlight ? 'Saving...' : 'Save Draft and Leave'"></span>
+                </button>
+            </div>
+        </div>
+    </div>
 
     <div x-cloak x-show="evidenceDeleteConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center">
         <div class="absolute inset-0 bg-black/40" @click="cancelDeleteLibraryEvidence()"></div>
