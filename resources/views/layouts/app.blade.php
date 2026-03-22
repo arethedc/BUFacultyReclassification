@@ -75,7 +75,14 @@
                             return name !== '';
                         });
 
-                    const nonEvidenceFields = fields.filter(el => el !== select);
+                    const nonEvidenceFields = fields.filter((el) => {
+                        if (el === select) return false;
+                        const name = String(el.getAttribute('name') || '').trim();
+                        // Ignore synthetic row toggles (e.g. section1[a1][_enabled]) so
+                        // rows are considered "started" only after real user input.
+                        if (/\[_enabled\]$/.test(name)) return false;
+                        return true;
+                    });
                     const proxy = row.querySelector('[data-evidence-proxy]');
 
                     const hiddenEvidenceInputs = row.querySelectorAll('input[type="hidden"][name*="[evidence]"]');
