@@ -351,142 +351,147 @@
             @endphp
 
             {{-- CURRENT SUBMISSION --}}
-            <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-                <div class="px-6 py-4 border-b">
-                    <h3 class="text-lg font-semibold text-gray-800">
-                        Current Submission
-                    </h3>
-                </div>
+            <div id="faculty-current-submission-panel"
+                 data-auto-refresh
+                 data-auto-refresh-url="{{ request()->fullUrl() }}"
+                 data-auto-refresh-interval="5000">
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+                    <div class="px-6 py-4 border-b">
+                        <h3 class="text-lg font-semibold text-gray-800">
+                            Current Submission
+                        </h3>
+                    </div>
 
-                <div class="p-6">
-                    @if($currentSubmission)
-                        @php
-                            $statusInfo = $statusMap[$currentSubmission->status] ?? [ucfirst(str_replace('_', ' ', $currentSubmission->status)), 'bg-gray-100 text-gray-700'];
-                            if (($currentSubmission->status ?? '') === 'returned_to_faculty') {
-                                $statusInfo[0] = 'Returned by ' . $returnStageLabel($currentSubmission->returned_from ?? null);
-                            }
-                            $term = trim((string) ($currentSubmission->cycle_year ?? ''));
-                            $isUnassignedDraft = ((int) ($currentSubmission->period_id ?? 0) === 0) && trim((string) ($currentSubmission->cycle_year ?? '')) === '';
-                            if ($term === '') {
-                                $term = trim((string) ($activePeriod?->name ?? ''));
-                            }
-                            if ($term === '') {
-                                $term = trim((string) ($activePeriod?->cycle_year ?? ''));
-                            }
-                            if ($term === '') {
-                                $term = 'Not set';
-                            }
-                            $isEditable = in_array($currentSubmission->status, ['draft', 'returned_to_faculty'], true);
-                            $canRequestReturn = in_array($currentSubmission->status, ['dean_review', 'hr_review', 'vpaa_review', 'vpaa_approved', 'president_review'], true);
-                            $hasPendingReturnRequest = !is_null($currentSubmission->faculty_return_requested_at ?? null);
-                        @endphp
-                        <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                            <div class="space-y-2">
-                                <div class="text-sm text-gray-500">
-                                    Term: <span class="font-medium text-gray-800">{{ $term }}</span>
-                                </div>
-                                <span class="inline-flex px-2 py-1 text-xs rounded-full {{ $statusInfo[1] }}">
-                                    {{ $statusInfo[0] }}
-                                </span>
-                                <div class="text-xs text-gray-500">
-                                    Last updated {{ optional($currentSubmission->updated_at)->format('M d, Y h:i A') }}
-                                </div>
-                                @if($isUnassignedDraft && $activePeriod)
-                                    <div class="text-xs text-amber-700">
-                                        Draft is from no-period state and will be assigned to the active period when you open it.
+                    <div class="p-6">
+                        @if($currentSubmission)
+                            @php
+                                $statusInfo = $statusMap[$currentSubmission->status] ?? [ucfirst(str_replace('_', ' ', $currentSubmission->status)), 'bg-gray-100 text-gray-700'];
+                                if (($currentSubmission->status ?? '') === 'returned_to_faculty') {
+                                    $statusInfo[0] = 'Returned by ' . $returnStageLabel($currentSubmission->returned_from ?? null);
+                                }
+                                $term = trim((string) ($currentSubmission->cycle_year ?? ''));
+                                $isUnassignedDraft = ((int) ($currentSubmission->period_id ?? 0) === 0) && trim((string) ($currentSubmission->cycle_year ?? '')) === '';
+                                if ($term === '') {
+                                    $term = trim((string) ($activePeriod?->name ?? ''));
+                                }
+                                if ($term === '') {
+                                    $term = trim((string) ($activePeriod?->cycle_year ?? ''));
+                                }
+                                if ($term === '') {
+                                    $term = 'Not set';
+                                }
+                                $isEditable = in_array($currentSubmission->status, ['draft', 'returned_to_faculty'], true);
+                                $canRequestReturn = in_array($currentSubmission->status, ['dean_review', 'hr_review', 'vpaa_review', 'vpaa_approved', 'president_review'], true);
+                                $hasPendingReturnRequest = !is_null($currentSubmission->faculty_return_requested_at ?? null);
+                            @endphp
+                            <div class="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+                                <div class="space-y-2">
+                                    <div class="text-sm text-gray-500">
+                                        Term: <span class="font-medium text-gray-800">{{ $term }}</span>
                                     </div>
-                                @endif
-                            </div>
+                                    <span class="inline-flex px-2 py-1 text-xs rounded-full {{ $statusInfo[1] }}">
+                                        {{ $statusInfo[0] }}
+                                    </span>
+                                    <div class="text-xs text-gray-500">
+                                        Last updated {{ optional($currentSubmission->updated_at)->format('M d, Y h:i A') }}
+                                    </div>
+                                    @if($isUnassignedDraft && $activePeriod)
+                                        <div class="text-xs text-amber-700">
+                                            Draft is from no-period state and will be assigned to the active period when you open it.
+                                        </div>
+                                    @endif
+                                </div>
 
-                            <div class="flex items-center gap-2">
-                                @if($isEditable)
-                                    <a href="{{ route('reclassification.show') }}"
-                                       class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
-                                        Continue Draft
-                                    </a>
-                                @else
-                                    <a href="{{ route('reclassification.submitted-summary.show', $currentSubmission) }}"
-                                       class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
-                                        View Submission
-                                    </a>
-                                    @if($canRequestReturn)
-                                        @if($hasPendingReturnRequest)
-                                            <form method="POST"
-                                                  action="{{ route('reclassification.cancel-return-request', $currentSubmission) }}"
-                                                  onsubmit="return confirm('Cancel your pending return request?');"
-                                                  class="inline-block">
-                                                @csrf
-                                                <button type="submit"
-                                                        class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50">
-                                                    Cancel Request
-                                                </button>
-                                            </form>
-                                        @else
-                                            @php
-                                                $requestReturnModalName = 'request-return-' . $currentSubmission->id;
-                                            @endphp
-                                            <button type="button"
-                                                    x-data=""
-                                                    x-on:click.prevent="$dispatch('open-modal', '{{ $requestReturnModalName }}')"
-                                                    class="px-4 py-2 rounded-xl border border-amber-300 text-amber-700 text-sm font-semibold hover:bg-amber-50">
-                                                Request Return
-                                            </button>
-
-                                            <x-modal name="{{ $requestReturnModalName }}" :show="$errors->has('return_request_reason')" focusable>
-                                                <form method="POST" action="{{ route('reclassification.request-return', $currentSubmission) }}" class="p-6">
+                                <div class="flex items-center gap-2">
+                                    @if($isEditable)
+                                        <a href="{{ route('reclassification.show') }}"
+                                           class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold shadow-soft">
+                                            Continue Draft
+                                        </a>
+                                    @else
+                                        <a href="{{ route('reclassification.submitted-summary.show', $currentSubmission) }}"
+                                           class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                                            View Submission
+                                        </a>
+                                        @if($canRequestReturn)
+                                            @if($hasPendingReturnRequest)
+                                                <form method="POST"
+                                                      action="{{ route('reclassification.cancel-return-request', $currentSubmission) }}"
+                                                      onsubmit="return confirm('Cancel your pending return request?');"
+                                                      class="inline-block">
                                                     @csrf
-                                                    <h2 class="text-lg font-semibold text-gray-900">
-                                                        Are you sure you want to request return?
-                                                    </h2>
-                                                    <p class="mt-1 text-sm text-gray-600">
-                                                        Add your reason so the reviewer can process your request.
-                                                    </p>
-
-                                                    <div class="mt-4">
-                                                        <label for="return_request_reason_{{ $currentSubmission->id }}" class="block text-sm font-medium text-gray-700">
-                                                            Reason / Comment
-                                                        </label>
-                                                        <textarea id="return_request_reason_{{ $currentSubmission->id }}"
-                                                                  name="return_request_reason"
-                                                                  rows="4"
-                                                                  maxlength="1000"
-                                                                  required
-                                                                  class="mt-1 block w-full rounded-lg border-gray-300 text-sm focus:border-bu focus:ring-bu"
-                                                                  placeholder="Enter your reason for requesting return...">{{ old('return_request_reason', (string) ($currentSubmission->faculty_return_request_reason ?? '')) }}</textarea>
-                                                        <x-input-error :messages="$errors->get('return_request_reason')" class="mt-2" />
-                                                    </div>
-
-                                                    <div class="mt-6 flex justify-end gap-2">
-                                                        <button type="button"
-                                                                x-on:click="$dispatch('close')"
-                                                                class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                                                            Cancel
-                                                        </button>
-                                                        <button type="submit"
-                                                                class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
-                                                            Confirm Request Return
-                                                        </button>
-                                                    </div>
+                                                    <button type="submit"
+                                                            class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-gray-700 text-sm font-semibold hover:bg-gray-50">
+                                                        Cancel Request
+                                                    </button>
                                                 </form>
-                                            </x-modal>
+                                            @else
+                                                @php
+                                                    $requestReturnModalName = 'request-return-' . $currentSubmission->id;
+                                                @endphp
+                                                <button type="button"
+                                                        x-data=""
+                                                        x-on:click.prevent="$dispatch('open-modal', '{{ $requestReturnModalName }}')"
+                                                        class="px-4 py-2 rounded-xl border border-amber-300 text-amber-700 text-sm font-semibold hover:bg-amber-50">
+                                                    Request Return
+                                                </button>
+
+                                                <x-modal name="{{ $requestReturnModalName }}" :show="$errors->has('return_request_reason')" focusable>
+                                                    <form method="POST" action="{{ route('reclassification.request-return', $currentSubmission) }}" class="p-6">
+                                                        @csrf
+                                                        <h2 class="text-lg font-semibold text-gray-900">
+                                                            Are you sure you want to request return?
+                                                        </h2>
+                                                        <p class="mt-1 text-sm text-gray-600">
+                                                            Add your reason so the reviewer can process your request.
+                                                        </p>
+
+                                                        <div class="mt-4">
+                                                            <label for="return_request_reason_{{ $currentSubmission->id }}" class="block text-sm font-medium text-gray-700">
+                                                                Reason / Comment
+                                                            </label>
+                                                            <textarea id="return_request_reason_{{ $currentSubmission->id }}"
+                                                                      name="return_request_reason"
+                                                                      rows="4"
+                                                                      maxlength="1000"
+                                                                      required
+                                                                      class="mt-1 block w-full rounded-lg border-gray-300 text-sm focus:border-bu focus:ring-bu"
+                                                                      placeholder="Enter your reason for requesting return...">{{ old('return_request_reason', (string) ($currentSubmission->faculty_return_request_reason ?? '')) }}</textarea>
+                                                            <x-input-error :messages="$errors->get('return_request_reason')" class="mt-2" />
+                                                        </div>
+
+                                                        <div class="mt-6 flex justify-end gap-2">
+                                                            <button type="button"
+                                                                    x-on:click="$dispatch('close')"
+                                                                    class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                                                Cancel
+                                                            </button>
+                                                            <button type="submit"
+                                                                    class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+                                                                Confirm Request Return
+                                                            </button>
+                                                        </div>
+                                                    </form>
+                                                </x-modal>
+                                            @endif
                                         @endif
                                     @endif
                                 @endif
                             </div>
-                        </div>
-                        @if($hasPendingReturnRequest)
-                            <div class="mt-3 text-xs text-amber-700">
-                                Return request sent on {{ optional($currentSubmission->faculty_return_requested_at)->format('M d, Y h:i A') }}.
-                                @if(!empty($currentSubmission->faculty_return_request_reason))
-                                    <span class="block mt-1">Reason: {{ $currentSubmission->faculty_return_request_reason }}</span>
-                                @endif
+                            @if($hasPendingReturnRequest)
+                                <div class="mt-3 text-xs text-amber-700">
+                                    Return request sent on {{ optional($currentSubmission->faculty_return_requested_at)->format('M d, Y h:i A') }}.
+                                    @if(!empty($currentSubmission->faculty_return_request_reason))
+                                        <span class="block mt-1">Reason: {{ $currentSubmission->faculty_return_request_reason }}</span>
+                                    @endif
+                                </div>
+                            @endif
+                        @else
+                            <div class="text-sm text-gray-500">
+                                No active draft or in-review submission.
                             </div>
                         @endif
-                    @else
-                        <div class="text-sm text-gray-500">
-                            No active draft or in-review submission.
-                        </div>
-                    @endif
+                    </div>
                 </div>
             </div>
 

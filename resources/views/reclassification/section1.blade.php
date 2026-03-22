@@ -191,9 +191,10 @@ Instruction: Kindly check the corresponding points in the blanks and write the F
         </tr>
       </thead>
       <tbody class="divide-y">
-        <tr>
+        <tr :class="a1Removed ? 'bg-gray-100/70 text-gray-500' : ''">
           <td class="px-3 py-2 align-top">
             <input type="hidden" name="section1[a1][id]" :value="a1Id || ''">
+            <input type="hidden" name="section1[a1][is_removed]" :value="a1Removed ? 1 : 0">
             <input type="text"
                    name="section1[a1][_enabled]"
                    :value="a1Enabled ? '1' : ''"
@@ -254,12 +255,17 @@ Instruction: Kindly check the corresponding points in the blanks and write the F
             </template>
           </td>
           <td class="px-3 py-2 text-right align-top">
-            <button type="button"
-                    @click="clearA1()"
-                    class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"
-                    :class="'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'">
-              Remove
-            </button>
+            <div class="inline-flex items-center justify-end gap-2">
+              <span x-show="a1Removed" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
+              <button type="button"
+                      @click="requestA1ToggleRemove()"
+                      class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"
+                      :class="a1Removed
+                        ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
+                        : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'">
+                <span x-text="a1ActionLabel()"></span>
+              </button>
+            </div>
           </td>
         </tr>
         <tr x-show="a1Enabled && a1Comments.length" data-row-review-comments class="bg-gray-50/40">
@@ -472,7 +478,7 @@ $tables = [
                         ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
                         : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'"
                       class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition">
-                <span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span>
+                <span x-text="removeActionLabel(row)"></span>
               </button>
             </div>
           </td>
@@ -621,7 +627,7 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
                           ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
                           : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'"
                         class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition">
-                  <span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span>
+                  <span x-text="removeActionLabel(row)"></span>
                 </button>
               </div>
             </td>
@@ -791,7 +797,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                           ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100'
                           : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'"
                         class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition">
-                  <span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span>
+                  <span x-text="removeActionLabel(row)"></span>
                 </button>
               </div>
             </td>
@@ -1101,11 +1107,13 @@ function sectionOne(initial = {}, globalEvidence = []) {
     previewIndex: 0,
     pendingOpenSelectAfterUpload: false,
     removeConfirmOpen: false,
+    removePendingA1: false,
     removePendingRows: null,
     removePendingIndex: null,
     toast: { show: false, message: '', type: 'success' },
     toastTimer: null,
     a1Enabled: false,
+    a1Removed: false,
     a1Id: (initial.a1 && initial.a1.id) ? Number(initial.a1.id) : '',
     a1Degree: (initial.a1 && initial.a1.degree) ? String(initial.a1.degree) : '',
     a1Honors: (initial.a1 && initial.a1.honors) ? initial.a1.honors : '',
@@ -1158,6 +1166,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
 
       this.a1Evidence = toArray(this.a1Evidence);
       this.a1Comments = toComments(this.a1Comments);
+      this.a1Removed = this.isRemovedRow(initial.a1 || {});
       if (this.a1Honors === 'none') {
         this.a1Honors = '';
       }
@@ -1271,18 +1280,32 @@ function sectionOne(initial = {}, globalEvidence = []) {
     a1HasContent() {
       return String(this.a1Degree || '').trim() !== ''
         || String(this.a1Honors || '').trim() !== ''
-        || this.rowEvidenceCount('a1') > 0;
+        || this.rowEvidenceCount('a1') > 0
+        || this.a1Removed
+        || Number(this.a1Id || 0) > 0;
     },
 
     addA1Entry() {
       this.a1Enabled = true;
+      this.a1Removed = false;
     },
 
     clearA1() {
       this.a1Degree = '';
       this.a1Honors = '';
       this.a1Evidence = [];
+      this.a1Removed = false;
       this.a1Enabled = false;
+    },
+
+    requestA1ToggleRemove() {
+      if (!this.a1Enabled) return;
+      if (!this.softRemoveMode || this.a1Removed) {
+        this.removeOrRestoreA1(true);
+        return;
+      }
+      this.removePendingA1 = true;
+      this.removeConfirmOpen = true;
     },
 
     selectedEvidence(values) {
@@ -1486,10 +1509,26 @@ function sectionOne(initial = {}, globalEvidence = []) {
       return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
     },
 
+    isPersistedEntry(row) {
+      return Number(row?.id || 0) > 0;
+    },
+
+    removeActionLabel(row) {
+      if (this.isRemovedRow(row)) return 'Restore Entry';
+      if (!this.softRemoveMode) return 'Remove';
+      return this.isPersistedEntry(row) ? 'Mark Removed' : 'Remove';
+    },
+
+    a1ActionLabel() {
+      if (this.a1Removed) return 'Restore Entry';
+      if (!this.softRemoveMode) return 'Remove';
+      return Number(this.a1Id || 0) > 0 ? 'Mark Removed' : 'Remove';
+    },
+
     requestRowToggleRemove(rows, index) {
       if (!Array.isArray(rows) || index < 0 || index >= rows.length) return;
       const row = rows[index] || {};
-      if (!this.softRemoveMode || this.isRemovedRow(row)) {
+      if (!this.softRemoveMode || this.isRemovedRow(row) || !this.isPersistedEntry(row)) {
         this.removeOrRestoreRow(rows, index, true);
         return;
       }
@@ -1500,17 +1539,37 @@ function sectionOne(initial = {}, globalEvidence = []) {
 
     cancelRowToggleRemove() {
       this.removeConfirmOpen = false;
+      this.removePendingA1 = false;
       this.removePendingRows = null;
       this.removePendingIndex = null;
     },
 
     confirmRowToggleRemove() {
+      if (this.removePendingA1) {
+        this.removeOrRestoreA1(true);
+        this.cancelRowToggleRemove();
+        return;
+      }
       if (!Array.isArray(this.removePendingRows) || this.removePendingIndex === null) {
         this.cancelRowToggleRemove();
         return;
       }
       this.removeOrRestoreRow(this.removePendingRows, this.removePendingIndex, true);
       this.cancelRowToggleRemove();
+    },
+
+    removeOrRestoreA1(bypassConfirm = false) {
+      if (!this.a1Enabled) return;
+      const isPersisted = Number(this.a1Id || 0) > 0;
+      if (!this.softRemoveMode || !isPersisted) {
+        this.clearA1();
+        return;
+      }
+      if (!bypassConfirm && !this.a1Removed) {
+        this.requestA1ToggleRemove();
+        return;
+      }
+      this.a1Removed = !this.a1Removed;
     },
 
     removeOrRestoreRow(rows, index, bypassConfirm = false) {
@@ -1520,6 +1579,10 @@ function sectionOne(initial = {}, globalEvidence = []) {
         return;
       }
       const row = rows[index] || {};
+      if (!this.isPersistedEntry(row)) {
+        rows.splice(index, 1);
+        return;
+      }
       if (!bypassConfirm && !this.isRemovedRow(row)) {
         this.requestRowToggleRemove(rows, index);
         return;

@@ -1264,4 +1264,40 @@
             };
         }
     </script>
+    @if(!$isDraftHistoryMode)
+        <script>
+            (() => {
+                const currentUrl = window.location.href;
+                const pollMs = 5000;
+                let busy = false;
+
+                const tick = async () => {
+                    if (busy || document.hidden) return;
+                    busy = true;
+                    try {
+                        const response = await fetch(currentUrl, {
+                            method: 'GET',
+                            credentials: 'same-origin',
+                            headers: {
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'X-UX-Background': '1',
+                            },
+                        });
+
+                        // When status transitions to editable (e.g., returned_to_faculty),
+                        // controller redirects to the editable form route.
+                        if (response.redirected && response.url && response.url !== currentUrl) {
+                            window.location.replace(response.url);
+                        }
+                    } catch (error) {
+                        // Silent background polling; keep UX clean.
+                    } finally {
+                        busy = false;
+                    }
+                };
+
+                window.setInterval(tick, pollMs);
+            })();
+        </script>
+    @endif
 </x-app-layout>

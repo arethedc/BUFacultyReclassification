@@ -441,17 +441,17 @@
                         id="reviewer-comments-fab"
                         @click="panelOpen = true; revisionPanelOpen = false"
                         class="inline-flex h-11 w-11 items-center justify-center rounded-full border border-gray-300 bg-white text-gray-700 shadow-lg hover:bg-gray-50"
-                        aria-label="Comments">
+                        aria-label="Addressed comments">
                     <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M18 10c0 3.866-3.582 7-8 7a8.94 8.94 0 01-3.705-.77L2 17.5l1.346-3.364A6.735 6.735 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" />
                     </svg>
-                    <span x-show="trackerOpenRequiredCount() > 0"
+                    <span x-show="trackerAddressedCount() > 0"
                           class="absolute -top-1 -right-1 inline-flex min-w-5 items-center justify-center rounded-full bg-red-600 px-1.5 py-0.5 text-[10px] font-semibold text-white"
-                          x-text="trackerOpenRequiredCount()">
+                          x-text="trackerAddressedCount()">
                     </span>
                 </button>
                 <span class="pointer-events-none absolute right-14 top-1/2 -translate-y-1/2 whitespace-nowrap rounded-md bg-black px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
-                    Open comments
+                    Addressed comments
                 </span>
             </div>
 
@@ -1232,67 +1232,72 @@
                 </div>
             @endif
 
-            @if($hasPendingFacultyReturnRequest)
-                <div class="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
-                    <div class="flex items-start justify-between gap-4">
-                        <div>
-                            <div class="text-sm font-semibold text-amber-800">Faculty Return Request</div>
-                            <p class="mt-1 text-sm text-amber-800">
-                                {{ $application->faculty?->name ?? 'Faculty member' }} requested this paper to be returned for revision.
-                            </p>
-                            @if(!empty($application->faculty_return_request_reason))
+            <div id="faculty-return-request-watch"
+                 data-auto-refresh
+                 data-auto-refresh-url="{{ request()->fullUrl() }}"
+                 data-auto-refresh-interval="5000">
+                @if($hasPendingFacultyReturnRequest)
+                    <div class="rounded-2xl border border-amber-300 bg-amber-50 px-5 py-4">
+                        <div class="flex items-start justify-between gap-4">
+                            <div>
+                                <div class="text-sm font-semibold text-amber-800">Faculty Return Request</div>
                                 <p class="mt-1 text-sm text-amber-800">
-                                    Reason: {{ $application->faculty_return_request_reason }}
+                                    {{ $application->faculty?->name ?? 'Faculty member' }} requested this paper to be returned for revision.
                                 </p>
-                            @endif
-                            <p class="mt-1 text-xs text-amber-700">
-                                Requested on {{ optional($application->faculty_return_requested_at)->format('M d, Y h:i A') ?? '-' }}.
-                            </p>
-                        </div>
-                        @if($canReturnPerPaper)
-                            @php
-                                $confirmApproveReturnRequestModalName = 'confirm-approve-request-' . $application->id;
-                            @endphp
-                            <button type="button"
-                                    x-data=""
-                                    x-on:click.prevent="$dispatch('open-modal', '{{ $confirmApproveReturnRequestModalName }}')"
-                                    class="px-4 py-2 rounded-xl border border-amber-300 bg-white text-amber-800 text-sm font-semibold hover:bg-amber-100">
-                                Approve Request
-                            </button>
-
-                            <x-modal name="{{ $confirmApproveReturnRequestModalName }}" focusable>
-                                <form method="POST" action="{{ route('reclassification.return', $application) }}" class="p-6">
-                                    @csrf
-                                    <h2 class="text-lg font-semibold text-gray-900">
-                                        Are you sure you want to approve this return request?
-                                    </h2>
-                                    <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
-                                        <div class="text-xs font-semibold text-amber-900">Faculty reason</div>
-                                        <div class="mt-1 text-sm text-amber-800">
-                                            {{ !empty($application->faculty_return_request_reason) ? $application->faculty_return_request_reason : 'No reason provided.' }}
-                                        </div>
-                                    </div>
-                                    <p class="mt-3 text-sm text-gray-600">
-                                        The submission will be returned to faculty for revision.
+                                @if(!empty($application->faculty_return_request_reason))
+                                    <p class="mt-1 text-sm text-amber-800">
+                                        Reason: {{ $application->faculty_return_request_reason }}
                                     </p>
+                                @endif
+                                <p class="mt-1 text-xs text-amber-700">
+                                    Requested on {{ optional($application->faculty_return_requested_at)->format('M d, Y h:i A') ?? '-' }}.
+                                </p>
+                            </div>
+                            @if($canReturnPerPaper)
+                                @php
+                                    $confirmApproveReturnRequestModalName = 'confirm-approve-request-' . $application->id;
+                                @endphp
+                                <button type="button"
+                                        x-data=""
+                                        x-on:click.prevent="$dispatch('open-modal', '{{ $confirmApproveReturnRequestModalName }}')"
+                                        class="px-4 py-2 rounded-xl border border-amber-300 bg-white text-amber-800 text-sm font-semibold hover:bg-amber-100">
+                                    Approve Request
+                                </button>
 
-                                    <div class="mt-6 flex justify-end gap-2">
-                                        <button type="button"
-                                                x-on:click="$dispatch('close')"
-                                                class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
-                                            Cancel
-                                        </button>
-                                        <button type="submit"
-                                                class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
-                                            Confirm Approve Request
-                                        </button>
-                                    </div>
-                                </form>
-                            </x-modal>
-                        @endif
+                                <x-modal name="{{ $confirmApproveReturnRequestModalName }}" focusable>
+                                    <form method="POST" action="{{ route('reclassification.return', $application) }}" class="p-6">
+                                        @csrf
+                                        <h2 class="text-lg font-semibold text-gray-900">
+                                            Are you sure you want to approve this return request?
+                                        </h2>
+                                        <div class="mt-3 rounded-lg border border-amber-200 bg-amber-50 p-3">
+                                            <div class="text-xs font-semibold text-amber-900">Faculty reason</div>
+                                            <div class="mt-1 text-sm text-amber-800">
+                                                {{ !empty($application->faculty_return_request_reason) ? $application->faculty_return_request_reason : 'No reason provided.' }}
+                                            </div>
+                                        </div>
+                                        <p class="mt-3 text-sm text-gray-600">
+                                            The submission will be returned to faculty for revision.
+                                        </p>
+
+                                        <div class="mt-6 flex justify-end gap-2">
+                                            <button type="button"
+                                                    x-on:click="$dispatch('close')"
+                                                    class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                                Cancel
+                                            </button>
+                                            <button type="submit"
+                                                    class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
+                                                Confirm Approve Request
+                                            </button>
+                                        </div>
+                                    </form>
+                                </x-modal>
+                            @endif
+                        </div>
                     </div>
-                </div>
-            @endif
+                @endif
+            </div>
 
             @php
                 $changeLogs = collect($application->changeLogs ?? [])
@@ -2379,8 +2384,9 @@
                                                                                         $snapshots = collect(array_values($buckets))
                                                                                             ->sortBy('sort_at')
                                                                                             ->values()
-                                                                                            ->map(function ($snapshot, $index) use ($ordinalReturnLabel) {
-                                                                                                $snapshot['label'] = $ordinalReturnLabel($index + 1);
+                                                                                            ->map(function ($snapshot) {
+                                                                                                $fallbackLabel = trim((string) ($snapshot['fallback_label'] ?? ''));
+                                                                                                $snapshot['label'] = $fallbackLabel !== '' ? $fallbackLabel : 'Return';
                                                                                                 $snapshot['comments'] = collect($snapshot['comments'])->sortByDesc('created_at')->values();
                                                                                                 return $snapshot;
                                                                                             });

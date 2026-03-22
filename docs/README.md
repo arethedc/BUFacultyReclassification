@@ -12,6 +12,7 @@ This folder is organized by topic so docs are easier to maintain and find.
 - `workflows/`
   - `reclassification-lifecycle.md` - stage transitions and ownership
 - `operations/`
+  - `basic-operations.md` - common day-to-day user and reviewer actions
   - `troubleshooting.md` - common runtime/deployment issues and fixes
 
 ## Reading Order (Recommended)
@@ -20,7 +21,8 @@ This folder is organized by topic so docs are easier to maintain and find.
 2. `architecture/simple-layered-architecture.md`
 3. `architecture/system-architecture.md`
 4. `deployment/render-postgres-setup.md`
-5. `operations/troubleshooting.md`
+5. `operations/basic-operations.md`
+6. `operations/troubleshooting.md`
 
 ## Documentation Conventions
 

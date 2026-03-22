@@ -278,7 +278,7 @@
                 <td class="p-2 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
                     <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c1, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+                  <button type="button" @click="requestRowToggleRemove(c1, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
                   </div>
                 </td>
               </tr>
@@ -417,7 +417,7 @@
                 <td class="p-2 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
                     <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c2, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+                  <button type="button" @click="requestRowToggleRemove(c2, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
                   </div>
                 </td>
               </tr>
@@ -556,7 +556,7 @@
                 <td class="p-2 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
                     <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c3, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+                  <button type="button" @click="requestRowToggleRemove(c3, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
                   </div>
                 </td>
               </tr>
@@ -689,7 +689,7 @@
 	                    <td class="p-2 text-right">
 	                      <div class="inline-flex items-center justify-end gap-2">
 	                        <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-	                        <button type="button" @click="requestRowToggleRemove(c4, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+	                        <button type="button" @click="requestRowToggleRemove(c4, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
 	                      </div>
 	                    </td>
 	                  </tr>
@@ -789,7 +789,7 @@
 	                    <td class="p-2 text-right">
 	                      <div class="inline-flex items-center justify-end gap-2">
 	                        <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-	                        <button type="button" @click="requestRowToggleRemove(c4, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+	                        <button type="button" @click="requestRowToggleRemove(c4, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
 	                      </div>
 	                    </td>
 	                  </tr>
@@ -911,7 +911,7 @@
                 <td class="p-2 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
                     <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c5, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+                  <button type="button" @click="requestRowToggleRemove(c5, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
                   </div>
                 </td>
               </tr>
@@ -1038,7 +1038,7 @@
                 <td class="p-2 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
                     <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c6, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+                  <button type="button" @click="requestRowToggleRemove(c6, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
                   </div>
                 </td>
               </tr>
@@ -1165,7 +1165,7 @@
                 <td class="p-2 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
                     <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c7, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+                  <button type="button" @click="requestRowToggleRemove(c7, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
                   </div>
                 </td>
               </tr>
@@ -1272,7 +1272,7 @@
                 <td class="p-2 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
                     <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c8, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+                  <button type="button" @click="requestRowToggleRemove(c8, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
                   </div>
                 </td>
               </tr>
@@ -1386,7 +1386,7 @@
                 <td class="p-2 text-right">
                   <div class="inline-flex items-center justify-end gap-2">
                     <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c9, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+                  <button type="button" @click="requestRowToggleRemove(c9, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="removeActionLabel(row)"></span></button>
                   </div>
                 </td>
               </tr>
@@ -2013,11 +2013,21 @@ function sectionThree(initial = {}, globalEvidence = []) {
       return ['1', 'true', 'yes', 'on'].includes(String(value).trim().toLowerCase());
     },
 
+    isPersistedEntry(row) {
+      return Number(row?.id || 0) > 0;
+    },
+
+    removeActionLabel(row) {
+      if (this.isRemovedRow(row)) return 'Restore Entry';
+      if (!this.softRemoveMode) return 'Remove';
+      return this.isPersistedEntry(row) ? 'Mark Removed' : 'Remove';
+    },
+
 
     requestRowToggleRemove(rows, index) {
       if (!Array.isArray(rows) || index < 0 || index >= rows.length) return;
       const row = rows[index] || {};
-      if (!this.softRemoveMode || this.isRemovedRow(row)) {
+      if (!this.softRemoveMode || this.isRemovedRow(row) || !this.isPersistedEntry(row)) {
         this.removeOrRestoreRow(rows, index, true);
         return;
       }
@@ -2049,6 +2059,10 @@ function sectionThree(initial = {}, globalEvidence = []) {
         return;
       }
       const row = rows[index] || {};
+      if (!this.isPersistedEntry(row)) {
+        rows.splice(index, 1);
+        return;
+      }
       if (!bypassConfirm && !this.isRemovedRow(row)) {
         this.requestRowToggleRemove(rows, index);
         return;

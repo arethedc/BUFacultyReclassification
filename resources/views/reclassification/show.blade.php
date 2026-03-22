@@ -255,7 +255,7 @@
                     <path d="M18 10c0 3.866-3.582 7-8 7a8.94 8.94 0 01-3.705-.77L2 17.5l1.346-3.364A6.735 6.735 0 012 10c0-3.866 3.582-7 8-7s8 3.134 8 7z" />
                 </svg>
                 <span class="absolute -top-1 -right-1 inline-flex min-w-5 justify-center rounded-full bg-bu px-1.5 py-0.5 text-[11px] text-white">
-                    {{ $totalCommentThreadCount }}
+                    {{ $openRequiredCommentCount }}
                 </span>
                 <span class="pointer-events-none absolute right-0 -top-8 whitespace-nowrap rounded-md bg-black px-2 py-1 text-[11px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
                     Open comments
@@ -389,7 +389,7 @@
 
                 <div class="rounded-xl border border-gray-200 bg-white p-2">
                     @php
-                        $commentItemsForCount = collect($trackerThreads ?? [])->map(function ($thread) {
+                        $normalizeCommentItem = function ($thread) {
                             $normalizedType = strtolower(trim((string) ($thread->action_type ?? 'requires_action')));
                             $normalizedType = $normalizedType === 'info' ? 'info' : 'requires_action';
                             $normalizedStatus = strtolower(trim((string) ($thread->status ?? 'open')));
@@ -402,7 +402,17 @@
                                 'type' => $normalizedType,
                                 'status' => $normalizedStatus,
                             ];
-                        })->values();
+                        };
+                        $commentItemsForCount = collect($trackerThreads ?? [])
+                            ->map($normalizeCommentItem)
+                            ->values();
+                        // Resolved tab renders cross-stage snapshots, so its counter should
+                        // use all resolved reviewer comments (not only current-stage tracker threads).
+                        $resolvedItemsForCount = collect($commentThreads ?? [])
+                            ->filter(fn ($thread) => (string) ($thread->action_type ?? 'requires_action') === 'requires_action')
+                            ->filter(fn ($thread) => in_array(strtolower(trim((string) ($thread->status ?? 'open'))), ['resolved', 'done', 'closed'], true))
+                            ->map($normalizeCommentItem)
+                            ->values();
                     @endphp
                     <div class="grid grid-cols-4 gap-2 text-xs">
                         <button type="button"
@@ -421,7 +431,7 @@
                                 @click="setFilter('resolved')"
                                 :class="filterMode === 'resolved' ? 'bg-bu text-white border-bu' : 'bg-white text-gray-700 border-gray-300'"
                                 class="px-3 py-2 rounded-lg border font-semibold transition">
-                            Resolved (<span x-text="countFor('resolved', @js($commentItemsForCount->all()))"></span>)
+                            Resolved (<span x-text="countFor('resolved', @js($resolvedItemsForCount->all()))"></span>)
                         </button>
                         <button type="button"
                                 @click="setFilter('notes')"

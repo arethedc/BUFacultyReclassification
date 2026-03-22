@@ -1475,7 +1475,7 @@ class ReclassificationFormController extends Controller
 
         if ($code === '1') {
             $data = [
-                'a1' => ['id' => null, 'degree' => null, 'honors' => null, 'evidence' => [], 'comments' => []],
+                'a1' => ['id' => null, 'degree' => null, 'honors' => null, 'is_removed' => false, 'evidence' => [], 'comments' => []],
                 'a2' => [],
                 'a3' => [],
                 'a4' => [],
@@ -1503,6 +1503,7 @@ class ReclassificationFormController extends Controller
                     $data['a1']['id'] = $entry->id;
                     $data['a1']['degree'] = $row['degree'] ?? null;
                     $data['a1']['honors'] = $row['honors'] ?? null;
+                    $data['a1']['is_removed'] = $this->isRowRemoved($row);
                     $data['a1']['evidence'] = $resolveEvidence($entry->id);
                     $data['a1']['comments'] = $resolveComments($entry);
                     continue;
@@ -1961,24 +1962,30 @@ class ReclassificationFormController extends Controller
         $bSum = 0;
         $cSum = 0;
 
-        $a1Degree = trim((string) data_get($input, 'a1.degree', ''));
-        $a1Honors = trim((string) data_get($input, 'a1.honors', ''));
-        $a1Evidence = data_get($input, 'a1.evidence', []);
+        $a1Input = is_array($input['a1'] ?? null) ? $input['a1'] : [];
+        $a1Enabled = trim((string) ($a1Input['_enabled'] ?? '')) !== '';
+        $a1Id = (int) ($a1Input['id'] ?? 0);
+        $a1Degree = trim((string) ($a1Input['degree'] ?? ''));
+        $a1Honors = trim((string) ($a1Input['honors'] ?? ''));
+        $a1Evidence = $a1Input['evidence'] ?? [];
+        $a1Removed = $this->isRowRemoved($a1Input);
 
         $touchedIds = [];
 
-        if ($a1Honors !== '') {
-            if ($action === 'submit') {
+        if ($a1Enabled && ($a1Honors !== '' || ($a1Removed && $a1Id > 0))) {
+            if ($action === 'submit' && !$a1Removed && $a1Honors !== '') {
                 $this->ensureEvidence([['evidence' => $a1Evidence]], 'section1.a1', $uploaded, $section, $application);
             }
 
             $points = $this->pointsA1($a1Honors);
-            $aBase += $points;
-            $a1Id = (int) data_get($input, 'a1.id', 0);
+            if (!$a1Removed) {
+                $aBase += $points;
+            }
             $entryId = $this->createEntry($section, $application, 'a1', [
                 'id' => $a1Id,
                 'degree' => $a1Degree,
                 'honors' => $a1Honors,
+                'is_removed' => $a1Removed,
                 'evidence' => $a1Evidence,
             ], $points, $a1Evidence, $uploaded);
             $touchedIds[] = $entryId;
@@ -2723,6 +2730,59 @@ class ReclassificationFormController extends Controller
         return (int) ($candidates->first()->id ?? 0);
     }
 
+    private function resolveExistingEntryIdByPayload(
+        ReclassificationSection $section,
+        string $criterionKey,
+        array $payloadRow
+    ): int {
+        $targetSignature = $this->buildEntryIdentitySignature($criterionKey, $payloadRow);
+        if ($targetSignature === '') {
+            return 0;
+        }
+
+        $candidates = ReclassificationSectionEntry::query()
+            ->where('reclassification_section_id', $section->id)
+            ->where('criterion_key', $criterionKey)
+            ->orderByDesc('id')
+            ->get(['id', 'data']);
+
+        $matched = $candidates->filter(function (ReclassificationSectionEntry $candidate) use ($criterionKey, $targetSignature) {
+            $candidateData = is_array($candidate->data) ? $candidate->data : [];
+            return $this->buildEntryIdentitySignature($criterionKey, $candidateData) === $targetSignature;
+        })->values();
+
+        if ($matched->isEmpty()) {
+            return 0;
+        }
+
+        $active = $matched->first(function (ReclassificationSectionEntry $candidate) {
+            $data = is_array($candidate->data) ? $candidate->data : [];
+            return !$this->isRowRemoved($data);
+        });
+
+        if ($active) {
+            return (int) $active->id;
+        }
+
+        return (int) ($matched->first()->id ?? 0);
+    }
+
+    private function buildEntryIdentitySignature(string $criterionKey, array $row): string
+    {
+        $normalized = $this->sanitizeChangeDataForFingerprint($row);
+        if (!is_array($normalized)) {
+            $normalized = [];
+        }
+        if (array_key_exists('removed_points_backup', $normalized)) {
+            unset($normalized['removed_points_backup']);
+        }
+
+        return (string) json_encode([
+            'criterion_key' => $criterionKey,
+            'data' => $normalized,
+        ]);
+    }
+
     private function createEntry(
         ReclassificationSection $section,
         ReclassificationApplication $application,
@@ -2746,6 +2806,18 @@ class ReclassificationFormController extends Controller
             $entry = ReclassificationSectionEntry::where('id', $entryId)
                 ->where('reclassification_section_id', $section->id)
                 ->first();
+        }
+
+        // Defensive fallback for missing row IDs from dynamic forms:
+        // map the post back to the most likely existing entry so we avoid
+        // remove/add churn in returned-to-faculty reconciliation logs.
+        if (!$entry) {
+            $resolvedEntryId = $this->resolveExistingEntryIdByPayload($section, $key, $payloadRow);
+            if ($resolvedEntryId > 0) {
+                $entry = ReclassificationSectionEntry::where('id', $resolvedEntryId)
+                    ->where('reclassification_section_id', $section->id)
+                    ->first();
+            }
         }
 
         $entryPayload = [
