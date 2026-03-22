@@ -125,6 +125,84 @@
         @apply inline-block h-4 w-4 rounded-full border-2 border-current border-r-transparent;
         animation: ux-spin 0.7s linear infinite;
     }
+
+    .reclass-score-table {
+        width: 100%;
+        table-layout: auto;
+    }
+
+    .reclass-score-table th,
+    .reclass-score-table td {
+        vertical-align: top;
+    }
+
+    .reclass-score-table th {
+        white-space: nowrap;
+    }
+
+    .reclass-score-table th:first-child,
+    .reclass-score-table td:first-child {
+        min-width: 12rem;
+    }
+
+    .reclass-score-table th:nth-child(2),
+    .reclass-score-table td:nth-child(2) {
+        min-width: 10rem;
+    }
+
+    .reclass-score-table th:nth-last-child(3),
+    .reclass-score-table td:nth-last-child(3) {
+        width: 7rem;
+        min-width: 7rem;
+    }
+
+    .reclass-score-table th:nth-last-child(2),
+    .reclass-score-table td:nth-last-child(2) {
+        width: 14rem;
+        min-width: 14rem;
+    }
+
+    .reclass-score-table th:last-child,
+    .reclass-score-table td:last-child {
+        width: 9rem;
+        min-width: 9rem;
+    }
+
+    /* Section III: keep action columns on the right and free space for left inputs. */
+    .section3-layout .reclass-score-table {
+        table-layout: fixed;
+        min-width: 64rem;
+    }
+
+    .section3-layout .reclass-score-table th:first-child,
+    .section3-layout .reclass-score-table td:first-child {
+        width: 22%;
+        min-width: 14rem;
+    }
+
+    .section3-layout .reclass-score-table th:nth-child(2),
+    .section3-layout .reclass-score-table td:nth-child(2) {
+        width: 18%;
+        min-width: 11rem;
+    }
+
+    .section3-layout .reclass-score-table th:nth-last-child(3),
+    .section3-layout .reclass-score-table td:nth-last-child(3) {
+        width: 6.5rem;
+        min-width: 6.5rem;
+    }
+
+    .section3-layout .reclass-score-table th:nth-last-child(2),
+    .section3-layout .reclass-score-table td:nth-last-child(2) {
+        width: 12rem;
+        min-width: 12rem;
+    }
+
+    .section3-layout .reclass-score-table th:last-child,
+    .section3-layout .reclass-score-table td:last-child {
+        width: 8rem;
+        min-width: 8rem;
+    }
 }
 
 @keyframes ux-shimmer {

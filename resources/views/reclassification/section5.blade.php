@@ -71,26 +71,26 @@
             <div class="rounded-xl border p-4">
               <p class="text-xs text-gray-500">B (cap 10)</p>
               <p class="text-xl font-semibold text-gray-800"><span x-text="sumB_capped()"></span></p>
-              <p class="text-xs text-gray-500 mt-1">Previous B (1/3): <span x-text="prevBThird()"></span></p>
+              <p class="text-xs text-gray-500 mt-1">Previous (Section 5-B) (1/3): <span x-text="prevBThird()"></span></p>
               <p class="text-xs text-gray-500">Raw: <span x-text="sumB_raw()"></span></p>
             </div>
 
             <div class="rounded-xl border p-4">
               <p class="text-xs text-gray-500">C (cap 15)</p>
               <p class="text-xl font-semibold text-gray-800"><span x-text="sumC_capped()"></span></p>
-              <p class="text-xs text-gray-500 mt-1">Previous C (1/3): <span x-text="prevCThird()"></span></p>
+              <p class="text-xs text-gray-500 mt-1">Previous (Section 5-C) (1/3): <span x-text="prevCThird()"></span></p>
               <p class="text-xs text-gray-500">Raw: <span x-text="sumC_raw()"></span></p>
             </div>
 
             <div class="rounded-xl border p-4">
               <p class="text-xs text-gray-500">D (cap 10)</p>
               <p class="text-xl font-semibold text-gray-800"><span x-text="sumD_capped()"></span></p>
-              <p class="text-xs text-gray-500 mt-1">Previous D (1/3): <span x-text="prevDThird()"></span></p>
+              <p class="text-xs text-gray-500 mt-1">Previous (Section 5-D) (1/3): <span x-text="prevDThird()"></span></p>
               <p class="text-xs text-gray-500">Raw: <span x-text="sumD_raw()"></span></p>
             </div>
 
             <div class="rounded-xl border p-4">
-              <p class="text-xs text-gray-500">Previous (1/3)</p>
+              <p class="text-xs text-gray-500">Previous (Section 5) (1/3)</p>
               <p class="text-xl font-semibold text-gray-800"><span x-text="prevThird()"></span></p>
               <p class="text-xs text-gray-500 mt-1">Input: <span x-text="Number(previous||0).toFixed(2)"></span></p>
             </div>
@@ -129,17 +129,17 @@
           to the respective caps.
         </p>
         <div class="mt-4 rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <label class="block text-xs text-gray-500">Previous Reclassification (Whole Section V) Points</label>
+          <label class="block text-xs text-gray-500">Previous Reclassification (Section 5) Points (if applicable)</label>
           <input type="hidden" name="section5[previous_points_id]" :value="previous_id || ''">
           <input
-            x-model.number="previous"
+            x-model="previous"
             name="section5[previous_points]"
             type="number" step="0.01"
             class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-            placeholder="Enter previous total points"
+            placeholder="Enter raw points"
           >
           <p class="text-xs text-gray-500 mt-1">
-            Counted: <span class="font-medium text-gray-700" x-text="prevThird()"></span>
+            Counted (1/3): <span class="font-medium text-gray-700" x-text="prevThird()"></span>
           </p>
           <template x-if="(previous_comments || []).length">
             <div class="mt-2" x-data="{ row: { comments: previous_comments } }">
@@ -167,7 +167,7 @@
         <p x-show="aRows.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="aRows.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="aRows.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
               <tr>
                 <th class="p-2 text-left">Award / Citation</th>
@@ -242,7 +242,7 @@
                   </td>
 
                   <td class="p-2">
-                    <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                    <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                       <button type="button"
                               @click="openSelectEvidence('a', i)"
                               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -320,17 +320,17 @@
 
         <div class="p-6 space-y-3">
           <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <label class="block text-xs text-gray-500">Previous Reclassification (B) Points</label>
+            <label class="block text-xs text-gray-500">Previous Reclassification (Section 5-B) Points (if applicable)</label>
             <input type="hidden" name="section5[b_prev_id]" :value="b_prev_id || ''">
             <input type="number"
                    min="0"
                    step="0.01"
-                   x-model.number="b_prev"
+                   x-model="b_prev"
                    name="section5[b_prev]"
                    class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-                   placeholder="Enter previous B points">
+                   placeholder="Enter raw points">
             <p class="mt-1 text-[11px] text-gray-500">
-              Counted: <span class="font-medium text-gray-700" x-text="prevBThird()"></span>
+              Counted (1/3): <span class="font-medium text-gray-700" x-text="prevBThird()"></span>
             </p>
             <template x-if="(b_prev_comments || []).length">
               <div class="mt-2" x-data="{ row: { comments: b_prev_comments } }">
@@ -341,7 +341,7 @@
           <p x-show="bRows.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="bRows.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="bRows.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
               <tr>
                 <th class="p-2 text-left">Organization</th>
@@ -401,7 +401,7 @@
                   </td>
 
                   <td class="p-2">
-                    <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                    <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                       <button type="button"
                               @click="openSelectEvidence('b', i)"
                               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -479,17 +479,17 @@
 
         <div class="p-6 space-y-6">
           <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <label class="block text-xs text-gray-500">Previous Reclassification (C) Points</label>
+            <label class="block text-xs text-gray-500">Previous Reclassification (Section 5-C) Points (if applicable)</label>
             <input type="hidden" name="section5[c_prev_id]" :value="c_prev_id || ''">
             <input type="number"
                    min="0"
                    step="0.01"
-                   x-model.number="c_prev"
+                   x-model="c_prev"
                    name="section5[c_prev]"
                    class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-                   placeholder="Enter previous C points">
+                   placeholder="Enter raw points">
             <p class="mt-1 text-[11px] text-gray-500">
-              Counted: <span class="font-medium text-gray-700" x-text="prevCThird()"></span>
+              Counted (1/3): <span class="font-medium text-gray-700" x-text="prevCThird()"></span>
             </p>
             <template x-if="(c_prev_comments || []).length">
               <div class="mt-2" x-data="{ row: { comments: c_prev_comments } }">
@@ -513,7 +513,7 @@
           <p x-show="c1.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
           <div class="overflow-x-auto">
-            <table x-show="c1.length" class="w-full text-sm border rounded-lg overflow-hidden">
+            <table x-show="c1.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
               <thead class="bg-gray-50">
                 <tr>
                   <th class="p-2 text-left">Activity</th>
@@ -555,7 +555,7 @@
                       </div>
                     </td>
                     <td class="p-2">
-                      <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                      <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                         <button type="button"
                                 @click="openSelectEvidence('c1', i)"
                                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -631,7 +631,7 @@
           <p x-show="c2.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
           <div class="overflow-x-auto">
-            <table x-show="c2.length" class="w-full text-sm border rounded-lg overflow-hidden">
+            <table x-show="c2.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
               <thead class="bg-gray-50">
                 <tr>
                   <th class="p-2 text-left">Activity</th>
@@ -673,7 +673,7 @@
                       </div>
                     </td>
                     <td class="p-2">
-                      <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                      <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                         <button type="button"
                                 @click="openSelectEvidence('c2', i)"
                                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -750,7 +750,7 @@
           <p x-show="c3.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
           <div class="overflow-x-auto">
-            <table x-show="c3.length" class="w-full text-sm border rounded-lg overflow-hidden">
+            <table x-show="c3.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
               <thead class="bg-gray-50">
                 <tr>
                   <th class="p-2 text-left">Activity</th>
@@ -792,7 +792,7 @@
                       </div>
                     </td>
                     <td class="p-2">
-                      <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                      <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                         <button type="button"
                                 @click="openSelectEvidence('c3', i)"
                                 class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -870,17 +870,17 @@
 
         <div class="p-6 space-y-3">
           <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-            <label class="block text-xs text-gray-500">Previous Reclassification (D) Points</label>
+            <label class="block text-xs text-gray-500">Previous Reclassification (Section 5-D) Points (if applicable)</label>
             <input type="hidden" name="section5[d_prev_id]" :value="d_prev_id || ''">
             <input type="number"
                    min="0"
                    step="0.01"
-                   x-model.number="d_prev"
+                   x-model="d_prev"
                    name="section5[d_prev]"
                    class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-                   placeholder="Enter previous D points">
+                   placeholder="Enter raw points">
             <p class="mt-1 text-[11px] text-gray-500">
-              Counted: <span class="font-medium text-gray-700" x-text="prevDThird()"></span>
+              Counted (1/3): <span class="font-medium text-gray-700" x-text="prevDThird()"></span>
             </p>
             <template x-if="(d_prev_comments || []).length">
               <div class="mt-2" x-data="{ row: { comments: d_prev_comments } }">
@@ -891,7 +891,7 @@
           <p x-show="dRows.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="dRows.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="dRows.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
               <tr>
                 <th class="p-2 text-left">Project / Program</th>
@@ -936,7 +936,7 @@
                   </td>
 
                   <td class="p-2">
-                    <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                    <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                       <button type="button"
                               @click="openSelectEvidence('d', i)"
                               class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -1079,7 +1079,7 @@
                   <input type="checkbox" class="rounded text-bu"
                          :value="item.value" x-model="evidenceSelection">
                   <button type="button"
-                          @click.stop="openPreview(item)"
+                          @click.stop="openPreview(item, evidencePool())"
                           :disabled="!item.url && !item.file"
                           :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
                           class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center transition">
@@ -1144,7 +1144,7 @@
                     <tr>
                       <td class="px-4 py-2">
                         <button type="button"
-                                @click="openPreview(item)"
+                                @click="openPreview(item, currentEvidenceItems())"
                                 :disabled="!item.url && !item.file"
                                 :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
                                 class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition">
@@ -1199,7 +1199,10 @@
         <button type="button"
                 x-show="evidenceModalMode === 'select' && evidencePool().length > 0"
                 @click="attachSelectedEvidence()"
-                class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
+                :disabled="!hasEvidenceSelection()"
+                :class="hasEvidenceSelection() ? 'bg-bu text-white hover:bg-bu-dark' : 'bg-gray-200 text-gray-500 cursor-not-allowed'"
+                :title="hasEvidenceSelection() ? 'Attach selected evidence' : 'Select at least one evidence file'"
+                class="px-4 py-2 rounded-lg text-sm font-semibold transition">
           Attach Selected
         </button>
       </div>
@@ -1215,9 +1218,16 @@
        aria-labelledby="preview-modal-title"
        x-ref="previewModal"
        @keydown.tab.prevent="cycleFocus($event, 'preview')"
+       @keydown.arrow-right.prevent="previewNext()"
+       @keydown.arrow-left.prevent="previewPrev()"
        @keydown.escape.window="closePreview()">
-    <div class="px-6 py-4 border-b flex items-center justify-between">
-      <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800" x-text="previewItem?.label || 'Preview'"></h3>
+    <div class="px-6 py-4 border-b flex items-center justify-between gap-3">
+      <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800 flex-1 truncate" x-text="previewItem?.label || 'Preview'"></h3>
+      <div class="text-xs text-gray-500 shrink-0" x-show="previewItems.length > 1">
+        <span x-text="previewIndex + 1"></span>
+        /
+        <span x-text="previewItems.length"></span>
+      </div>
       <button type="button" @click="closePreview()" class="text-gray-500 hover:text-gray-700">Close</button>
     </div>
     <div class="p-6">
@@ -1235,6 +1245,18 @@
           </template>
         </div>
       </template>
+      <div class="mt-5 flex items-center justify-between" x-show="previewItems.length > 1">
+        <button type="button"
+                @click="previewPrev()"
+                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Previous
+        </button>
+        <button type="button"
+                @click="previewNext()"
+                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Next
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -1262,6 +1284,8 @@ function sectionFive(initial = {}, globalEvidence = []) {
     lastFocusEl: null,
     previewOpen: false,
     previewItem: null,
+    previewItems: [],
+    previewIndex: 0,
     pendingOpenSelectAfterUpload: false,
     toast: { show: false, message: '', type: 'success' },
     toastTimer: null,
@@ -1275,16 +1299,24 @@ function sectionFive(initial = {}, globalEvidence = []) {
       c2: initial.c2 || [],
       c3: initial.c3 || [],
       dRows: initial.d || [],
-      b_prev: Number(initial.b_prev || 0),
+      b_prev: (initial.b_prev !== undefined && initial.b_prev !== null && initial.b_prev !== '' && Number(initial.b_prev) > 0)
+        ? Number(initial.b_prev)
+        : '',
       b_prev_id: initial.b_prev_id || '',
       b_prev_comments: Array.isArray(initial.b_prev_comments) ? initial.b_prev_comments : [],
-      c_prev: Number(initial.c_prev || 0),
+      c_prev: (initial.c_prev !== undefined && initial.c_prev !== null && initial.c_prev !== '' && Number(initial.c_prev) > 0)
+        ? Number(initial.c_prev)
+        : '',
       c_prev_id: initial.c_prev_id || '',
       c_prev_comments: Array.isArray(initial.c_prev_comments) ? initial.c_prev_comments : [],
-      d_prev: Number(initial.d_prev || 0),
+      d_prev: (initial.d_prev !== undefined && initial.d_prev !== null && initial.d_prev !== '' && Number(initial.d_prev) > 0)
+        ? Number(initial.d_prev)
+        : '',
       d_prev_id: initial.d_prev_id || '',
       d_prev_comments: Array.isArray(initial.d_prev_comments) ? initial.d_prev_comments : [],
-      previous: Number(initial.previous_points || 0),
+      previous: (initial.previous_points !== undefined && initial.previous_points !== null && initial.previous_points !== '' && Number(initial.previous_points) > 0)
+        ? Number(initial.previous_points)
+        : '',
       previous_id: initial.previous_points_id || '',
       previous_comments: Array.isArray(initial.previous_points_comments) ? initial.previous_points_comments : [],
 
@@ -1392,6 +1424,10 @@ function sectionFive(initial = {}, globalEvidence = []) {
       return this.evidencePool().length > 0;
     },
 
+    hasEvidenceSelection() {
+      return Array.isArray(this.evidenceSelection) && this.evidenceSelection.length > 0;
+    },
+
     selectedEvidence(values) {
       const list = [];
       const map = new Map(this.evidencePool().map((opt) => [String(opt.value), opt]));
@@ -1477,6 +1513,7 @@ function sectionFive(initial = {}, globalEvidence = []) {
     },
 
     attachSelectedEvidence() {
+      if (!this.hasEvidenceSelection()) return;
       this.setRowEvidence(this.currentRow.key, this.currentRow.index, this.evidenceSelection);
       this.toastMessage('Evidence attached', 'success');
       this.closeEvidenceModal();
@@ -1497,24 +1534,56 @@ function sectionFive(initial = {}, globalEvidence = []) {
       return this.selectedEvidence(this.getRowEvidence(this.currentRow.key, this.currentRow.index));
     },
 
-    openPreview(item) {
+    openPreview(item, items = null) {
       if (!item) return;
       this.lastFocusEl = document.activeElement;
-      let previewUrl = item.url || null;
-      if (!previewUrl && item.file instanceof File) {
-        previewUrl = URL.createObjectURL(item.file);
-      }
-      this.previewItem = {
-        ...item,
-        previewUrl,
-      };
+
+      const source = Array.isArray(items) && items.length ? items : [item];
+      this.previewItems = source.map((candidate) => {
+        let previewUrl = candidate?.url || null;
+        if (!previewUrl && candidate?.file instanceof File) {
+          previewUrl = URL.createObjectURL(candidate.file);
+        }
+        return {
+          ...candidate,
+          previewUrl,
+        };
+      });
+
+      const itemKey = String(item?.value ?? item?.id ?? item?.label ?? '');
+      let index = this.previewItems.findIndex((candidate) => {
+        const key = String(candidate?.value ?? candidate?.id ?? candidate?.label ?? '');
+        return key !== '' && key === itemKey;
+      });
+      if (index < 0) index = 0;
+
+      this.previewIndex = index;
+      this.previewItem = this.previewItems[index] || null;
       this.previewOpen = true;
       this.$nextTick(() => this.focusFirst('preview'));
+    },
+
+    previewPrev() {
+      if (!Array.isArray(this.previewItems) || this.previewItems.length < 2) return;
+      this.previewIndex = this.previewIndex <= 0
+        ? this.previewItems.length - 1
+        : this.previewIndex - 1;
+      this.previewItem = this.previewItems[this.previewIndex] || null;
+    },
+
+    previewNext() {
+      if (!Array.isArray(this.previewItems) || this.previewItems.length < 2) return;
+      this.previewIndex = this.previewIndex >= this.previewItems.length - 1
+        ? 0
+        : this.previewIndex + 1;
+      this.previewItem = this.previewItems[this.previewIndex] || null;
     },
 
     closePreview() {
       this.previewOpen = false;
       this.previewItem = null;
+      this.previewItems = [];
+      this.previewIndex = 0;
       this.$nextTick(() => {
         if (this.lastFocusEl) this.lastFocusEl.focus({ preventScroll: true });
       });
@@ -1875,3 +1944,5 @@ function sectionFive(initial = {}, globalEvidence = []) {
 </script>
 
 </form>
+
+

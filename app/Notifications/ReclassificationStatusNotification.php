@@ -37,8 +37,16 @@ class ReclassificationStatusNotification extends Notification
     {
         $mail = (new MailMessage())
             ->subject($this->subject)
-            ->line($this->title)
-            ->line($this->message);
+            ->line($this->title);
+
+        $messageLines = preg_split('/\r\n|\r|\n/', (string) $this->message) ?: [];
+        foreach ($messageLines as $line) {
+            $line = trim((string) $line);
+            if ($line === '') {
+                continue;
+            }
+            $mail->line($line);
+        }
 
         if (!empty($this->actionUrl)) {
             $mail->action($this->actionLabel ?: 'View details', $this->actionUrl);
@@ -58,4 +66,3 @@ class ReclassificationStatusNotification extends Notification
         ], $this->meta);
     }
 }
-

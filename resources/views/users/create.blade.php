@@ -51,9 +51,6 @@
                     employeeCheckMessage: '',
                     employeeCheckTimer: null,
                     hasEmployeeNoServerError: @js($errors->has('employee_no')),
-                    createLeaveModalOpen: false,
-                    createLeaveAction: '',
-                    createLeaveUrl: '',
                     suppressCreateBeforeUnload: false,
                     formatEmployeeNo(value) {
                         const digits = String(value || '').replace(/\D/g, '').slice(0, 7);
@@ -67,7 +64,10 @@
                         const yearPart = Number(raw.slice(0, 2));
                         const monthPart = Number(raw.slice(2, 4));
                         if (!Number.isInteger(monthPart) || monthPart < 1 || monthPart > 12) return '';
-                        const fullYear = 2000 + yearPart;
+                        const currentYearTwoDigits = new Date().getFullYear() % 100;
+                        const fullYear = yearPart <= currentYearTwoDigits
+                            ? 2000 + yearPart
+                            : 1900 + yearPart;
                         return `${String(fullYear).padStart(4, '0')}-${String(monthPart).padStart(2, '0')}-01`;
                     },
                     autoSetOriginalAppointmentDateFromEmployeeNo() {
@@ -93,20 +93,6 @@
                             this.initialCreateSnapshot = this.serializeCreateForm();
                         });
 
-                        if (window.__createFormReloadKeyGuard) {
-                            window.removeEventListener('keydown', window.__createFormReloadKeyGuard, true);
-                        }
-                        window.__createFormReloadKeyGuard = (event) => {
-                            const key = String(event?.key || '').toLowerCase();
-                            const isReloadKey = key === 'f5' || ((event.ctrlKey || event.metaKey) && key === 'r');
-                            if (!isReloadKey) return;
-                            if (!this.hasCreateUnsavedChanges() || this.createSubmitting) return;
-                            event.preventDefault();
-                            event.stopPropagation();
-                            this.openCreateLeaveModal('reload');
-                        };
-                        window.addEventListener('keydown', window.__createFormReloadKeyGuard, true);
-
                         window.addEventListener('beforeunload', (event) => {
                             if (!this.suppressCreateBeforeUnload && !this.createSubmitting && this.hasCreateUnsavedChanges()) {
                                 event.preventDefault();
@@ -128,39 +114,6 @@
                     hasCreateUnsavedChanges() {
                         if (this.initialCreateSnapshot === null) return false;
                         return this.serializeCreateForm() !== this.initialCreateSnapshot;
-                    },
-                    openCreateLeaveModal(action = 'navigate', url = '') {
-                        if (!this.hasCreateUnsavedChanges() || this.createSubmitting) {
-                            if (action === 'reload') {
-                                window.location.reload();
-                                return;
-                            }
-                            if (action === 'navigate' && url) {
-                                window.location.href = url;
-                            }
-                            return;
-                        }
-                        this.createLeaveAction = String(action || 'navigate');
-                        this.createLeaveUrl = String(url || '');
-                        this.createLeaveModalOpen = true;
-                    },
-                    closeCreateLeaveModal() {
-                        this.createLeaveModalOpen = false;
-                        this.createLeaveAction = '';
-                        this.createLeaveUrl = '';
-                    },
-                    continueCreateLeave() {
-                        const action = this.createLeaveAction;
-                        const url = this.createLeaveUrl;
-                        this.closeCreateLeaveModal();
-                        this.suppressCreateBeforeUnload = true;
-                        if (action === 'reload') {
-                            window.location.reload();
-                            return;
-                        }
-                        if (action === 'navigate' && url) {
-                            window.location.href = url;
-                        }
                     },
                     hasPasswordValues() {
                         return this.password.length > 0 || this.passwordConfirmation.length > 0;
@@ -366,6 +319,7 @@
                         return;
                     }
                     createSubmitting = true;
+                    suppressCreateBeforeUnload = true;
                 "
                 @input="bumpValidationTick()"
                 @change="bumpValidationTick()"
@@ -373,6 +327,7 @@
                 class="space-y-8 pb-12"
             >
                 @csrf
+                <input type="hidden" name="context" value="{{ $isFacultyCreate ? 'faculty' : 'users' }}">
 
                 {{-- ✅ TOP ERROR SUMMARY --}}
                 @if ($errors->any())
@@ -810,7 +765,7 @@
                                 <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
                             @enderror
                             <p class="mt-1 text-xs text-gray-500">
-                                Auto-filled from Employee Number using <span class="font-medium">YYMM</span> as <span class="font-medium">20YY-MM-01</span>.
+                                Auto-filled from Employee Number using <span class="font-medium">YYMM</span> as <span class="font-medium">19YY/20YY-MM-01</span>.
                             </p>
                         </div>
                     </div>
@@ -821,7 +776,6 @@
                 ========================== --}}
                 <div class="pt-6 border-t flex justify-end gap-4">
                     <a href="{{ $backRoute }}"
-                       @click.prevent="openCreateLeaveModal('navigate', '{{ $backRoute }}')"
                        class="px-6 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
                         Cancel
                     </a>
@@ -846,39 +800,9 @@
                     </div>
                 </div>
 
-                <div x-cloak x-show="createLeaveModalOpen" class="fixed inset-0 z-50 flex items-center justify-center">
-                    <div class="absolute inset-0 bg-black/40" @click="closeCreateLeaveModal()"></div>
-                    <div class="relative w-full max-w-lg mx-4 rounded-2xl border bg-white shadow-xl">
-                        <div class="px-6 py-4 border-b">
-                            <h3 class="text-base font-semibold text-gray-900">Unsaved Changes</h3>
-                            <p class="mt-1 text-sm text-gray-600">
-                                You have unsaved changes in this form.
-                            </p>
-                        </div>
-                        <div class="px-6 py-4 space-y-3">
-                            <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                                <div class="font-semibold">Leave this page?</div>
-                                <p class="mt-1 text-xs text-amber-800">
-                                    If you continue, your current inputs in Create User/Create Faculty may be lost.
-                                </p>
-                            </div>
-                        </div>
-                        <div class="px-6 py-4 border-t flex items-center justify-end gap-2">
-                            <button type="button"
-                                    @click="closeCreateLeaveModal()"
-                                    class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50">
-                                Stay
-                            </button>
-                            <button type="button"
-                                    @click="continueCreateLeave()"
-                                    class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-100">
-                                Leave Without Saving
-                            </button>
-                        </div>
-                    </div>
-                </div>
-
             </form>
         </div>
     </div>
 </x-app-layout>
+
+

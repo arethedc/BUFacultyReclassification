@@ -6,6 +6,8 @@ use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
 use App\Models\ReclassificationRowComment;
 use App\Models\ReclassificationSectionEntry;
+use App\Support\ReclassificationStageAccess;
+use App\Support\ReclassificationWorkflowRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Schema;
 
@@ -38,17 +40,6 @@ class ReclassificationRowCommentController extends Controller
         return $query->orderByDesc('created_at')->first();
     }
 
-    private function expectedReviewerRoleForStatus(string $status): ?string
-    {
-        return match ($status) {
-            'dean_review' => 'dean',
-            'hr_review' => 'hr',
-            'vpaa_review' => 'vpaa',
-            'president_review' => 'president',
-            default => null,
-        };
-    }
-
     private function isInActivePeriodScope(ReclassificationApplication $application): bool
     {
         $activePeriod = $this->activePeriod();
@@ -73,17 +64,10 @@ class ReclassificationRowCommentController extends Controller
 
     private function assertReviewerOwnsCurrentStage(Request $request, ReclassificationApplication $application): void
     {
-        $role = strtolower((string) ($request->user()->role ?? ''));
-        $status = (string) ($application->status ?? '');
-        $expectedRole = $this->expectedReviewerRoleForStatus($status);
-
-        abort_unless($expectedRole && $role === $expectedRole, 403);
-
-        if ($role === 'dean') {
-            $application->loadMissing('faculty');
-            $userDepartmentId = $request->user()->department_id;
-            abort_unless($userDepartmentId && $application->faculty?->department_id === $userDepartmentId, 403);
-        }
+        abort_unless(
+            ReclassificationStageAccess::reviewerOwnsApplicationStage($request->user(), $application, false),
+            403
+        );
 
         abort_unless($this->isInActivePeriodScope($application), 403);
     }
@@ -107,12 +91,13 @@ class ReclassificationRowCommentController extends Controller
         return in_array(strtolower(trim((string) $value)), ['1', 'true', 'yes', 'on'], true);
     }
 
-    private function respond(Request $request, string $message)
+    private function respond(Request $request, string $message, array $payload = [])
     {
         if ($request->expectsJson() || $request->ajax()) {
             return response()->json([
                 'ok' => true,
                 'message' => $message,
+                ...$payload,
             ]);
         }
 
@@ -121,7 +106,7 @@ class ReclassificationRowCommentController extends Controller
 
     public function store(Request $request, ReclassificationApplication $application, ReclassificationSectionEntry $entry)
     {
-        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+        abort_unless(ReclassificationWorkflowRules::isReviewerRole($request->user()->role), 403);
         $this->assertReviewerOwnsCurrentStage($request, $application);
 
         $validated = $request->validate([
@@ -227,7 +212,8 @@ class ReclassificationRowCommentController extends Controller
             $replyPayload['action_type'] = 'requires_action';
         }
 
-        ReclassificationRowComment::create($replyPayload);
+        $reply = ReclassificationRowComment::create($replyPayload);
+        $reply->loadMissing('author');
 
         $comment->update([
             'status' => 'addressed',
@@ -235,7 +221,18 @@ class ReclassificationRowCommentController extends Controller
             'resolved_at' => null,
         ]);
 
-        return $this->respond($request, 'Reply sent. Comment marked as addressed.');
+        return $this->respond($request, 'Reply sent. Comment marked as addressed.', [
+            'reply' => [
+                'id' => (int) $reply->id,
+                'parent_id' => (int) $reply->parent_id,
+                'body' => (string) $reply->body,
+                'author' => (string) ($reply->author?->name ?? $request->user()->name ?? 'Faculty'),
+                'author_id' => (int) ($reply->user_id ?? $request->user()->id),
+                'created_at' => optional($reply->created_at)->toIso8601String(),
+                'created_at_label' => optional($reply->created_at)->format('M d, Y g:i A'),
+                'update_reply_url' => route('reclassification.row-comments.reply.update', $reply),
+            ],
+        ]);
     }
 
     public function updateReply(Request $request, ReclassificationRowComment $comment)
@@ -312,7 +309,7 @@ class ReclassificationRowCommentController extends Controller
 
     public function resolve(Request $request, ReclassificationRowComment $comment)
     {
-        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+        abort_unless(ReclassificationWorkflowRules::isReviewerRole($request->user()->role), 403);
 
         $comment->loadMissing(['author', 'user']);
         $application = $comment->application()->with('faculty')->firstOrFail();
@@ -344,7 +341,7 @@ class ReclassificationRowCommentController extends Controller
 
     public function reopen(Request $request, ReclassificationRowComment $comment)
     {
-        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+        abort_unless(ReclassificationWorkflowRules::isReviewerRole($request->user()->role), 403);
 
         $comment->loadMissing(['author', 'user']);
         $application = $comment->application()->with('faculty')->firstOrFail();
@@ -411,7 +408,7 @@ class ReclassificationRowCommentController extends Controller
 
     public function undoResolve(Request $request, ReclassificationRowComment $comment)
     {
-        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+        abort_unless(ReclassificationWorkflowRules::isReviewerRole($request->user()->role), 403);
 
         $comment->loadMissing(['author', 'user']);
         $application = $comment->application()->with('faculty')->firstOrFail();
@@ -437,7 +434,7 @@ class ReclassificationRowCommentController extends Controller
 
     public function update(Request $request, ReclassificationRowComment $comment)
     {
-        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+        abort_unless(ReclassificationWorkflowRules::isReviewerRole($request->user()->role), 403);
 
         $comment->loadMissing(['author', 'user', 'entry']);
         $application = $comment->application()->with('faculty')->firstOrFail();
@@ -497,7 +494,7 @@ class ReclassificationRowCommentController extends Controller
 
     public function destroy(Request $request, ReclassificationRowComment $comment)
     {
-        abort_unless(in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+        abort_unless(ReclassificationWorkflowRules::isReviewerRole($request->user()->role), 403);
 
         $comment->loadMissing(['author', 'user']);
         $application = $comment->application()->with('faculty')->firstOrFail();

@@ -78,6 +78,10 @@
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.periods') ? 'font-semibold text-gray-900' : '' }}">
                                             Manage Periods
                                         </a>
+                                        <a href="{{ route('settings.reclassification') }}"
+                                           class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('settings.reclassification*') ? 'font-semibold text-gray-900' : '' }}">
+                                            Reclassification Settings
+                                        </a>
                                         <div class="my-1 border-t border-gray-200"></div>
                                         <a href="{{ route('reclassification.faculty-records') }}"
                                            class="block px-4 py-2 text-sm text-gray-700 hover:bg-gray-50 {{ request()->routeIs('reclassification.faculty-records') || request()->routeIs('faculty.records') ? 'font-semibold text-gray-900' : '' }}">
@@ -362,6 +366,9 @@
                                     <x-dropdown-link :href="route('reclassification.history')">
                                         {{ __('Reclassification History') }}
                                     </x-dropdown-link>
+                                    <x-dropdown-link :href="route('settings.reclassification')">
+                                        {{ __('Reclassification Settings') }}
+                                    </x-dropdown-link>
                                 </div>
                             @elseif(Auth::user()->role === 'dean')
                                 <div class="py-2 border-b border-gray-100">
@@ -506,6 +513,9 @@
                 </x-responsive-nav-link>
                 <x-responsive-nav-link :href="route('reclassification.history')" :active="request()->routeIs('reclassification.history')">
                     {{ __('Reclassification History') }}
+                </x-responsive-nav-link>
+                <x-responsive-nav-link :href="route('settings.reclassification')" :active="request()->routeIs('settings.reclassification*')">
+                    {{ __('Reclassification Settings') }}
                 </x-responsive-nav-link>
             @elseif(Auth::user()->role === 'vpaa')
                 <div class="px-4 pt-3 pb-2 text-xs font-semibold uppercase tracking-wide text-gray-400">

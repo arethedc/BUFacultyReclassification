@@ -2,12 +2,10 @@
     @php
         $summaryMode = $summaryMode ?? 'submitted';
         $isDraftHistoryMode = $summaryMode === 'draft_history';
-        $canRequestReturn = !$isDraftHistoryMode && in_array((string) ($application->status ?? ''), [
-            'dean_review',
-            'hr_review',
-            'vpaa_review',
-            'vpaa_approved',
-        ], true);
+        $canRequestReturn = $canRequestReturn ?? (
+            !$isDraftHistoryMode
+            && \App\Support\ReclassificationWorkflowRules::canFacultyRequestReturnFrom((string) ($application->status ?? ''))
+        );
         $hasPendingReturnRequest = !is_null($application->faculty_return_requested_at ?? null);
     @endphp
     <x-slot name="header">
@@ -134,12 +132,12 @@
                 'a9' => 'A9. International/National Certifications',
                 'b' => 'B. Advanced/Specialized Training',
                 'c' => 'C. Short-term Workshops/Seminars',
-                'b_prev' => 'B. Previous Reclassification (1/3)',
-                'c_prev' => 'C. Previous Reclassification (1/3)',
+                'b_prev' => 'B. Previous Reclassification (Section 1-B) (1/3)',
+                'c_prev' => 'C. Previous Reclassification (Section 1-C) (1/3)',
             ],
             '2' => [
                 'ratings' => 'Instructional Competence Ratings',
-                'previous_points' => 'Previous Reclassification (1/3)',
+                'previous_points' => 'Previous Reclassification (Section 2) (1/3)',
             ],
             '3' => [
                 'c1' => 'C1. Book Authorship',
@@ -151,7 +149,7 @@
                 'c7' => 'C7. Artistic Works',
                 'c8' => 'C8. Editorial Work',
                 'c9' => 'C9. Professional Output',
-                'previous_points' => 'Section 3 Previous Reclassification (1/3)',
+                'previous_points' => 'Previous Reclassification (Section 3) (1/3)',
             ],
             '4' => [
                 'a1' => 'A1. Actual Services Outside BU',
@@ -165,10 +163,10 @@
                 'c2' => 'C2. Extension/Outreach',
                 'c3' => 'C3. University Activities',
                 'd' => 'D. Community Involvement',
-                'b_prev' => 'B. Section 5 Previous Reclassification (1/3)',
-                'c_prev' => 'C. Section 5 Previous Reclassification (1/3)',
-                'd_prev' => 'D. Section 5 Previous Reclassification (1/3)',
-                'previous_points' => 'Section 5 Previous Reclassification (1/3)',
+                'b_prev' => 'B. Previous Reclassification (Section 5-B) (1/3)',
+                'c_prev' => 'C. Previous Reclassification (Section 5-C) (1/3)',
+                'd_prev' => 'D. Previous Reclassification (Section 5-D) (1/3)',
+                'previous_points' => 'Previous Reclassification (Section 5) (1/3)',
             ],
         ];
 
@@ -252,6 +250,31 @@
 
         $summaryPointsRankDisplay = $section2PointsIncluded ? $summaryPointsRankLabel : 'Not yet available';
         $summaryAllowedRankDisplay = $section2PointsIncluded ? $summaryAllowedRankLabel : 'Not yet available';
+        $statusTrailLabels = [
+            'draft' => 'Draft',
+            'dean_review' => 'Dean',
+            'hr_review' => 'HR',
+            'vpaa_review' => 'VPAA',
+            'vpaa_approved' => 'VPAA Approved List',
+            'president_review' => 'President',
+            'returned_to_faculty' => 'Returned to Faculty',
+            'finalized' => 'Finalized',
+            'rejected_final' => 'Rejected',
+        ];
+        $statusTrailActionLabels = [
+            'submit' => 'Submitted',
+            'resubmit' => 'Resubmitted',
+            'forward' => 'Forwarded',
+            'return_to_faculty' => 'Returned to Faculty',
+            'faculty_request_return' => 'Requested Return',
+            'faculty_cancel_return_request' => 'Canceled Return Request',
+            'approve_to_vpaa_list' => 'Approved to VPAA List',
+            'forward_approved_list' => 'Forwarded Approved List',
+            'finalize' => 'Finalized',
+            'reject_final' => 'Final Rejected',
+            'reactivate_after_final_reject' => 'Reactivated',
+        ];
+        $statusTrails = collect($application->statusTrails ?? [])->sortByDesc('created_at')->values()->take(12);
     @endphp
 
     <div class="py-10 bg-bu-muted min-h-screen">
@@ -269,6 +292,17 @@
                             @endif
                         </div>
                     @endif
+                    @if((string) ($application->status ?? '') === 'rejected_final' && !empty($application->rejection_final_reason))
+                        <div class="mt-2 text-xs text-red-700">
+                            Final rejection reason: {{ $application->rejection_final_reason }}
+                            <span class="block mt-1 text-red-600">
+                                By {{ $application->rejectionFinalizedBy?->name ?? 'HR' }}
+                                @if(!empty($application->rejection_finalized_at))
+                                    on {{ optional($application->rejection_finalized_at)->format('M d, Y h:i A') }}
+                                @endif
+                            </span>
+                        </div>
+                    @endif
                 </div>
                 <div class="text-sm text-gray-500">
                     {{ $isDraftHistoryMode ? 'Saved at:' : 'Submitted at:' }}
@@ -277,6 +311,68 @@
                     </span>
                 </div>
             </div>
+
+            @if($statusTrails->isNotEmpty())
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6"
+                     x-data="{ statusTrailOpen: false }">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800">Status Trail History</h3>
+                            <p class="text-sm text-gray-500 mt-1">
+                                Recent routing timeline of your submission.
+                            </p>
+                        </div>
+                        <button type="button"
+                                @click="statusTrailOpen = !statusTrailOpen"
+                                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                            <span x-text="statusTrailOpen ? 'Hide Details' : 'See Details'"></span>
+                        </button>
+                    </div>
+
+                    <div class="mt-4 space-y-3" x-show="statusTrailOpen" x-collapse x-cloak>
+                        @foreach($statusTrails as $trail)
+                            @php
+                                $fromLabel = $trail->from_status
+                                    ? ($statusTrailLabels[$trail->from_status] ?? ucfirst(str_replace('_', ' ', (string) $trail->from_status)))
+                                    : 'N/A';
+                                $toLabel = $statusTrailLabels[$trail->to_status]
+                                    ?? ucfirst(str_replace('_', ' ', (string) $trail->to_status));
+                                $actionLabel = $statusTrailActionLabels[$trail->action]
+                                    ?? ucfirst(str_replace('_', ' ', (string) $trail->action));
+                                $actorName = $trail->actor?->name ?? 'System';
+                                $actorRole = trim((string) ($trail->actor_role ?? ''));
+                                $actorRoleLabel = $actorRole !== '' ? strtoupper($actorRole) : null;
+                                $resumedFrom = trim((string) data_get($trail->meta, 'resumed_from_role', ''));
+                            @endphp
+                            <div class="rounded-xl border border-gray-200 bg-gray-50 px-4 py-3">
+                                <div class="flex flex-wrap items-center justify-between gap-2">
+                                    <div class="text-sm font-semibold text-gray-800">
+                                        {{ $actionLabel }}:
+                                        <span class="text-gray-700">{{ $fromLabel }}</span>
+                                        <span class="text-gray-400 mx-1">&rarr;</span>
+                                        <span class="text-gray-900">{{ $toLabel }}</span>
+                                    </div>
+                                    <div class="text-xs text-gray-500">
+                                        {{ optional($trail->created_at)->format('M d, Y h:i A') }}
+                                    </div>
+                                </div>
+                                <div class="mt-1 text-xs text-gray-600">
+                                    By {{ $actorName }}@if($actorRoleLabel) ({{ $actorRoleLabel }})@endif
+                                    @if($resumedFrom !== '')
+                                        <span class="mx-1 text-gray-300">&middot;</span>
+                                        Resubmitted back to {{ strtoupper($resumedFrom) }}
+                                    @endif
+                                </div>
+                                @if($trail->note)
+                                    <div class="mt-2 text-xs text-gray-700">
+                                        {{ $trail->note }}
+                                    </div>
+                                @endif
+                            </div>
+                        @endforeach
+                    </div>
+                </div>
+            @endif
 
             {{-- MY INFORMATION --}}
             <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6"
@@ -661,7 +757,7 @@
                                     <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s3Subtotal, 0) }}</div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">Section 3 Previous Reclassification (1/3)</div>
+                                    <div class="text-xs text-gray-500">Previous Reclassification (Section 3) (1/3)</div>
                                     <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s3PrevThird, 2) }}</div>
                                     <div class="text-xs text-gray-500">Input: {{ number_format($inputValueFor('previous_points'), 2) }}</div>
                                 </div>
@@ -775,6 +871,10 @@
                                                         $data = is_array($entry->data) ? $entry->data : [];
                                                         $title = $entry->title ?: ($data['text'] ?? $data['title'] ?? 'Entry');
                                                         $showTitleInDetails = trim((string) $title) !== '' && strtolower(trim((string) $title)) !== 'entry';
+                                                        $titleLabel = ((string) ($section->section_code ?? '') === '1'
+                                                            && in_array(strtolower((string) $criterionKey), ['a1','a2','a3','a4','a5','a6','a7'], true))
+                                                            ? 'Degree'
+                                                            : 'Title';
                                                         $titleComparable = preg_replace('/\s+/', ' ', mb_strtolower(trim((string) $title)));
                                                         $evidences = $entry->evidences ?? collect();
                                                         $ignoredDetailKeys = [
@@ -809,11 +909,20 @@
                                                                 continue;
                                                             }
                                                             $rawComparable = preg_replace('/\s+/', ' ', mb_strtolower($raw));
-                                                            if ($showTitleInDetails && in_array($keyString, ['title', 'text'], true) && $rawComparable === $titleComparable) {
+                                                            if ($showTitleInDetails && in_array($keyString, ['title', 'text', 'degree'], true) && $rawComparable === $titleComparable) {
                                                                 continue;
                                                             }
 
                                                             $label = ucwords(str_replace(['_', '-'], ' ', $keyString));
+                                                            if ((string) ($section->section_code ?? '') === '1') {
+                                                                if ($keyString === 'category') {
+                                                                    $label = 'Category';
+                                                                } elseif ($keyString === 'honors') {
+                                                                    $label = 'Honors';
+                                                                } elseif ($keyString === 'degree') {
+                                                                    $label = 'Degree';
+                                                                }
+                                                            }
                                                             $label = preg_replace('/\bBu\b/', 'BU', $label);
 
                                                             $display = $raw;
@@ -838,7 +947,10 @@
                                                                 'w-[55%]' => !$isPreviousReclassificationCriterion,
                                                             ])>
                                                             @if($showTitleInDetails)
-                                                                <div class="mb-1 font-medium text-gray-800">Title: {{ $title }}</div>
+                                                                <div class="mb-1">
+                                                                    <span class="text-gray-400">{{ $titleLabel }}:</span>
+                                                                    <span class="text-gray-700">{{ $title }}</span>
+                                                                </div>
                                                             @endif
                                                             @if(empty($detailRows))
                                                                 <span class="text-gray-400">No details</span>
@@ -858,50 +970,31 @@
                                                                 @if($evidences->isEmpty())
                                                                     <span class="text-gray-400">None</span>
                                                                 @else
-                                                                    <div class="space-y-2">
-                                                                        @foreach($evidences as $ev)
-                                                                            @php
-                                                                                $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
-                                                                                $mime = strtolower((string) ($ev->mime_type ?? ''));
-                                                                                $fileName = strtolower((string) ($ev->original_name ?? ''));
-                                                                                $isImage = str_starts_with($mime, 'image/')
-                                                                                    || preg_match('/\.(jpg|jpeg|png|gif|webp|bmp|svg|tif|tiff|heic|heif)$/i', $fileName);
-                                                                                $isPdf = $mime === 'application/pdf' || str_ends_with($fileName, '.pdf');
-                                                                            @endphp
-                                                                            <div class="rounded-lg border p-3">
-                                                                                <div class="flex items-center justify-between gap-3">
-                                                                                    <div class="min-w-0 flex items-center gap-2">
-                                                                                        <div class="shrink-0 h-8 w-8 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
-                                                                                            @if($isImage && $url)
-                                                                                                <img src="{{ $url }}" alt="Evidence preview" class="h-full w-full object-cover">
-                                                                                            @elseif($isPdf)
-                                                                                                <span class="text-[10px] font-bold text-red-600">PDF</span>
-                                                                                            @else
-                                                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                                                                    <path d="M4 3.5A1.5 1.5 0 015.5 2h6.879a1.5 1.5 0 011.06.44l2.121 2.12a1.5 1.5 0 01.44 1.061V16.5A1.5 1.5 0 0114.5 18h-9A1.5 1.5 0 014 16.5v-13z" />
-                                                                                                </svg>
-                                                                                            @endif
-                                                                                        </div>
-                                                                                        <div class="truncate font-medium text-gray-800">
-                                                                                            {{ $ev->original_name ?? 'Evidence file' }}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div class="shrink-0">
-                                                                                        @if($url)
-                                                                                            <button type="button"
-                                                                                                    class="js-evidence-preview-trigger inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                                                                                                    data-evidence-url="{{ $url }}"
-                                                                                                    data-evidence-name="{{ $ev->original_name ?? 'Evidence file' }}"
-                                                                                                    data-evidence-mime="{{ $ev->mime_type ?? '' }}">
-                                                                                                View
-                                                                                            </button>
-                                                                                        @else
-                                                                                            <span class="text-xs text-gray-400">Unavailable</span>
-                                                                                        @endif
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        @endforeach
+                                                                    @php
+                                                                        $evidenceItems = $evidences->map(function ($ev) {
+                                                                            $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
+                                                                            return [
+                                                                                'url' => $url,
+                                                                                'name' => $ev->original_name ?? 'Evidence file',
+                                                                                'mime' => $ev->mime_type ?? '',
+                                                                            ];
+                                                                        })->filter(fn ($item) => !empty($item['url']))->values();
+                                                                        $evidenceCount = $evidences->count();
+                                                                    @endphp
+                                                                    <div class="rounded-lg border border-gray-200 bg-gray-50/60 p-3 flex items-center justify-center">
+                                                                        @if($evidenceItems->isNotEmpty())
+                                                                            <button type="button"
+                                                                                    class="js-evidence-preview-trigger inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                                                    data-evidence-url="{{ $evidenceItems[0]['url'] }}"
+                                                                                    data-evidence-name="{{ $evidenceItems[0]['name'] }}"
+                                                                                    data-evidence-mime="{{ $evidenceItems[0]['mime'] }}"
+                                                                                    data-evidence-items='@json($evidenceItems)'
+                                                                                    data-evidence-index="0">
+                                                                                View Evidence ({{ $evidenceCount }})
+                                                                            </button>
+                                                                        @else
+                                                                            <span class="text-xs text-gray-400">Unavailable</span>
+                                                                        @endif
                                                                     </div>
                                                                 @endif
                                                             </td>
@@ -920,7 +1013,7 @@
                     </div>
                 </div>
 
-                @if($section->section_code === '1' && !empty($section2Review))
+                @if($section->section_code === '1')
                     @php
                         $ratings = $section2Review['ratings'] ?? [];
                         $points = $section2Review['points'] ?? [];
@@ -933,6 +1026,7 @@
                         $s2RawTotal = $s2Weighted + $s2PreviousThird;
                         $s2Counted = (float) ($points['total'] ?? 0);
                     @endphp
+                    @if($section2HasDeanInput)
                     <div class="bg-white rounded-2xl shadow-card border border-gray-200">
                         <div class="px-6 py-4 border-b bg-white/95 backdrop-blur space-y-3">
                             <div class="flex flex-wrap items-center gap-2">
@@ -1047,6 +1141,21 @@
                             </div>
                         </div>
                     </div>
+                    @else
+                        <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+                            <div class="px-6 py-4 border-b bg-white/95 backdrop-blur">
+                                <h3 class="text-sm sm:text-base font-semibold text-gray-800">
+                                    Section II Score Summary
+                                </h3>
+                            </div>
+                            <div class="p-6">
+                                <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+                                    <div class="font-semibold">No input yet</div>
+                                    <p class="mt-1">Section II is completed by the Dean during review. Points summary will appear here once Dean ratings are submitted.</p>
+                                </div>
+                            </div>
+                        </div>
+                    @endif
                 @endif
             @empty
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">

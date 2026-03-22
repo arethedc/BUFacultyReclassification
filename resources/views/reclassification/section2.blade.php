@@ -83,7 +83,7 @@
               </template>
             </div>
 
-           
+
           </div>
 
           <button type="button"
@@ -95,9 +95,9 @@
 
         <div x-show="open" x-collapse class="px-5 pb-4">
           <p class="text-xs text-gray-500">
-            Equivalent points follow the paper rating tables.
-            Weighted totals: Dean × 0.40, Chair × 0.30, Student × 0.30.
-            + 1/3 of previous reclassification points. Subject to validation.
+            Scores are converted to equivalent points per item using the paper rating tables.
+            Formula: (Dean item points x 0.40) + (Chair item points x 0.30) + (Student item points x 0.30), then add 1/3 of previous reclassification points.
+            Subject to validation.
           </p>
 
           <div class="mt-3 rounded-xl border bg-white p-4">
@@ -128,21 +128,21 @@
 
           <div class="mt-3 grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div class="rounded-xl border p-4">
-              <p class="text-xs text-gray-500">Weighted Total (No Previous)</p>
+              <p class="text-xs text-gray-500">Weighted Total (Before Previous Points)</p>
               <p class="text-xl font-semibold text-gray-800">
                 <span x-text="Number(weightedTotal()).toFixed(2)"></span>
               </p>
               <p class="mt-1 text-xs text-gray-500">
                 Dean pts: <span class="font-medium text-gray-700" x-text="Number(deanTotalPts()).toFixed(2)"></span>
-                <span class="mx-1 text-gray-300">•</span>
+                <span class="mx-1 text-gray-300">|</span>
                 Chair pts: <span class="font-medium text-gray-700" x-text="Number(chairTotalPts()).toFixed(2)"></span>
-                <span class="mx-1 text-gray-300">•</span>
+                <span class="mx-1 text-gray-300">|</span>
                 Student pts: <span class="font-medium text-gray-700" x-text="Number(studentTotalPts()).toFixed(2)"></span>
               </p>
             </div>
 
             <div class="rounded-xl border p-4">
-              <p class="text-xs text-gray-500">Previous Reclass (1/3)</p>
+              <p class="text-xs text-gray-500">Previous Reclassification (Section 2) Points (if applicable)</p>
               <p class="text-xl font-semibold text-gray-800">
                 <span x-text="Number(prevThird()).toFixed(2)"></span>
               </p>
@@ -152,7 +152,7 @@
             </div>
 
             <div class="rounded-xl border p-4">
-              <p class="text-xs text-gray-500">Final (Raw)</p>
+              <p class="text-xs text-gray-500">Section II Total (Raw Before Cap)</p>
               <p class="text-xl font-semibold text-gray-800">
                 <span x-text="Number(rawTotal()).toFixed(2)"></span>
                 <span class="text-sm font-medium text-gray-400">/ 120</span>
@@ -170,6 +170,30 @@
           </template>
         </div>
       </div>
+    </div>
+
+    {{-- PREVIOUS RECLASSIFICATION (TOP) --}}
+    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+        <div class="px-6 py-4 border-b">
+            <h3 class="text-base font-semibold text-gray-800">Previous Reclassification</h3>
+            <p class="text-sm text-gray-500">This value contributes 1/3 to Section II total points.</p>
+        </div>
+        <div class="p-6">
+            <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
+                <label class="block text-xs text-gray-500">
+                    Previous Reclassification (Section 2) Points (if applicable)
+                </label>
+                <input x-model.number="previous"
+                       name="section2[previous_points]"
+                       type="number" step="0.01"
+                       class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
+                       :disabled="readOnly || !isEditMode"
+                       placeholder="Enter raw points">
+                <p class="text-xs text-gray-500 mt-1">
+                    Counted (1/3): <span class="font-medium text-gray-700" x-text="Number(prevThird()).toFixed(2)"></span>
+                </p>
+            </div>
+        </div>
     </div>
 
     {{-- ======================================================
@@ -192,10 +216,10 @@
                     <thead class="bg-gray-50">
                         <tr>
                             <th class="px-4 py-2 text-left">Criteria</th>
-                            <th class="px-4 py-2 text-center">Dean Rating</th>
-                            <th class="px-4 py-2 text-center">Dept. Chair Rating</th>
-                            <th class="px-4 py-2 text-center">Student Rating</th>
-                            <th class="px-4 py-2 text-center">Equivalent Points (Auto)</th>
+                            <th class="px-4 py-2 text-center">Dean Rating (1.00-4.00)</th>
+                            <th class="px-4 py-2 text-center">Dept. Chair Rating (1.00-4.00)</th>
+                            <th class="px-4 py-2 text-center">Student Rating (1.00-4.00)</th>
+                            <th class="px-4 py-2 text-center">Weighted Equivalent Points (Auto)</th>
                         </tr>
                     </thead>
 
@@ -235,7 +259,7 @@
                             </td>
 
                             <td class="px-4 py-3 text-center">
-                                <span class="font-medium text-gray-800" x-text="Number(eqPtsForItem(1)).toFixed(2)"></span>
+                                <span class="font-medium text-gray-800" x-text="Number(weightedItemPts(1)).toFixed(2)"></span>
                             </td>
                         </tr>
 
@@ -273,7 +297,7 @@
                             </td>
 
                             <td class="px-4 py-3 text-center">
-                                <span class="font-medium text-gray-800" x-text="Number(eqPtsForItem(2)).toFixed(2)"></span>
+                                <span class="font-medium text-gray-800" x-text="Number(weightedItemPts(2)).toFixed(2)"></span>
                             </td>
                         </tr>
 
@@ -311,7 +335,7 @@
                             </td>
 
                             <td class="px-4 py-3 text-center">
-                                <span class="font-medium text-gray-800" x-text="Number(eqPtsForItem(3)).toFixed(2)"></span>
+                                <span class="font-medium text-gray-800" x-text="Number(weightedItemPts(3)).toFixed(2)"></span>
                             </td>
                         </tr>
 
@@ -349,25 +373,51 @@
                             </td>
 
                             <td class="px-4 py-3 text-center">
-                                <span class="font-medium text-gray-800" x-text="Number(eqPtsForItem(4)).toFixed(2)"></span>
+                                <span class="font-medium text-gray-800" x-text="Number(weightedItemPts(4)).toFixed(2)"></span>
                             </td>
                         </tr>
 
-                        {{-- TOTAL ROW --}}
+                        {{-- TOTAL ROWS --}}
                         <tr class="bg-gray-50">
-                            <td class="px-4 py-3 font-semibold">Total</td>
+                            <td class="px-4 py-3 font-semibold">Rater Equivalent Points Total</td>
                             <td class="px-4 py-3 text-center font-semibold text-gray-800">
                                 <span x-text="Number(deanTotalPts()).toFixed(2)"></span>
+                                <div class="text-[11px] font-normal text-gray-500">Dean eq. pts</div>
                             </td>
                             <td class="px-4 py-3 text-center font-semibold text-gray-800">
                                 <span x-text="Number(chairTotalPts()).toFixed(2)"></span>
+                                <div class="text-[11px] font-normal text-gray-500">Chair eq. pts</div>
                             </td>
                             <td class="px-4 py-3 text-center font-semibold text-gray-800">
                                 <span x-text="Number(studentTotalPts()).toFixed(2)"></span>
+                                <div class="text-[11px] font-normal text-gray-500">Student eq. pts</div>
                             </td>
                             <td class="px-4 py-3 text-center font-semibold text-gray-800">
+                                <span class="text-gray-400">-</span>
+                            </td>
+                        </tr>
+                        <tr class="bg-blue-50">
+                            <td colspan="4" class="px-4 py-3 text-right font-semibold text-blue-900">
+                                Weighted Total (Dean 40% + Chair 30% + Student 30%)
+                            </td>
+                            <td class="px-4 py-3 text-center font-semibold text-blue-900">
                                 <span x-text="Number(weightedTotal()).toFixed(2)"></span>
-                                <span class="text-xs text-gray-400"> (Weighted)</span>
+                            </td>
+                        </tr>
+                        <tr class="bg-gray-50">
+                            <td colspan="4" class="px-4 py-3 text-right font-medium text-gray-700">
+                                + Previous Reclassification (1/3)
+                            </td>
+                            <td class="px-4 py-3 text-center font-medium text-gray-700">
+                                <span x-text="Number(prevThird()).toFixed(2)"></span>
+                            </td>
+                        </tr>
+                        <tr class="bg-green-50">
+                            <td colspan="4" class="px-4 py-3 text-right font-semibold text-green-900">
+                                Section II Final Counted Points (capped at 120)
+                            </td>
+                            <td class="px-4 py-3 text-center font-semibold text-green-900">
+                                <span x-text="Number(cappedTotal()).toFixed(2)"></span>
                             </td>
                         </tr>
 
@@ -461,28 +511,6 @@
                     </div>
                 </div>
             </div>
-
-            {{-- PREVIOUS RECLASSIFICATION --}}
-            <div class="border-t pt-6">
-                <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-                    <label class="block text-xs text-gray-500">
-                        Points from Previous Reclassification (if applicable)
-                    </label>
-                    <input x-model.number="previous"
-                           name="section2[previous_points]"
-                           type="number" step="0.01"
-                           class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-                           :disabled="readOnly || !isEditMode"
-                           placeholder="0.00">
-                    <p class="text-xs text-gray-500 mt-1">
-                        Counted: <span class="font-medium text-gray-700" x-text="Number(prevThird()).toFixed(2)"></span>
-                    </p>
-                    <p class="text-xs text-gray-500 mt-1">
-                        System applies 1/3 of this value. Subject to validation.
-                    </p>
-                </div>
-            </div>
-
 {{-- ACTIONS --}}
 <div class="flex justify-end gap-4 pt-2">
     @php
@@ -542,9 +570,12 @@ hasAnyRating() {
 },
 
 captureState() {
+  const previousValue = (this.previous === '' || this.previous === null || this.previous === undefined)
+    ? ''
+    : Number(this.previous || 0);
   return {
     ratings: JSON.parse(JSON.stringify(this.ratings)),
-    previous: Number(this.previous || 0),
+    previous: previousValue,
   };
 },
 
@@ -555,7 +586,9 @@ applyState(state) {
     chair: { i1: 0, i2: 0, i3: 0, i4: 0 },
     student: { i1: 0, i2: 0, i3: 0, i4: 0 },
   }));
-  this.previous = Number(state.previous || 0);
+  this.previous = (state.previous === '' || state.previous === null || state.previous === undefined)
+    ? ''
+    : Number(state.previous || 0);
 },
 
 computeHasSavedData() {
@@ -599,7 +632,7 @@ clampRating(rater, key) {
       chair:   { i1: 0, i2: 0, i3: 0, i4: 0 },
       student: { i1: 0, i2: 0, i3: 0, i4: 0 },
     },
-    previous: 0,
+    previous: '',
 
     init() {
       if (initial.ratings) {
@@ -689,20 +722,12 @@ clampRating(rater, key) {
       return this.pointsFromRatingItem34(r);
     },
 
-    // ✅ Equivalent points shown per row = POINTS of AVERAGE rating (Dean/Chair/Student)
-    eqPtsForItem(itemNo) {
-      const d = this.n(this.ratings.dean['i'+itemNo]);
-      const c = this.n(this.ratings.chair['i'+itemNo]);
-      const s = this.n(this.ratings.student['i'+itemNo]);
-
-      const vals = [d,c,s].filter(v => v != null);
-      if (vals.length === 0) return '0.00';
-
-      const avg = vals.reduce((a,b)=>a+b,0) / vals.length;
-
-      if (itemNo === 1) return this.pointsFromRatingItem1(avg);
-      if (itemNo === 2) return this.pointsFromRatingItem2(avg);
-      return this.pointsFromRatingItem34(avg);
+    // Weighted equivalent points shown per row (same formula used in totals)
+    weightedItemPts(itemNo) {
+      const deanPts = this.itemPts(itemNo, 'dean');
+      const chairPts = this.itemPts(itemNo, 'chair');
+      const studentPts = this.itemPts(itemNo, 'student');
+      return (deanPts * 0.40) + (chairPts * 0.30) + (studentPts * 0.30);
     },
 
     // ✅ Totals per rater (sum of POINTS per item, not ratings)
@@ -739,7 +764,6 @@ clampRating(rater, key) {
   }
 }
 </script>
-
 
 
 

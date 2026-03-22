@@ -112,4 +112,19 @@ return [
 
     'password_timeout' => env('AUTH_PASSWORD_TIMEOUT', 10800),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Public Registration
+    |--------------------------------------------------------------------------
+    |
+    | Public self-registration is disabled by default in production.
+    | You may override this with ALLOW_PUBLIC_REGISTRATION in environment
+    | settings when needed for specific deployments.
+    |
+    */
+    'allow_public_registration' => env(
+        'ALLOW_PUBLIC_REGISTRATION',
+        env('APP_ENV') !== 'production'
+    ),
+
 ];

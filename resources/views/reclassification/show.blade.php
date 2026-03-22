@@ -289,6 +289,16 @@
                     filterStorageKey: 'faculty_comments_filter_{{ (int) $application->id }}',
                     filterMode: 'open',
                     openGroups: {},
+                    normalizeType(type) {
+                        const value = String(type || 'requires_action').trim().toLowerCase();
+                        return value === 'info' ? 'info' : 'requires_action';
+                    },
+                    normalizeStatus(status) {
+                        const value = String(status || 'open').trim().toLowerCase();
+                        if (['resolved', 'done', 'closed'].includes(value)) return 'resolved';
+                        if (['addressed', 'replied', 'acknowledged'].includes(value)) return 'addressed';
+                        return 'open';
+                    },
                     setFilter(mode = 'open') {
                         this.filterMode = String(mode || 'open');
                         try {
@@ -316,8 +326,8 @@
                         });
                     },
                     matchesFilter(type, status) {
-                        const t = String(type || 'requires_action');
-                        const s = String(status || 'open');
+                        const t = this.normalizeType(type);
+                        const s = this.normalizeStatus(status);
                         if (this.filterMode === 'notes') return t === 'info';
                         if (this.filterMode === 'addressed') return t !== 'info' && s === 'addressed';
                         if (this.filterMode === 'resolved') return t !== 'info' && s === 'resolved';
@@ -329,10 +339,12 @@
                     },
                     countFor(mode, items) {
                         return (items || []).filter((item) => {
-                            if (mode === 'notes') return item.type === 'info';
-                            if (mode === 'addressed') return item.type !== 'info' && item.status === 'addressed';
-                            if (mode === 'resolved') return item.type !== 'info' && item.status === 'resolved';
-                            if (mode === 'open') return item.type !== 'info' && item.status === 'open';
+                            const type = this.normalizeType(item?.type);
+                            const status = this.normalizeStatus(item?.status);
+                            if (mode === 'notes') return type === 'info';
+                            if (mode === 'addressed') return type !== 'info' && status === 'addressed';
+                            if (mode === 'resolved') return type !== 'info' && status === 'resolved';
+                            if (mode === 'open') return type !== 'info' && status === 'open';
                             return false;
                         }).length;
                     },
@@ -377,10 +389,18 @@
 
                 <div class="rounded-xl border border-gray-200 bg-white p-2">
                     @php
-                        $commentItemsForCount = collect($commentThreads ?? [])->map(function ($thread) {
+                        $commentItemsForCount = collect($trackerThreads ?? [])->map(function ($thread) {
+                            $normalizedType = strtolower(trim((string) ($thread->action_type ?? 'requires_action')));
+                            $normalizedType = $normalizedType === 'info' ? 'info' : 'requires_action';
+                            $normalizedStatus = strtolower(trim((string) ($thread->status ?? 'open')));
+                            $normalizedStatus = match ($normalizedStatus) {
+                                'resolved', 'done', 'closed' => 'resolved',
+                                'addressed', 'replied', 'acknowledged' => 'addressed',
+                                default => 'open',
+                            };
                             return [
-                                'type' => (string) ($thread->action_type ?? 'requires_action'),
-                                'status' => (string) ($thread->status ?? 'open'),
+                                'type' => $normalizedType,
+                                'status' => $normalizedStatus,
                             ];
                         })->values();
                     @endphp
@@ -483,12 +503,11 @@
                 @endphp
 
                 <div class="rounded-lg border border-gray-200 bg-gray-50 px-3 py-2 text-xs text-gray-600"
-                     x-show="filterMode === 'open' && countFor('open', @js($commentItemsForCount->all())) === 0"
-                     x-cloak>
+                     x-show="filterMode === 'open' && countFor('open', @js($commentItemsForCount->all())) === 0">
                     All action-required comments are addressed.
                 </div>
 
-                <div class="space-y-2" x-show="filterMode === 'resolved'" x-cloak>
+                <div class="space-y-2" x-show="filterMode === 'resolved'">
                     @forelse($resolvedStageSnapshots as $resolvedStageIndex => $resolvedStage)
                         @php
                             $resolvedStageThreads = collect($resolvedStage['threads'] ?? [])->values();
@@ -515,8 +534,7 @@
                                     })->values();
                                 @endphp
                                 <div class="rounded-lg border border-gray-200 bg-white overflow-hidden"
-                                     x-show="hasVisibleInGroup(@js($sectionItemsMeta->all()))"
-                                     x-cloak>
+                                     x-show="hasVisibleInGroup(@js($sectionItemsMeta->all()))">
                                     <button type="button"
                                             @click="toggleGroup('resolved-{{ $resolvedStageIndex }}', '{{ $sectionCode }}')"
                                             class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50">
@@ -557,8 +575,7 @@
                                                 $threadEntryId = (int) ($thread->entry?->id ?? 0);
                                             @endphp
                                             <div class="rounded-lg border border-gray-200 bg-white p-3 text-left space-y-2 cursor-pointer hover:border-bu/40 transition"
-                                                 x-show="matchesFilter('{{ $commentType }}', '{{ $status }}')"
-                                                 x-cloak
+                                              x-show="matchesFilter('{{ $commentType }}', '{{ $status }}')"
                                                  @click="openCommentTarget({ section: {{ $threadSectionTarget }}, entryId: {{ $threadEntryId }}, criterion: '{{ strtolower((string) ($thread->entry?->criterion_key ?? '')) }}' })">
                                                 <div class="flex items-start justify-between gap-2">
                                                     <div class="min-w-0">
@@ -648,7 +665,7 @@
                                         : true)
                             )
                          "
-                         x-cloak>
+                         >
                         <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                             <div>
                                 <div class="text-xs font-semibold text-slate-800">{{ $snapshot['label'] ?? 'Comments snapshot' }}</div>
@@ -668,8 +685,7 @@
                                 })->values();
                             @endphp
                             <div class="rounded-lg border border-gray-200 bg-white overflow-hidden"
-                                 x-show="hasVisibleInGroup(@js($sectionItemsMeta->all()))"
-                                 x-cloak>
+                                 x-show="hasVisibleInGroup(@js($sectionItemsMeta->all()))">
                                 <button type="button"
                                         @click="toggleGroup({{ $snapshotIndex }}, '{{ $sectionCode }}')"
                                         class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50">
@@ -734,7 +750,6 @@
                                         @endphp
                                         <div class="rounded-lg border border-gray-200 bg-white p-3 text-left space-y-2 cursor-pointer hover:border-bu/40 transition"
                                              x-show="matchesFilter('{{ $commentType }}', '{{ $status }}')"
-                                             x-cloak
                                              @click="openCommentTarget({ section: {{ $threadSectionTarget }}, entryId: {{ $threadEntryId }}, criterion: '{{ strtolower((string) ($thread->entry?->criterion_key ?? '')) }}' })">
                                             <div class="flex items-start justify-between gap-2">
                                                 <div class="min-w-0">
@@ -822,15 +837,13 @@
                     </div>
                 @empty
                     <div class="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600"
-                         x-show="filterMode !== 'notes'"
-                         x-cloak>
+                         x-show="filterMode !== 'notes'">
                         No reviewer comments available.
                     </div>
                 @endforelse
 
                 <div class="rounded-xl border border-gray-200 bg-white px-4 py-3 text-sm text-gray-600"
-                     x-show="filterMode === 'notes' && countFor('notes', @js($commentItemsForCount->all())) === 0"
-                     x-cloak>
+                     x-show="filterMode === 'notes' && countFor('notes', @js($commentItemsForCount->all())) === 0">
                     No comment yet.
                 </div>
             </div>
@@ -858,19 +871,20 @@
                 <div class="px-4 pb-3">
                     <div class="flex flex-wrap gap-2">
                         @for($i = 1; $i <= 5; $i++)
-                            @php $isLocked = $i === 2; @endphp
                             <button type="button" data-section-nav
                                     @click="navTo({{ $i }})"
                                     class="inline-flex items-center gap-2 px-3 py-2 rounded-xl border text-sm transition"
                                     :class="active === {{ $i }} ? 'border-bu bg-bu/5 text-gray-800' : 'border-gray-200 hover:bg-gray-50 text-gray-700'">
                                 <span class="font-semibold">Section {{ $i }}</span>
-                                @if($isLocked)
-                                    <span class="text-[11px] text-gray-500">(View-only)</span>
+                                @if($i === 2)
+                                    <span class="text-[11px] text-gray-500">(No faculty input)</span>
                                 @endif
-                                <span x-show="showScores"
-                                      class="text-[11px] px-2 py-0.5 rounded-full border"
-                                      :class="scoreChipClass({{ $i }})"
-                                      x-text="scoreChip({{ $i }})"></span>
+                                @if($i !== 2)
+                                    <span x-show="showScores"
+                                          class="text-[11px] px-2 py-0.5 rounded-full border"
+                                          :class="scoreChipClass({{ $i }})"
+                                          x-text="scoreChip({{ $i }})"></span>
+                                @endif
                             </button>
                         @endfor
 
@@ -885,7 +899,7 @@
         </div>
 
         <div id="faculty-section-content-card" class="mt-6 bg-white border border-gray-200 rounded-2xl shadow-card overflow-hidden">
-            <div class="px-6 py-4 border-b flex items-start justify-between">
+            <div class="px-6 py-4 border-b flex items-start">
                 <div>
                     <h3 class="text-lg font-semibold text-gray-800">
                         <template x-if="active !== 'review'">
@@ -894,44 +908,30 @@
                         <template x-if="active === 'review'">
                             <span>Review Summary</span>
                         </template>
-                        <template x-if="active === 2">
-                            <span class="ml-2 text-sm font-medium text-gray-500">(View-only)</span>
-                        </template>
                     </h3>
                     <p class="text-sm text-gray-500">
                         <template x-if="active === 'review'">
                             <span>Read-only summary and final submit.</span>
                         </template>
                         <template x-if="active === 2">
-                            <span>This section is completed by the Dean. Faculty can view only.</span>
+                            <span>No faculty input required. This section is completed during Dean review.</span>
                         </template>
                         <template x-if="active !== 2 && active !== 'review'">
                             <span>Fill out the required information and attach evidences.</span>
                         </template>
                     </p>
                 </div>
-
-                <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-semibold border {{ $canEdit ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-50 text-gray-700 border-gray-200' }}">
-                    {{ $canEdit ? 'Editable' : 'Read-only (Submitted)' }}
-                </span>
             </div>
 
             <div class="p-6">
                 @for ($i = 1; $i <= 5; $i++)
                     <section data-section-pane data-section-index="{{ $i }}" :class="active === {{ $i }} ? 'block is-active' : 'hidden'">
                         @if($i === 2)
-                            <div class="mb-4 rounded-xl border border-amber-200 bg-amber-50 text-amber-700 px-4 py-3 text-sm">
-                                Section 2 is for Dean's evaluation and is view-only for faculty.
-                            </div>
-                            <div class="opacity-70 pointer-events-none">
-                                @include("reclassification.section{$i}", [
-                                    'application' => $application,
-                                    'section' => $application->sections->firstWhere('section_code', '2'),
-                                    'sectionData' => $sectionsData['2'] ?? [],
-                                    'globalEvidence' => $globalEvidence ?? [],
-                                    'readOnly' => true,
-                                    'embedded' => true,
-                                ])
+                            <div class="rounded-2xl border border-blue-200 bg-blue-50 px-5 py-4 text-sm text-blue-900 space-y-2">
+                                <div class="font-semibold">Section II - Instructional Competence</div>
+                                <p>No faculty input is required in this section.</p>
+                                <p>This part is completed by the Dean (with Chair/Student ratings) during the review workflow.</p>
+                                <p class="text-blue-800">You can proceed to Section III.</p>
                             </div>
                         @else
                             @include("reclassification.section{$i}", [
@@ -1007,7 +1007,7 @@
                                     </div>
                                     <template x-if="isSection2Pending()">
                                         <div class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-                                            Section II is not yet answered. Rank outputs are provisional and may change after Dean ratings.
+                                            Section II has no faculty input. Rank outputs become available after Dean ratings.
                                         </div>
                                     </template>
                                 </div>
@@ -1059,7 +1059,14 @@
                                             </tr>
                                             <tr>
                                                 <td class="px-4 py-3 font-medium">Section II - Instructional Competence</td>
-                                                <td class="px-4 py-3 text-right font-semibold text-gray-800" x-text="sectionPoints(2).toFixed(2)"></td>
+                                                <td class="px-4 py-3 text-right">
+                                                    <template x-if="isSection2Pending()">
+                                                        <span class="font-semibold text-gray-500">No input yet</span>
+                                                    </template>
+                                                    <template x-if="!isSection2Pending()">
+                                                        <span class="font-semibold text-gray-800" x-text="sectionPoints(2).toFixed(2)"></span>
+                                                    </template>
+                                                </td>
                                                 <td class="px-4 py-3 text-right">
                                                     <button type="button" @click="$dispatch('review-nav', { target: 2 })" class="text-bu text-xs font-medium hover:underline">View Section II</button>
                                                 </td>
@@ -1368,9 +1375,6 @@
                 localDraftTimers: {},
                 dirtySections: {},
                 restoringLocalDraft: false,
-                leaveConfirmOpen: false,
-                leaveConfirmAction: '',
-                leaveConfirmUrl: '',
                 suppressBeforeUnloadPrompt: false,
                 pendingUploads: [],
                 savingDraft: false,
@@ -1469,42 +1473,6 @@
                     };
                     document.addEventListener('click', window.__reclassificationSectionNavGuard, true);
 
-                    if (window.__reclassificationGlobalLeaveGuard) {
-                        document.removeEventListener('click', window.__reclassificationGlobalLeaveGuard, true);
-                    }
-                    window.__reclassificationGlobalLeaveGuard = (event) => {
-                        if (event.defaultPrevented) return;
-                        if (event.button !== 0) return;
-                        if (event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-                        const link = event?.target?.closest?.('a[href]');
-                        if (!link) return;
-                        if (link.hasAttribute('data-section-nav')) return;
-                        if (link.hasAttribute('data-skip-leave-guard')) return;
-                        const href = String(link.getAttribute('href') || '').trim();
-                        if (!href || href.startsWith('#') || href.toLowerCase().startsWith('javascript:')) return;
-                        if (String(link.getAttribute('target') || '').toLowerCase() === '_blank') return;
-                        if (String(link.getAttribute('download') || '').trim() !== '') return;
-                        if (!this.hasPendingUnsavedChanges()) return;
-                        event.preventDefault();
-                        event.stopImmediatePropagation();
-                        this.openLeaveConfirmModal('navigate', { url: link.href });
-                    };
-                    document.addEventListener('click', window.__reclassificationGlobalLeaveGuard, true);
-
-                    if (window.__reclassificationReloadKeyGuard) {
-                        window.removeEventListener('keydown', window.__reclassificationReloadKeyGuard, true);
-                    }
-                    window.__reclassificationReloadKeyGuard = (event) => {
-                        const key = String(event?.key || '').toLowerCase();
-                        const isReloadKey = key === 'f5' || ((event.ctrlKey || event.metaKey) && key === 'r');
-                        if (!isReloadKey) return;
-                        if (!this.hasPendingUnsavedChanges()) return;
-                        event.preventDefault();
-                        event.stopPropagation();
-                        this.openLeaveConfirmModal('reload');
-                    };
-                    window.addEventListener('keydown', window.__reclassificationReloadKeyGuard, true);
-
                     this.bindDraftProtection();
                     this.updateBackToTopVisibility();
                     window.addEventListener('scroll', () => this.updateBackToTopVisibility(), { passive: true });
@@ -1551,59 +1519,6 @@
                             this.toastTimer = null;
                         }, timeout);
                     }
-                },
-
-                hasPendingUnsavedChanges() {
-                    return this.hasDirtyChanges()
-                        && !this.finalSubmitting
-                        && !this.draftSaveInFlight
-                        && !this.suppressBeforeUnloadPrompt;
-                },
-
-                openLeaveConfirmModal(action = 'navigate', payload = {}) {
-                    this.leaveConfirmAction = String(action || 'navigate');
-                    this.leaveConfirmUrl = String(payload?.url || '');
-                    this.leaveConfirmOpen = true;
-                },
-
-                closeLeaveConfirmModal() {
-                    if (this.draftSaveInFlight || this.finalSubmitting) return;
-                    this.leaveConfirmOpen = false;
-                    this.leaveConfirmAction = '';
-                    this.leaveConfirmUrl = '';
-                },
-
-                confirmLeaveWithoutSaving() {
-                    const action = this.leaveConfirmAction;
-                    const url = this.leaveConfirmUrl;
-                    this.closeLeaveConfirmModal();
-                    this.suppressBeforeUnloadPrompt = true;
-
-                    if (action === 'reload') {
-                        window.location.reload();
-                        return;
-                    }
-                    if (action === 'navigate' && url) {
-                        window.location.href = url;
-                    }
-                },
-
-                saveDraftAndLeave() {
-                    if (this.draftSaveInFlight || this.finalSubmitting) return;
-                    const action = this.leaveConfirmAction;
-                    const url = this.leaveConfirmUrl;
-                    this.saveDirtySectionsDraft('manual')
-                        .finally(() => {
-                            this.closeLeaveConfirmModal();
-                            this.suppressBeforeUnloadPrompt = true;
-                            if (action === 'reload') {
-                                window.location.reload();
-                                return;
-                            }
-                            if (action === 'navigate' && url) {
-                                window.location.href = url;
-                            }
-                        });
                 },
 
                 setHeaderSavedIndicator(visible, text = 'Saved') {
@@ -2438,15 +2353,21 @@
                     const existing = this.pendingUploads || [];
                     const signature = (file) => `${file.name}|${file.size}|${file.lastModified}`;
                     const map = new Set(existing.map(signature));
+                    let duplicatePendingCount = 0;
                     validFiles.forEach((file) => {
                         const sig = signature(file);
                         if (!map.has(sig)) {
                             map.add(sig);
                             existing.push(file);
+                        } else {
+                            duplicatePendingCount += 1;
                         }
                     });
                     this.pendingUploads = [...existing];
                     event.target.value = '';
+                    if (duplicatePendingCount > 0) {
+                        this.showToast(`${duplicatePendingCount} duplicate file(s) already in the pending list were skipped.`, 'warning', 2600);
+                    }
                     this.uploadPendingEvidence();
                 },
 
@@ -2512,7 +2433,20 @@
                             this.pendingUploads = (this.pendingUploads || []).filter(
                                 (file) => !batchSignatures.has(signature(file))
                             );
-                            this.showToast('Uploads saved.', 'success', 2500);
+                            const uploadedCount = Number(data?.uploaded_count ?? 0);
+                            const duplicateCount = Number(data?.duplicate_count ?? 0);
+                            const serverMessage = String(data?.message || '').trim();
+                            let uploadMessage = 'Uploads saved.';
+                            if (serverMessage) {
+                                uploadMessage = serverMessage;
+                            } else if (uploadedCount > 0 && duplicateCount > 0) {
+                                uploadMessage = `${uploadedCount} file(s) uploaded. ${duplicateCount} duplicate file(s) skipped.`;
+                            } else if (uploadedCount > 0) {
+                                uploadMessage = `${uploadedCount} file(s) uploaded.`;
+                            } else if (duplicateCount > 0) {
+                                uploadMessage = `No new files uploaded. ${duplicateCount} duplicate file(s) skipped.`;
+                            }
+                            this.showToast(uploadMessage, 'success', 2800);
                         })
                         .catch((err) => {
                             failed = true;
@@ -3136,46 +3070,6 @@
                         :disabled="finalSubmitting"
                         class="inline-flex items-center rounded-lg bg-bu px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-bu-dark disabled:opacity-60 disabled:cursor-not-allowed">
                     <span x-text="finalSubmitting ? 'Submitting...' : '{{ ($application->status ?? '') === 'returned_to_faculty' ? 'Confirm Resubmit' : 'Confirm Final Submit' }}'"></span>
-                </button>
-            </div>
-        </div>
-    </div>
-
-    <div x-cloak x-show="leaveConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center">
-        <div class="absolute inset-0 bg-black/40" @click="closeLeaveConfirmModal()"></div>
-        <div class="relative w-full max-w-lg mx-4 rounded-2xl border bg-white shadow-xl">
-            <div class="px-6 py-4 border-b">
-                <h3 class="text-base font-semibold text-gray-900">Unsaved Changes</h3>
-                <p class="mt-1 text-sm text-gray-600">
-                    You have unsaved changes in this form.
-                </p>
-            </div>
-            <div class="px-6 py-4 space-y-3">
-                <div class="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-900">
-                    <div class="font-semibold">Leave this page?</div>
-                    <p class="mt-1 text-xs text-amber-800">
-                        If you continue without saving, your latest edits may be lost.
-                    </p>
-                </div>
-            </div>
-            <div class="px-6 py-4 border-t flex items-center justify-end gap-2">
-                <button type="button"
-                        @click="closeLeaveConfirmModal()"
-                        :disabled="draftSaveInFlight || finalSubmitting"
-                        class="px-3 py-1.5 rounded-lg border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed">
-                    Stay
-                </button>
-                <button type="button"
-                        @click="confirmLeaveWithoutSaving()"
-                        :disabled="draftSaveInFlight || finalSubmitting"
-                        class="inline-flex items-center rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-sm font-semibold text-red-700 transition hover:bg-red-100 disabled:opacity-60 disabled:cursor-not-allowed">
-                    Leave Without Saving
-                </button>
-                <button type="button"
-                        @click="saveDraftAndLeave()"
-                        :disabled="draftSaveInFlight || finalSubmitting"
-                        class="inline-flex items-center rounded-lg bg-bu px-3 py-1.5 text-sm font-semibold text-white transition hover:bg-bu-dark disabled:opacity-60 disabled:cursor-not-allowed">
-                    <span x-text="draftSaveInFlight ? 'Saving...' : 'Save Draft and Leave'"></span>
                 </button>
             </div>
         </div>

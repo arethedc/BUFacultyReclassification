@@ -346,6 +346,9 @@ class ReclassificationPeriodController extends Controller
             if ($wasSubmissionOpen) {
                 $notifier->notifySubmissionClosed($period);
             }
+        } elseif ($isNowActive && !$isEnding) {
+            $notifier = app(ReclassificationNotificationService::class);
+            $notifier->notifyPeriodOpened($period);
         }
 
         return redirect()

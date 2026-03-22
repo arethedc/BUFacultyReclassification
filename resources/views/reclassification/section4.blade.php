@@ -174,7 +174,7 @@
                                     name="section4[a][a1_years]"
                                     type="number" min="0" step="1"
                                     class="mt-1 w-full rounded border-gray-300"
-                                    placeholder="0"
+                                    placeholder="Enter years"
                                 >
                             </div>
 
@@ -247,7 +247,7 @@
                                     name="section4[a][a2_years]"
                                     type="number" min="0" step="1"
                                     class="mt-1 w-full rounded border-gray-300"
-                                    placeholder="0"
+                                    placeholder="Enter years"
                                 >
                             </div>
 
@@ -341,7 +341,7 @@
                                 name="section4[b][years]"
                                 type="number" min="0" step="1"
                                 class="mt-1 w-full rounded border-gray-300"
-                                placeholder="0"
+                                placeholder="Enter years"
                                 :disabled="!bUnlocked()"
                             >
                         </div>
@@ -486,7 +486,7 @@
                   <input type="checkbox" class="rounded text-bu"
                          :value="item.value" x-model="evidenceSelection">
                   <button type="button"
-                          @click.stop="openPreview(item)"
+                          @click.stop="openPreview(item, evidencePool())"
                           :disabled="!item.url && !item.file"
                           :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
                           class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center transition">
@@ -551,7 +551,7 @@
                     <tr>
                       <td class="px-4 py-2">
                         <button type="button"
-                                @click="openPreview(item)"
+                                @click="openPreview(item, currentEvidenceItems())"
                                 :disabled="!item.url && !item.file"
                                 :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
                                 class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition">
@@ -606,7 +606,10 @@
         <button type="button"
                 x-show="evidenceModalMode === 'select' && evidencePool().length > 0"
                 @click="attachSelectedEvidence()"
-                class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
+                :disabled="!hasEvidenceSelection()"
+                :class="hasEvidenceSelection() ? 'bg-bu text-white hover:bg-bu-dark' : 'bg-gray-200 text-gray-500 cursor-not-allowed'"
+                :title="hasEvidenceSelection() ? 'Attach selected evidence' : 'Select at least one evidence file'"
+                class="px-4 py-2 rounded-lg text-sm font-semibold transition">
           Attach Selected
         </button>
       </div>
@@ -622,9 +625,16 @@
        aria-labelledby="preview-modal-title"
        x-ref="previewModal"
        @keydown.tab.prevent="cycleFocus($event, 'preview')"
+       @keydown.arrow-right.prevent="previewNext()"
+       @keydown.arrow-left.prevent="previewPrev()"
        @keydown.escape.window="closePreview()">
-    <div class="px-6 py-4 border-b flex items-center justify-between">
-      <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800" x-text="previewItem?.label || 'Preview'"></h3>
+    <div class="px-6 py-4 border-b flex items-center justify-between gap-3">
+      <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800 flex-1 truncate" x-text="previewItem?.label || 'Preview'"></h3>
+      <div class="text-xs text-gray-500 shrink-0" x-show="previewItems.length > 1">
+        <span x-text="previewIndex + 1"></span>
+        /
+        <span x-text="previewItems.length"></span>
+      </div>
       <button type="button" @click="closePreview()" class="text-gray-500 hover:text-gray-700">Close</button>
     </div>
     <div class="p-6">
@@ -642,6 +652,18 @@
           </template>
         </div>
       </template>
+      <div class="mt-5 flex items-center justify-between" x-show="previewItems.length > 1">
+        <button type="button"
+                @click="previewPrev()"
+                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Previous
+        </button>
+        <button type="button"
+                @click="previewNext()"
+                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Next
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -669,6 +691,8 @@ function sectionFour(initial = {}, globalEvidence = []) {
     lastFocusEl: null,
     previewOpen: false,
     previewItem: null,
+    previewItems: [],
+    previewIndex: 0,
     pendingOpenSelectAfterUpload: false,
     toast: { show: false, message: '', type: 'success' },
     toastTimer: null,
@@ -778,6 +802,10 @@ function sectionFour(initial = {}, globalEvidence = []) {
       return this.evidencePool().length > 0;
     },
 
+    hasEvidenceSelection() {
+      return Array.isArray(this.evidenceSelection) && this.evidenceSelection.length > 0;
+    },
+
     selectedEvidence(values) {
       const list = [];
       const map = new Map(this.evidencePool().map((opt) => [String(opt.value), opt]));
@@ -849,6 +877,7 @@ function sectionFour(initial = {}, globalEvidence = []) {
     },
 
     attachSelectedEvidence() {
+      if (!this.hasEvidenceSelection()) return;
       this.setRowEvidence(this.currentRow.key, this.evidenceSelection);
       this.toastMessage('Evidence attached', 'success');
       this.closeEvidenceModal();
@@ -869,24 +898,56 @@ function sectionFour(initial = {}, globalEvidence = []) {
       return this.selectedEvidence(this.getRowEvidence(this.currentRow.key));
     },
 
-    openPreview(item) {
+    openPreview(item, items = null) {
       if (!item) return;
       this.lastFocusEl = document.activeElement;
-      let previewUrl = item.url || null;
-      if (!previewUrl && item.file instanceof File) {
-        previewUrl = URL.createObjectURL(item.file);
-      }
-      this.previewItem = {
-        ...item,
-        previewUrl,
-      };
+
+      const source = Array.isArray(items) && items.length ? items : [item];
+      this.previewItems = source.map((candidate) => {
+        let previewUrl = candidate?.url || null;
+        if (!previewUrl && candidate?.file instanceof File) {
+          previewUrl = URL.createObjectURL(candidate.file);
+        }
+        return {
+          ...candidate,
+          previewUrl,
+        };
+      });
+
+      const itemKey = String(item?.value ?? item?.id ?? item?.label ?? '');
+      let index = this.previewItems.findIndex((candidate) => {
+        const key = String(candidate?.value ?? candidate?.id ?? candidate?.label ?? '');
+        return key !== '' && key === itemKey;
+      });
+      if (index < 0) index = 0;
+
+      this.previewIndex = index;
+      this.previewItem = this.previewItems[index] || null;
       this.previewOpen = true;
       this.$nextTick(() => this.focusFirst('preview'));
+    },
+
+    previewPrev() {
+      if (!Array.isArray(this.previewItems) || this.previewItems.length < 2) return;
+      this.previewIndex = this.previewIndex <= 0
+        ? this.previewItems.length - 1
+        : this.previewIndex - 1;
+      this.previewItem = this.previewItems[this.previewIndex] || null;
+    },
+
+    previewNext() {
+      if (!Array.isArray(this.previewItems) || this.previewItems.length < 2) return;
+      this.previewIndex = this.previewIndex >= this.previewItems.length - 1
+        ? 0
+        : this.previewIndex + 1;
+      this.previewItem = this.previewItems[this.previewIndex] || null;
     },
 
     closePreview() {
       this.previewOpen = false;
       this.previewItem = null;
+      this.previewItems = [];
+      this.previewIndex = 0;
       this.$nextTick(() => {
         if (this.lastFocusEl) this.lastFocusEl.focus({ preventScroll: true });
       });

@@ -5,104 +5,41 @@ namespace Database\Seeders;
 use Illuminate\Database\Seeder;
 use Illuminate\Support\Facades\Hash;
 use App\Models\User;
-use App\Models\Department;
 
 class InitialUsersSeeder extends Seeder
 {
     public function run(): void
     {
-        /*
-        |--------------------------------------------------------------------------
-        | Departments
-        |--------------------------------------------------------------------------
-        */
-        $departments = [
-            'CITE',
-            'CBAA',
-            'CEHD',
-            'CEDE',
-            'CLAGE',
-            'CNAHS',
+        $accounts = [
+            ['name' => 'System Admin', 'email' => 'admin@gmail.com', 'role' => 'hr'],
+            ['name' => 'System Dean', 'email' => 'dean@gmail.com', 'role' => 'dean'],
+            ['name' => 'System VPAA', 'email' => 'vpaa@gmail.com', 'role' => 'vpaa'],
+            ['name' => 'System President', 'email' => 'president@gmail.com', 'role' => 'president'],
         ];
 
-        $departmentMap = Department::query()
-            ->whereIn('name', $departments)
-            ->pluck('id', 'name')
-            ->toArray();
+        $allowedEmails = array_map(
+            static fn (array $account): string => $account['email'],
+            $accounts
+        );
 
-        foreach ($departments as $deptName) {
-            if (isset($departmentMap[$deptName])) {
-                continue;
-            }
-            $dept = Department::firstOrCreate(['name' => $deptName]);
-            $departmentMap[$deptName] = $dept->id;
+        $shouldPruneUsers = filter_var((string) env('SEED_PRUNE_USERS', 'false'), FILTER_VALIDATE_BOOL);
+        if ($shouldPruneUsers) {
+            User::query()->whereNotIn('email', $allowedEmails)->delete();
         }
 
-        /*
-        |--------------------------------------------------------------------------
-        | Users
-        |--------------------------------------------------------------------------
-        */
-        $users = [
-            [
-                'name' => 'Test Faculty',
-                'email' => 'faculty@test.com',
-                'role' => 'faculty',
-                'department' => 'CITE',
-                'password' => 'test1234',
-            ],
-            [
-                'name' => 'Test Dean',
-                'email' => 'dean@test.com',
-                'role' => 'dean',
-                'department' => 'CEDE',
-                'password' => 'test1234',
-            ],
-            [
-                'name' => 'Test HR',
-                'email' => 'hr@test.com',
-                'role' => 'hr',
-                'department' => null,
-                'password' => 'test1234',
-            ],
-            [
-                'name' => 'Test VPAA',
-                'email' => 'vpaa@test.com',
-                'role' => 'vpaa',
-                'department' => null,
-                'password' => 'test1234',
-            ],
-            [
-                'name' => 'Test President',
-                'email' => 'president@test.com',
-                'role' => 'president',
-                'department' => null,
-                'password' => 'test1234',
-            ],
-            [
-                'name' => 'Admin Test',
-                'email' => 'admin@test.com',
-                'role' => 'hr',
-                'department' => null,
-                'password' => 'admin123',
-            ],
-        ];
-
-        foreach ($users as $user) {
-            $seededUser = User::updateOrCreate(
-                ['email' => $user['email']],
+        foreach ($accounts as $account) {
+            $user = User::query()->updateOrCreate(
+                ['email' => $account['email']],
                 [
-                    'name' => $user['name'],
-                    'role' => $user['role'],
+                    'name' => $account['name'],
+                    'role' => $account['role'],
                     'status' => 'active',
-                    'department_id' => $user['department']
-                        ? $departmentMap[$user['department']]
-                        : null,
-                    'password' => Hash::make($user['password'] ?? 'test1234'),
+                    'department_id' => null,
+                    'password' => Hash::make('Admin123!'),
                 ]
             );
 
-            $seededUser->forceFill([
+            $user->forceFill([
                 'email_verified_at' => now(),
             ])->save();
         }

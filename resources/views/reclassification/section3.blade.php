@@ -6,7 +6,7 @@
 <form method="POST" action="{{ route('reclassification.section.save', 3) }}" enctype="multipart/form-data" data-validate-evidence>
 @csrf
 
-<div x-data="sectionThree(@js($sectionData ?? []), @js($globalEvidence ?? []))" x-init="init()" class="py-12 bg-bu-muted min-h-screen">
+<div x-data="sectionThree(@js($sectionData ?? []), @js($globalEvidence ?? []))" x-init="init()" class="section3-layout py-12 bg-bu-muted min-h-screen">
   <div class="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 space-y-8">
 
     {{-- =======================
@@ -100,7 +100,7 @@
             </div>
 
             <div class="rounded-xl border p-4 h-full">
-              <p class="text-xs text-gray-500">Previous Reclass (1/3)</p>
+              <p class="text-xs text-gray-500">Previous Reclassification (Section 3) Points (if applicable)</p>
               <p class="text-xl font-semibold text-gray-800">
                 <span x-text="prevThird()"></span>
               </p>
@@ -142,21 +142,18 @@
       <div class="p-6">
         <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
           <label class="block text-xs text-gray-500">
-            Points from Previous Reclassification (if applicable)
+            Previous Reclassification (Section 3) Points (if applicable)
           </label>
           <input type="hidden" name="section3[previous_points_id]" :value="previous_id || ''">
           <input
-            x-model.number="previous"
+            x-model="previous"
             name="section3[previous_points]"
             type="number" step="0.01"
             class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-            placeholder="0.00"
+            placeholder="Enter raw points"
           >
           <p class="text-xs text-gray-500 mt-1">
-            Counted: <span class="font-medium text-gray-700" x-text="Number(prevThird()).toFixed(2)"></span>
-          </p>
-          <p class="text-xs text-gray-500 mt-1">
-            System applies 1/3 of this value. Subject to validation.
+            Counted (1/3): <span class="font-medium text-gray-700" x-text="Number(prevThird()).toFixed(2)"></span>
           </p>
           <template x-if="(previous_comments || []).length">
             <div class="mt-2" x-data="{ row: { comments: previous_comments } }">
@@ -179,7 +176,7 @@
         <p x-show="c1.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="c1.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="c1.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
             <tr>
               <th class="p-2 text-left">Title</th>
@@ -245,7 +242,7 @@
                 </td>
 
                 <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                  <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                     <button type="button"
                             @click="openSelectEvidence('c1', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -318,7 +315,7 @@
         <p x-show="c2.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="c2.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="c2.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
             <tr>
               <th class="p-2 text-left">Title</th>
@@ -384,7 +381,7 @@
                 </td>
 
                 <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                  <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                     <button type="button"
                             @click="openSelectEvidence('c2', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -457,7 +454,7 @@
         <p x-show="c3.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="c3.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="c3.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
             <tr>
               <th class="p-2 text-left">Title</th>
@@ -523,7 +520,7 @@
                 </td>
 
                 <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                  <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                     <button type="button"
                             @click="openSelectEvidence('c3', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -584,154 +581,245 @@
       </div>
     </div>
 
-    {{-- =====================================================
-    4. ARTICLES (incl. Other publications)
-    ===================================================== --}}
-    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-      <div class="px-6 py-4 border-b">
-        <h3 class="text-lg font-semibold text-gray-800">4. Articles Published</h3>
-      </div>
+	    {{-- =====================================================
+	    4. ARTICLES / OTHER PUBLICATIONS
+	    ===================================================== --}}
+	    <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+	      <div class="px-6 py-4 border-b">
+	        <h3 class="text-lg font-semibold text-gray-800">4. Articles and Other Publications</h3>
+	      </div>
 
       <div class="p-6 space-y-3">
         <p x-show="c4.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
-        <div class="overflow-x-auto">
-          <table x-show="c4.length" class="w-full text-sm border rounded-lg overflow-hidden">
-            <thead class="bg-gray-50">
-            <tr>
-              <th class="p-2 text-left">Title</th>
-              <th class="p-2 text-left">Type</th>
-              <th class="p-2 text-left">Authorship</th>
-              <th class="p-2 text-left">Scope</th>
-              <th class="p-2 text-left">Points</th>
-              <th class="p-2 text-left">Evidence</th>
-              <th class="p-2"></th>
-            </tr>
-            </thead>
+	        <div class="overflow-x-auto space-y-4">
+	          <table x-show="c4.some((row) => row.kind !== 'otherpub')" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
+	            <thead class="bg-gray-50">
+	            <tr>
+	              <th class="p-2 text-left">Title</th>
+	              <th class="p-2 text-left">Type</th>
+	              <th class="p-2 text-left">Authorship</th>
+	              <th class="p-2 text-left">Scope</th>
+	              <th class="p-2 text-left">Points</th>
+	              <th class="p-2 text-left">Evidence</th>
+	              <th class="p-2"></th>
+	            </tr>
+	            </thead>
 
-                        <template x-for="(row,i) in c4" :key="i">
-                          <tbody class="divide-y">
+	            <template x-for="(row,i) in c4" :key="`article-${i}`">
+	              <template x-if="row.kind !== 'otherpub'">
+	                <tbody class="divide-y">
+	                  <tr class="border-t" :class="isRemovedRow(row) ? 'bg-gray-100/70 text-gray-500' : ''">
+	                    <td class="p-2">
+	                      <input type="hidden" :name="`section3[c4][${i}][id]`" :value="row.id || ''">
+	                      <input type="hidden" :name="`section3[c4][${i}][is_removed]`" :value="isRemovedRow(row) ? 1 : 0">
+	                      <input x-model="row.title"
+	                             :name="`section3[c4][${i}][title]`"
+	                             class="w-full rounded border-gray-300"
+	                             placeholder="Enter article title">
+	                    </td>
+	                    <td class="p-2">
+	                      <select x-model="row.kind"
+	                              @change="row.scope = ''"
+	                              :name="`section3[c4][${i}][kind]`"
+	                              class="rounded border-gray-300 w-full">
+	                        <option value="" disabled selected>Select article type</option>
+	                        <option value="refereed">Refereed</option>
+	                        <option value="nonrefereed">Non-refereed</option>
+	                      </select>
+	                    </td>
+	                    <td class="p-2">
+	                      <select x-model="row.authorship"
+	                              :name="`section3[c4][${i}][authorship]`"
+	                              class="rounded border-gray-300 w-full">
+	                        <option value="" disabled selected>Select authorship</option>
+	                        <option value="sole">Sole Author</option>
+	                        <option value="co">Co-Author</option>
+	                      </select>
+	                    </td>
+	                    <td class="p-2">
+	                      <select x-model="row.scope"
+	                              :name="`section3[c4][${i}][scope]`"
+	                              class="rounded border-gray-300 w-full">
+	                        <option value="">Select journal scope</option>
+	                        <option value="international">International</option>
+	                        <option value="national">National</option>
+	                        <option value="university">University</option>
+	                      </select>
+	                    </td>
+	                    <td class="p-2 text-gray-700">
+	                      <span x-text="Number(rowPoints('c4', i)).toFixed(0)"></span>
+	                      <span class="text-xs text-gray-400">(Auto)</span>
+	                      <div class="mt-1 text-xs">
+	                        <span x-show="rowCounted('c4', i)" class="text-green-700">Counted</span>
+	                        <span x-show="rowDuplicate('c4', i)" class="text-amber-600">Not counted (duplicate)</span>
+	                      </div>
+	                    </td>
+	                    <td class="p-2">
+	                      <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
+	                        <button type="button"
+	                                @click="openSelectEvidence('c4', i)"
+	                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+	                          <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
+	                        </button>
+	                        <button type="button"
+	                                @click="openShowEvidence('c4', i)"
+	                                :disabled="rowEvidenceCount('c4', i) === 0"
+	                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+	                                :class="rowEvidenceCount('c4', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
+	                          Show Evidence
+	                          <span class="text-[11px]" x-text="`(${rowEvidenceCount('c4', i)})`"></span>
+	                        </button>
+	                      </div>
+	                      <select x-model="row.evidence"
+	                              multiple
+	                              :name="`section3[c4][${i}][evidence][]`"
+	                              class="sr-only"
+	                              tabindex="-1"
+	                              aria-hidden="true">
+	                        <option value="" disabled>Select evidence</option>
+	                        <template x-for="opt in evidenceOptions()" :key="opt.value">
+	                          <option :value="opt.value" x-text="opt.label"></option>
+	                        </template>
+	                      </select>
+	                      <template x-for="token in (row.evidence || [])" :key="token">
+	                        <input type="hidden" :name="`section3[c4][${i}][evidence][]`" :value="token">
+	                      </template>
+	                    </td>
+	                    <td class="p-2 text-right">
+	                      <div class="inline-flex items-center justify-end gap-2">
+	                        <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
+	                        <button type="button" @click="requestRowToggleRemove(c4, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+	                      </div>
+	                    </td>
+	                  </tr>
+	                  <tr x-show="(row.comments || []).length" data-row-review-comments class="bg-gray-50/40">
+	                    <td colspan="99" class="p-2">
+	                      <div class="w-full min-w-0">
+	                        @include('reclassification.partials.entry-review-comments-inline')
+	                      </div>
+	                    </td>
+	                  </tr>
+	                </tbody>
+	              </template>
+	            </template>
+	          </table>
 
-              <tr class="border-t" :class="isRemovedRow(row) ? 'bg-gray-100/70 text-gray-500' : ''">
-                <td class="p-2">
-                  <input type="hidden" :name="`section3[c4][${i}][id]`" :value="row.id || ''">
-                  <input type="hidden" :name="`section3[c4][${i}][is_removed]`" :value="isRemovedRow(row) ? 1 : 0">
-                  <input x-model="row.title"
-                         :name="`section3[c4][${i}][title]`"
-                         class="w-full rounded border-gray-300"
-                         placeholder="Enter article title">
-                </td>
-                <td class="p-2">
-                  <select x-model="row.kind"
-                          @change="row.scope = ''"
-                          :name="`section3[c4][${i}][kind]`"
-                          class="rounded border-gray-300 w-full">
-                    <option value="" disabled selected>Select type</option>
-                    <option value="refereed">Refereed</option>
-                    <option value="nonrefereed">Non-refereed</option>
-                    <option value="otherpub">Other publications (columns / contributions)</option>
-                  </select>
-                </td>
-                <td class="p-2">
-                  <select x-model="row.authorship"
-                          :name="`section3[c4][${i}][authorship]`"
-                          class="rounded border-gray-300 w-full"
-                          :disabled="row.kind === 'otherpub'">
-                    <option value="" disabled selected>Select authorship</option>
-                    <option value="sole">Sole Author</option>
-                    <option value="co">Co-Author</option>
-                  </select>
-                </td>
-                <td class="p-2">
-                  <select x-model="row.scope"
-                          :name="`section3[c4][${i}][scope]`"
-                          class="rounded border-gray-300 w-full">
-                    <template x-if="row.kind !== 'otherpub'">
-                      <optgroup label="Journal / Magazine Scope">
-                          <option value="">Select scope</option>
-                        <option value="international">International</option>
-                        <option value="national">National</option>
-                        <option value="university">University</option>
-                      </optgroup>
-                    </template>
-                    <template x-if="row.kind === 'otherpub'">
-                      <optgroup label="Other publications">
-                          <option value="">Select scope</option>
-                        <option value="national_periodicals">National periodicals</option>
-                        <option value="local_periodicals">Local periodicals</option>
-                        <option value="university_newsletters">University/department newsletters</option>
-                      </optgroup>
-                    </template>
-                  </select>
-                </td>
-                <td class="p-2 text-gray-700">
-                  <span x-text="Number(rowPoints('c4', i)).toFixed(0)"></span>
-                  <span class="text-xs text-gray-400">(Auto)</span>
-                  <div class="mt-1 text-xs">
-                    <span x-show="rowCounted('c4', i)" class="text-green-700">Counted</span>
-                    <span x-show="rowDuplicate('c4', i)" class="text-amber-600">Not counted (duplicate)</span>
-                  </div>
-                </td>
-                <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-                    <button type="button"
-                            @click="openSelectEvidence('c4', i)"
-                            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-                      <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
-                    </button>
+	          <table x-show="c4.some((row) => row.kind === 'otherpub')" class="reclass-score-table reclass-c4-other-table table-fixed w-full min-w-[56rem] text-sm border rounded-lg overflow-hidden">
+	            <colgroup>
+	              <col style="width: 32%; min-width: 14rem;">
+	              <col style="width: 28%; min-width: 12rem;">
+	              <col style="width: 7.5rem;">
+	              <col style="width: 15rem;">
+	              <col style="width: 9rem;">
+	            </colgroup>
+	            <thead class="bg-gray-50">
+	            <tr>
+	              <th class="p-2 text-left">Title</th>
+	              <th class="p-2 text-left">Scope</th>
+	              <th class="p-2 text-left">Points</th>
+	              <th class="p-2 text-left">Evidence</th>
+	              <th class="p-2"></th>
+	            </tr>
+	            </thead>
 
-                    <button type="button"
-                            @click="openShowEvidence('c4', i)"
-                            :disabled="rowEvidenceCount('c4', i) === 0"
-                            class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
-                            :class="rowEvidenceCount('c4', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
-                      Show Evidence
-                      <span class="text-[11px]" x-text="`(${rowEvidenceCount('c4', i)})`"></span>
-                    </button>
-                  </div>
+	            <template x-for="(row,i) in c4" :key="`other-${i}`">
+	              <template x-if="row.kind === 'otherpub'">
+	                <tbody class="divide-y">
+	                  <tr class="border-t" :class="isRemovedRow(row) ? 'bg-gray-100/70 text-gray-500' : ''">
+	                    <td class="p-2">
+	                      <input type="hidden" :name="`section3[c4][${i}][id]`" :value="row.id || ''">
+	                      <input type="hidden" :name="`section3[c4][${i}][is_removed]`" :value="isRemovedRow(row) ? 1 : 0">
+	                      <input type="hidden" :name="`section3[c4][${i}][kind]`" value="otherpub">
+	                      <input type="hidden" :name="`section3[c4][${i}][authorship]`" value="">
+	                      <input x-model="row.title"
+	                             :name="`section3[c4][${i}][title]`"
+	                             class="w-full rounded border-gray-300"
+	                             placeholder="Enter publication title">
+	                    </td>
+	                    <td class="p-2">
+	                      <select x-model="row.scope"
+	                              :name="`section3[c4][${i}][scope]`"
+	                              class="rounded border-gray-300 w-full">
+	                        <option value="">Select publication scope</option>
+	                        <option value="national_periodicals">National periodicals</option>
+	                        <option value="local_periodicals">Local periodicals</option>
+	                        <option value="university_newsletters">University/department newsletters</option>
+	                      </select>
+	                    </td>
+	                    <td class="p-2 text-gray-700">
+	                      <span x-text="Number(rowPoints('c4', i)).toFixed(0)"></span>
+	                      <span class="text-xs text-gray-400">(Auto)</span>
+	                      <div class="mt-1 text-xs">
+	                        <span x-show="rowCounted('c4', i)" class="text-green-700">Counted</span>
+	                        <span x-show="rowDuplicate('c4', i)" class="text-amber-600">Not counted (duplicate)</span>
+	                      </div>
+	                    </td>
+	                    <td class="p-2">
+	                      <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
+	                        <button type="button"
+	                                @click="openSelectEvidence('c4', i)"
+	                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+	                          <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
+	                        </button>
+	                        <button type="button"
+	                                @click="openShowEvidence('c4', i)"
+	                                :disabled="rowEvidenceCount('c4', i) === 0"
+	                                class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+	                                :class="rowEvidenceCount('c4', i) === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
+	                          Show Evidence
+	                          <span class="text-[11px]" x-text="`(${rowEvidenceCount('c4', i)})`"></span>
+	                        </button>
+	                      </div>
+	                      <select x-model="row.evidence"
+	                              multiple
+	                              :name="`section3[c4][${i}][evidence][]`"
+	                              class="sr-only"
+	                              tabindex="-1"
+	                              aria-hidden="true">
+	                        <option value="" disabled>Select evidence</option>
+	                        <template x-for="opt in evidenceOptions()" :key="opt.value">
+	                          <option :value="opt.value" x-text="opt.label"></option>
+	                        </template>
+	                      </select>
+	                      <template x-for="token in (row.evidence || [])" :key="token">
+	                        <input type="hidden" :name="`section3[c4][${i}][evidence][]`" :value="token">
+	                      </template>
+	                    </td>
+	                    <td class="p-2 text-right">
+	                      <div class="inline-flex items-center justify-end gap-2">
+	                        <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
+	                        <button type="button" @click="requestRowToggleRemove(c4, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
+	                      </div>
+	                    </td>
+	                  </tr>
+	                  <tr x-show="(row.comments || []).length" data-row-review-comments class="bg-gray-50/40">
+	                    <td colspan="99" class="p-2">
+	                      <div class="w-full min-w-0">
+	                        @include('reclassification.partials.entry-review-comments-inline')
+	                      </div>
+	                    </td>
+	                  </tr>
+	                </tbody>
+	              </template>
+	            </template>
+	          </table>
+	        </div>
 
-                        <select x-model="row.evidence"
-                                multiple
-                                :name="`section3[c4][${i}][evidence][]`"
-                                class="sr-only"
-                                tabindex="-1"
-                                aria-hidden="true">
-                            <option value="" disabled>Select evidence</option>
-                            <template x-for="opt in evidenceOptions()" :key="opt.value">
-                                <option :value="opt.value" x-text="opt.label"></option>
-                            </template>
-                        </select>
-                        <template x-for="token in (row.evidence || [])" :key="token">
-                            <input type="hidden" :name="`section3[c4][${i}][evidence][]`" :value="token">
-</template>
-                </td>
-                <td class="p-2 text-right">
-                  <div class="inline-flex items-center justify-end gap-2">
-                    <span x-show="isRemovedRow(row)" class="inline-flex items-center rounded-full border border-gray-300 bg-gray-200 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-gray-700">Removed</span>
-                  <button type="button" @click="requestRowToggleRemove(c4, i)" :class="isRemovedRow(row) ? 'border-green-200 bg-green-50 text-green-700 hover:bg-green-100' : 'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'" class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"><span x-text="isRemovedRow(row) ? 'Restore Entry' : '{{ (($application->status ?? '') === 'draft') ? 'Remove' : 'Mark Removed' }}'"></span></button>
-                  </div>
-                </td>
-              </tr>
-              <tr x-show="(row.comments || []).length" data-row-review-comments class="bg-gray-50/40">
-              <td colspan="99" class="p-2">
-                <div class="w-full min-w-0">
-                  @include('reclassification.partials.entry-review-comments-inline')
-                </div>
-              </td>
-            </tr>
-                          </tbody>
-</template>
-
-          </table>
-        </div>
-
-        <button type="button"
-                @click="c4.push({ title:'', kind:'', authorship:'', scope:'', evidence:[] })"
-                class="text-sm text-bu hover:underline">
-          + Add article / publication
-        </button>
-      </div>
-    </div>
+	        <div class="flex flex-wrap items-center gap-3">
+	          <button type="button"
+	                  @click="addC4Article()"
+	                  class="text-sm text-bu hover:underline">
+	            + Add journal/article
+	          </button>
+	          <button type="button"
+	                  @click="addC4OtherPublication()"
+	                  class="text-sm text-bu hover:underline">
+	            + Add other publication
+	          </button>
+	        </div>
+	      </div>
+	    </div>
 
     {{-- =====================================================
     5. CONFERENCE PAPERS
@@ -745,7 +833,7 @@
         <p x-show="c5.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="c5.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="c5.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
             <tr>
               <th class="p-2 text-left">Title</th>
@@ -788,7 +876,7 @@
                   </div>
                 </td>
                 <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                  <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                     <button type="button"
                             @click="openSelectEvidence('c5', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -862,7 +950,7 @@
         <p x-show="c6.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="c6.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="c6.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
             <tr>
               <th class="p-2 text-left">Title</th>
@@ -915,7 +1003,7 @@
                   </div>
                 </td>
                 <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                  <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                     <button type="button"
                             @click="openSelectEvidence('c6', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -989,7 +1077,7 @@
         <p x-show="c7.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="c7.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="c7.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
             <tr>
               <th class="p-2 text-left">Title</th>
@@ -1042,7 +1130,7 @@
                   </div>
                 </td>
                 <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                  <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                     <button type="button"
                             @click="openSelectEvidence('c7', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -1118,7 +1206,7 @@
         <p x-show="c8.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="c8.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="c8.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
             <tr>
               <th class="p-2 text-left">Title</th>
@@ -1149,7 +1237,7 @@
                   </div>
                 </td>
                 <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                  <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                     <button type="button"
                             @click="openSelectEvidence('c8', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -1221,9 +1309,10 @@
         <p x-show="c9.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
         <div class="overflow-x-auto">
-          <table x-show="c9.length" class="w-full text-sm border rounded-lg overflow-hidden">
+          <table x-show="c9.length" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
             <thead class="bg-gray-50">
             <tr>
+              <th class="p-2 text-left">Title</th>
               <th class="p-2 text-left">Service Type</th>
               <th class="p-2 text-left">Points</th>
               <th class="p-2 text-left">Evidence</th>
@@ -1238,6 +1327,12 @@
                 <td class="p-2">
                   <input type="hidden" :name="`section3[c9][${i}][id]`" :value="row.id || ''">
                   <input type="hidden" :name="`section3[c9][${i}][is_removed]`" :value="isRemovedRow(row) ? 1 : 0">
+                  <input x-model="row.title"
+                         :name="`section3[c9][${i}][title]`"
+                         class="w-full rounded border-gray-300"
+                         placeholder="Enter publication title">
+                </td>
+                <td class="p-2">
                   <select x-model="row.service"
                           :name="`section3[c9][${i}][service]`"
                           class="rounded border-gray-300 w-full">
@@ -1256,7 +1351,7 @@
                   </div>
                 </td>
                 <td class="p-2">
-                  <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                  <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                     <button type="button"
                             @click="openSelectEvidence('c9', i)"
                             class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -1309,7 +1404,7 @@
         </div>
 
         <button type="button"
-                @click="c9.push({ service:'', evidence:[] })"
+                @click="c9.push({ title:'', service:'', evidence:[] })"
                 class="text-sm text-bu hover:underline">
           + Add editorial service
         </button>
@@ -1393,7 +1488,7 @@
                       <input type="checkbox" class="rounded text-bu"
                              :value="item.value" x-model="evidenceSelection">
                       <button type="button"
-                              @click.stop="openPreview(item)"
+                              @click.stop="openPreview(item, evidencePool())"
                               :disabled="!item.url && !item.file"
                               :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
                               class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center transition">
@@ -1458,7 +1553,7 @@
                         <tr>
                           <td class="px-4 py-2">
                             <button type="button"
-                                    @click="openPreview(item)"
+                                    @click="openPreview(item, currentEvidenceItems())"
                                     :disabled="!item.url && !item.file"
                                     :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
                                     class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition">
@@ -1513,7 +1608,10 @@
             <button type="button"
                     x-show="evidenceModalMode === 'select' && evidencePool().length > 0"
                     @click="attachSelectedEvidence()"
-                    class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
+                    :disabled="!hasEvidenceSelection()"
+                    :class="hasEvidenceSelection() ? 'bg-bu text-white hover:bg-bu-dark' : 'bg-gray-200 text-gray-500 cursor-not-allowed'"
+                    :title="hasEvidenceSelection() ? 'Attach selected evidence' : 'Select at least one evidence file'"
+                    class="px-4 py-2 rounded-lg text-sm font-semibold transition">
               Attach Selected
             </button>
           </div>
@@ -1529,9 +1627,16 @@
            aria-labelledby="preview-modal-title"
            x-ref="previewModal"
            @keydown.tab.prevent="cycleFocus($event, 'preview')"
+           @keydown.arrow-right.prevent="previewNext()"
+           @keydown.arrow-left.prevent="previewPrev()"
            @keydown.escape.window="closePreview()">
-        <div class="px-6 py-4 border-b flex items-center justify-between">
-          <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800" x-text="previewItem?.label || 'Preview'"></h3>
+        <div class="px-6 py-4 border-b flex items-center justify-between gap-3">
+          <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800 flex-1 truncate" x-text="previewItem?.label || 'Preview'"></h3>
+          <div class="text-xs text-gray-500 shrink-0" x-show="previewItems.length > 1">
+            <span x-text="previewIndex + 1"></span>
+            /
+            <span x-text="previewItems.length"></span>
+          </div>
           <button type="button" @click="closePreview()" class="text-gray-500 hover:text-gray-700">Close</button>
         </div>
         <div class="p-6">
@@ -1549,6 +1654,18 @@
               </template>
             </div>
           </template>
+          <div class="mt-5 flex items-center justify-between" x-show="previewItems.length > 1">
+            <button type="button"
+                    @click="previewPrev()"
+                    class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Previous
+            </button>
+            <button type="button"
+                    @click="previewNext()"
+                    class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -1576,6 +1693,8 @@ function sectionThree(initial = {}, globalEvidence = []) {
     lastFocusEl: null,
     previewOpen: false,
     previewItem: null,
+    previewItems: [],
+    previewIndex: 0,
     pendingOpenSelectAfterUpload: false,
     toast: { show: false, message: '', type: 'success' },
     toastTimer: null,
@@ -1592,7 +1711,9 @@ function sectionThree(initial = {}, globalEvidence = []) {
     c7: initial.c7 || [],
     c8: initial.c8 || [],
     c9: initial.c9 || [],
-    previous: Number(initial.previous_points || 0),
+    previous: (initial.previous_points !== undefined && initial.previous_points !== null && initial.previous_points !== '' && Number(initial.previous_points) > 0)
+      ? Number(initial.previous_points)
+      : '',
     previous_id: initial.previous_points_id || '',
     previous_comments: Array.isArray(initial.previous_points_comments) ? initial.previous_points_comments : [],
 
@@ -1697,6 +1818,10 @@ function sectionThree(initial = {}, globalEvidence = []) {
       return this.evidencePool().length > 0;
     },
 
+    hasEvidenceSelection() {
+      return Array.isArray(this.evidenceSelection) && this.evidenceSelection.length > 0;
+    },
+
     selectedEvidence(values) {
       const list = [];
       const map = new Map(this.evidencePool().map((opt) => [String(opt.value), opt]));
@@ -1767,6 +1892,7 @@ function sectionThree(initial = {}, globalEvidence = []) {
     },
 
     attachSelectedEvidence() {
+      if (!this.hasEvidenceSelection()) return;
       this.setRowEvidence(this.currentRow.key, this.currentRow.index, this.evidenceSelection);
       this.toastMessage('Evidence attached', 'success');
       this.closeEvidenceModal();
@@ -1787,24 +1913,56 @@ function sectionThree(initial = {}, globalEvidence = []) {
       return this.selectedEvidence(this.getRowEvidence(this.currentRow.key, this.currentRow.index));
     },
 
-    openPreview(item) {
+    openPreview(item, items = null) {
       if (!item) return;
       this.lastFocusEl = document.activeElement;
-      let previewUrl = item.url || null;
-      if (!previewUrl && item.file instanceof File) {
-        previewUrl = URL.createObjectURL(item.file);
-      }
-      this.previewItem = {
-        ...item,
-        previewUrl,
-      };
+
+      const source = Array.isArray(items) && items.length ? items : [item];
+      this.previewItems = source.map((candidate) => {
+        let previewUrl = candidate?.url || null;
+        if (!previewUrl && candidate?.file instanceof File) {
+          previewUrl = URL.createObjectURL(candidate.file);
+        }
+        return {
+          ...candidate,
+          previewUrl,
+        };
+      });
+
+      const itemKey = String(item?.value ?? item?.id ?? item?.label ?? '');
+      let index = this.previewItems.findIndex((candidate) => {
+        const key = String(candidate?.value ?? candidate?.id ?? candidate?.label ?? '');
+        return key !== '' && key === itemKey;
+      });
+      if (index < 0) index = 0;
+
+      this.previewIndex = index;
+      this.previewItem = this.previewItems[index] || null;
       this.previewOpen = true;
       this.$nextTick(() => this.focusFirst('preview'));
+    },
+
+    previewPrev() {
+      if (!Array.isArray(this.previewItems) || this.previewItems.length < 2) return;
+      this.previewIndex = this.previewIndex <= 0
+        ? this.previewItems.length - 1
+        : this.previewIndex - 1;
+      this.previewItem = this.previewItems[this.previewIndex] || null;
+    },
+
+    previewNext() {
+      if (!Array.isArray(this.previewItems) || this.previewItems.length < 2) return;
+      this.previewIndex = this.previewIndex >= this.previewItems.length - 1
+        ? 0
+        : this.previewIndex + 1;
+      this.previewItem = this.previewItems[this.previewIndex] || null;
     },
 
     closePreview() {
       this.previewOpen = false;
       this.previewItem = null;
+      this.previewItems = [];
+      this.previewIndex = 0;
       this.$nextTick(() => {
         if (this.lastFocusEl) this.lastFocusEl.focus({ preventScroll: true });
       });
@@ -1900,6 +2058,14 @@ function sectionThree(initial = {}, globalEvidence = []) {
         row.points = 0;
         row.counted = false;
       }
+    },
+
+    addC4Article() {
+      this.c4.push({ title: '', kind: '', authorship: '', scope: '', evidence: [] });
+    },
+
+    addC4OtherPublication() {
+      this.c4.push({ title: '', kind: 'otherpub', authorship: '', scope: '', evidence: [] });
     },
 
     rowHasValue(row) {

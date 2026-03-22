@@ -27,9 +27,22 @@
 
     <div class="py-12 bg-bu-muted min-h-screen">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
-            @if (session('success'))
+            @if (session('success') && !session('faculty_create_notice'))
                 <div class="rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
                     {{ session('success') }}
+                </div>
+            @endif
+
+            @if(session('faculty_create_notice'))
+                @php $notice = session('faculty_create_notice'); @endphp
+                <div class="rounded-xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                    {{ $notice['message'] ?? '' }}
+                    @if(!empty($notice['link_url']) && !empty($notice['link_label']))
+                        <span>{{ $notice['link_prefix'] ?? '' }}</span>
+                        <a href="{{ $notice['link_url'] }}" class="font-semibold underline hover:no-underline">
+                            {{ $notice['link_label'] }}
+                        </a>.
+                    @endif
                 </div>
             @endif
 

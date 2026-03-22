@@ -9,6 +9,8 @@ use App\Models\ReclassificationStatusTrail;
 use App\Notifications\ReclassificationPromotedNotification;
 use App\Services\ReclassificationNotificationService;
 use App\Support\ReclassificationEligibility;
+use App\Support\ReclassificationStageAccess;
+use App\Support\ReclassificationWorkflowRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -71,30 +73,12 @@ class ReclassificationWorkflowController extends Controller
         };
     }
 
-    private function expectedReviewerRoleForStatus(string $status): ?string
-    {
-        return match ($status) {
-            'dean_review' => 'dean',
-            'hr_review' => 'hr',
-            'vpaa_review', 'vpaa_approved' => 'vpaa',
-            'president_review' => 'president',
-            default => null,
-        };
-    }
-
     private function assertReviewerOwnsCurrentStage(Request $request, ReclassificationApplication $application): void
     {
-        $role = strtolower((string) ($request->user()->role ?? ''));
-        $status = (string) ($application->status ?? '');
-        $expectedRole = $this->expectedReviewerRoleForStatus($status);
-
-        abort_unless($expectedRole && $role === $expectedRole, 403);
-
-        if ($role === 'dean') {
-            $application->loadMissing('faculty');
-            $userDepartmentId = $request->user()->department_id;
-            abort_unless($userDepartmentId && $application->faculty?->department_id === $userDepartmentId, 403);
-        }
+        abort_unless(
+            ReclassificationStageAccess::reviewerOwnsApplicationStage($request->user(), $application, true),
+            403
+        );
     }
 
     private function isApplicationInActivePeriodScope(ReclassificationApplication $application): bool
@@ -571,12 +555,10 @@ class ReclassificationWorkflowController extends Controller
     {
         abort_unless((int) $request->user()->id === (int) $application->faculty_user_id, 403);
 
-        abort_unless(in_array((string) $application->status, [
-            'dean_review',
-            'hr_review',
-            'vpaa_review',
-            'vpaa_approved',
-        ], true), 422);
+        abort_unless(
+            ReclassificationWorkflowRules::canFacultyRequestReturnFrom((string) $application->status),
+            422
+        );
 
         if ($this->hasPendingFacultyReturnRequest($application)) {
             return back()->withErrors([
@@ -619,6 +601,50 @@ class ReclassificationWorkflowController extends Controller
         );
 
         return back()->with('success', 'Return request sent. Please wait for reviewer action.');
+    }
+
+    public function cancelReturnRequest(Request $request, ReclassificationApplication $application)
+    {
+        abort_unless((int) $request->user()->id === (int) $application->faculty_user_id, 403);
+
+        abort_unless(
+            ReclassificationWorkflowRules::canFacultyRequestReturnFrom((string) $application->status),
+            422
+        );
+
+        if (!$this->hasPendingFacultyReturnRequest($application)) {
+            return back()->withErrors([
+                'cancel_request_return' => 'No pending return request to cancel.',
+            ]);
+        }
+
+        $previousReason = trim((string) ($application->faculty_return_request_reason ?? ''));
+        $updates = $this->clearFacultyReturnRequestPayload();
+        if (!empty($updates)) {
+            $application->update($updates);
+        }
+
+        $currentStage = ucfirst(str_replace('_', ' ', (string) $application->status));
+        $note = "Faculty canceled return request while in {$currentStage}.";
+        $meta = [];
+        if ($previousReason !== '') {
+            $meta['canceled_request_reason'] = $previousReason;
+            $note .= " Previous reason: {$previousReason}";
+        }
+
+        $this->recordStatusTrail(
+            $application,
+            (string) $application->status,
+            (string) $application->status,
+            (string) ($application->current_step ?? ''),
+            (string) ($application->current_step ?? ''),
+            'faculty_cancel_return_request',
+            $note,
+            $meta,
+            $request->user()
+        );
+
+        return back()->with('success', 'Return request canceled.');
     }
 
     private function notifyFacultyPromotion(
@@ -684,6 +710,16 @@ class ReclassificationWorkflowController extends Controller
             ]);
         }
 
+        $resumeTo = ReclassificationWorkflowRules::submissionTargetFor(
+            (string) $application->status,
+            (string) $application->returned_from
+        );
+        if (!$resumeTo) {
+            return back()->withErrors([
+                'submit' => 'This returned submission has an invalid workflow source. Please contact HR.',
+            ]);
+        }
+
         $eligibility = ReclassificationEligibility::evaluate($application, $request->user());
         if (!($eligibility['canSubmit'] ?? false)) {
             return back()->withErrors([
@@ -698,17 +734,6 @@ class ReclassificationWorkflowController extends Controller
             ]);
         }
 
-        $resumeMap = [
-            'dean' => ['status' => 'dean_review', 'step' => 'dean'],
-            'hr' => ['status' => 'hr_review', 'step' => 'hr'],
-            'vpaa' => ['status' => 'vpaa_review', 'step' => 'vpaa'],
-            'president' => ['status' => 'president_review', 'step' => 'president'],
-        ];
-
-        $resumeTo = $resumeMap[strtolower((string) $application->returned_from)] ?? [
-            'status' => 'dean_review',
-            'step' => 'dean',
-        ];
         $fromStatus = (string) ($application->status ?? '');
         $fromStep = (string) ($application->current_step ?? '');
         $resumeFrom = strtolower((string) ($application->returned_from ?? ''));
@@ -758,7 +783,7 @@ class ReclassificationWorkflowController extends Controller
 
     public function returnToFaculty(Request $request, ReclassificationApplication $application)
     {
-        if (!in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true)) {
+        if (!ReclassificationWorkflowRules::isReviewerRole($request->user()->role)) {
             return redirect()
                 ->route('reclassification.review.queue')
                 ->withErrors([
@@ -766,7 +791,7 @@ class ReclassificationWorkflowController extends Controller
                 ]);
         }
 
-        if (!in_array($application->status, ['dean_review', 'hr_review', 'vpaa_review', 'vpaa_approved', 'president_review'], true)) {
+        if (!ReclassificationWorkflowRules::canReviewerReturnToFacultyFrom($application->status)) {
             return redirect()
                 ->route('reclassification.review.queue')
                 ->withErrors([
@@ -789,6 +814,11 @@ class ReclassificationWorkflowController extends Controller
             ]);
         }
 
+        $validated = $request->validate([
+            'decision_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $decisionNote = trim((string) ($validated['decision_note'] ?? ''));
+
         $fromStatus = (string) ($application->status ?? '');
         $fromStep = (string) ($application->current_step ?? '');
         $actorRole = strtolower((string) ($request->user()->role ?? ''));
@@ -799,6 +829,15 @@ class ReclassificationWorkflowController extends Controller
             ...$this->clearFacultyReturnRequestPayload(),
         ]);
 
+        $returnTrailNote = 'Returned to faculty for revision.';
+        $returnTrailMeta = [
+            'returned_from' => $actorRole,
+        ];
+        if ($decisionNote !== '') {
+            $returnTrailNote .= " Reviewer note: {$decisionNote}";
+            $returnTrailMeta['decision_note'] = $decisionNote;
+        }
+
         $this->recordStatusTrail(
             $application,
             $fromStatus,
@@ -806,10 +845,8 @@ class ReclassificationWorkflowController extends Controller
             $fromStep,
             'faculty',
             'return_to_faculty',
-            'Returned to faculty for revision.',
-            [
-                'returned_from' => $actorRole,
-            ],
+            $returnTrailNote,
+            $returnTrailMeta,
             $request->user()
         );
 
@@ -821,14 +858,15 @@ class ReclassificationWorkflowController extends Controller
         if ($facultyName === '') {
             $facultyName = 'Faculty';
         }
+        $actorLabel = $this->stepLabel($actorRole);
         return redirect()
             ->route('reclassification.review.queue')
-            ->with('success', "Reclassification of {$facultyName} has been returned to {$target}.");
+            ->with('success', "Reclassification of {$facultyName} has been returned to {$target} by {$actorLabel}.");
     }
 
     public function forward(Request $request, ReclassificationApplication $application)
     {
-        if (!in_array($request->user()->role, ['dean', 'hr', 'vpaa', 'president'], true)) {
+        if (!ReclassificationWorkflowRules::isReviewerRole($request->user()->role)) {
             return redirect()
                 ->route('reclassification.review.queue')
                 ->withErrors([
@@ -836,13 +874,6 @@ class ReclassificationWorkflowController extends Controller
                 ]);
         }
         $application->loadMissing('sections.entries');
-
-        // Map forward chain
-        $map = [
-            'dean_review' => ['next_status' => 'hr_review', 'next_step' => 'hr'],
-            'hr_review' => ['next_status' => 'vpaa_review', 'next_step' => 'vpaa'],
-            'vpaa_review' => ['next_status' => 'vpaa_approved', 'next_step' => 'vpaa'],
-        ];
 
         if ($application->status === 'finalized') {
             return redirect()
@@ -906,7 +937,8 @@ class ReclassificationWorkflowController extends Controller
             }
         }
 
-        if (!isset($map[$application->status])) {
+        $next = ReclassificationWorkflowRules::forwardTransitionFor((string) $application->status);
+        if (!$next) {
             return redirect()
                 ->route('reclassification.review.queue')
                 ->withErrors([
@@ -914,9 +946,13 @@ class ReclassificationWorkflowController extends Controller
                 ]);
         }
 
+        $validated = $request->validate([
+            'decision_note' => ['nullable', 'string', 'max:1000'],
+        ]);
+        $decisionNote = trim((string) ($validated['decision_note'] ?? ''));
+
         $fromStatus = (string) $application->status;
         $fromStep = (string) ($application->current_step ?? '');
-        $next = $map[$application->status];
         $updatePayload = [
             'status' => $next['next_status'],
             'current_step' => $next['next_step'],
@@ -935,6 +971,15 @@ class ReclassificationWorkflowController extends Controller
         $application->update($updatePayload);
         $application->refresh();
 
+        $forwardTrailNote = $fromStatus === 'vpaa_review'
+            ? 'Approved to VPAA approved list.'
+            : ('Forwarded to ' . strtoupper($next['next_step']) . '.');
+        $forwardTrailMeta = [];
+        if ($decisionNote !== '') {
+            $forwardTrailNote .= ' Reviewer note: ' . $decisionNote;
+            $forwardTrailMeta['decision_note'] = $decisionNote;
+        }
+
         $this->recordStatusTrail(
             $application,
             $fromStatus,
@@ -942,10 +987,8 @@ class ReclassificationWorkflowController extends Controller
             $fromStep,
             $next['next_step'],
             $fromStatus === 'vpaa_review' ? 'approve_to_vpaa_list' : 'forward',
-            $fromStatus === 'vpaa_review'
-                ? 'Approved to VPAA approved list.'
-                : ('Forwarded to ' . strtoupper($next['next_step']) . '.'),
-            [],
+            $forwardTrailNote,
+            $forwardTrailMeta,
             $request->user()
         );
 
@@ -973,8 +1016,9 @@ class ReclassificationWorkflowController extends Controller
         if ($facultyName === '') {
             $facultyName = 'Faculty';
         }
+        $actorLabel = $this->stepLabel($reviewerRole);
         return redirect()
             ->route('reclassification.review.queue')
-            ->with('success', "Reclassification of {$facultyName} has been forwarded to {$target}.");
+            ->with('success', "Reclassification of {$facultyName} has been forwarded to {$target} by {$actorLabel}.");
     }
 }

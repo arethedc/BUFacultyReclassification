@@ -135,7 +135,7 @@ IMPROVED STICKY SCORE SUMMARY (Expandable)
               <span class="text-sm font-medium text-gray-400">/ 20</span>
             </p>
             <p class="text-xs text-gray-500">
-              Previous C: <span class="font-medium text-gray-700" x-text="(Number(c_prev || 0) / 3).toFixed(2)"></span>
+              S1-C Previous Reclass (1/3): <span class="font-medium text-gray-700" x-text="(Number(c_prev || 0) / 3).toFixed(2)"></span>
             </p>
             <p class="text-xs text-gray-500">
               Raw: <span class="font-medium text-gray-700" x-text="Number(rawC()).toFixed(0)"></span>
@@ -169,66 +169,108 @@ Instruction: Kindly check the corresponding points in the blanks and write the F
 
 {{-- A1 BACHELOR --}}
 <div data-comment-anchor="1:a1">
-  <h4 class="font-medium text-gray-800 mb-2">A1. Bachelor’s Degree</h4>
-  <div class="space-y-2 text-sm">
-    <label class="flex gap-2">
-      <input x-model="a1Honors" type="radio" name="section1[a1][honors]" value="summa">
-      Summa Cum Laude (3 pts)
-    </label>
-    <label class="flex gap-2">
-      <input x-model="a1Honors" type="radio" name="section1[a1][honors]" value="magna">
-      Magna Cum Laude (2 pts)
-    </label>
-    <label class="flex gap-2">
-      <input x-model="a1Honors" type="radio" name="section1[a1][honors]" value="cum">
-      Cum Laude (1 pt)
-    </label>
-    <label class="flex gap-2">
-      <input x-model="a1Honors" type="radio" name="section1[a1][honors]" value="none">
-      None
-    </label>
-  </div>
+  <h4 class="font-medium text-gray-800 mb-2">A1. Bachelor's Degree</h4>
+  <p x-show="!a1Enabled" class="text-sm italic text-gray-500">No entry added.</p>
 
-  <div class="mt-3" x-show="a1Honors && a1Honors !== 'none'" data-evidence-block="a1">
-    <input type="hidden" name="section1[a1][id]" :value="a1Id || ''">
-    <label class="block text-xs text-gray-600 mb-1">Evidence for Latin honors</label>
-    <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
-      <button type="button"
-              @click="openSelectEvidence('a1')"
-              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
-        <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
-      </button>
+  <button type="button"
+          x-show="!a1Enabled"
+          @click="addA1Entry()"
+          class="text-sm text-bu hover:underline">
+    + Add entry
+  </button>
 
-      <button type="button"
-              @click="openShowEvidence('a1')"
-              :disabled="rowEvidenceCount('a1') === 0"
-              class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
-              :class="rowEvidenceCount('a1') === 0 ? 'text-gray-300 border-gray-200' : 'text-gray-700 hover:bg-gray-50'">
-        Show Evidence
-        <span class="text-[11px]" x-text="`(${rowEvidenceCount('a1')})`"></span>
-      </button>
-    </div>
+  <div class="overflow-x-auto" x-show="a1Enabled">
+    <table class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
+      <thead class="bg-gray-50">
+        <tr>
+          <th class="px-3 py-2 text-left">Degree</th>
+          <th class="px-3 py-2 text-left">Latin Honors</th>
+          <th class="px-3 py-2 text-left">Points</th>
+          <th class="px-3 py-2 text-left">Evidence</th>
+          <th class="px-3 py-2 text-left">Remove</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y">
+        <tr>
+          <td class="px-3 py-2 align-top">
+            <input type="hidden" name="section1[a1][id]" :value="a1Id || ''">
+            <input type="text"
+                   name="section1[a1][_enabled]"
+                   :value="a1Enabled ? '1' : ''"
+                   readonly
+                   tabindex="-1"
+                   aria-hidden="true"
+                   class="sr-only">
+            <input x-model="a1Degree"
+                   name="section1[a1][degree]"
+                   class="w-full rounded border-gray-300"
+                   placeholder="e.g., BSIT / BSEd / BSN">
+          </td>
+          <td class="px-3 py-2 align-top">
+            <select x-model="a1Honors"
+                    name="section1[a1][honors]"
+                    class="w-full rounded border-gray-300">
+              <option value="" disabled>Select honors</option>
+              <option value="cum">Cum Laude</option>
+              <option value="magna">Magna Cum Laude</option>
+              <option value="summa">Summa Cum Laude</option>
+            </select>
+          </td>
+          <td class="px-3 py-2 align-top">
+            <span class="text-gray-800 font-semibold" x-text="Number(a1Pts()).toFixed(0)"></span>
+            <span class="text-gray-400 text-xs"> (Auto)</span>
+          </td>
+          <td class="px-3 py-2 align-top" data-evidence-block="a1">
+            <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
+              <button type="button"
+                      @click="openSelectEvidence('a1')"
+                      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
+                <span x-text="hasLibraryEvidence() ? 'Select Evidence' : 'Upload Evidence'"></span>
+              </button>
 
-    <template x-if="a1Comments.length">
-      <div class="mt-2" x-data="{ row: { comments: a1Comments } }">
-        @include('reclassification.partials.entry-review-comments-inline')
-      </div>
-    </template>
+              <button type="button"
+                      @click="openShowEvidence('a1')"
+                      :disabled="rowEvidenceCount('a1') === 0"
+                      class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium"
+                      :class="rowEvidenceCount('a1') === 0 ? 'text-gray-300 border-gray-200 cursor-not-allowed' : 'text-gray-700 hover:bg-gray-50'">
+                Show Evidence
+                <span class="text-[11px]" x-text="`(${rowEvidenceCount('a1')})`"></span>
+              </button>
+            </div>
 
-    <select x-model="a1Evidence"
-            multiple
-            name="section1[a1][evidence][]"
-            class="sr-only"
-            tabindex="-1"
-            aria-hidden="true">
-      <option value="" disabled>Select evidence</option>
-      <template x-for="opt in evidenceOptions()" :key="opt.value">
-        <option :value="opt.value" x-text="opt.label"></option>
-      </template>
-    </select>
-    <template x-for="token in (a1Evidence || [])" :key="token">
-      <input type="hidden" name="section1[a1][evidence][]" :value="token">
-    </template>
+            <select x-model="a1Evidence"
+                    multiple
+                    name="section1[a1][evidence][]"
+                    class="sr-only"
+                    tabindex="-1"
+                    aria-hidden="true">
+              <option value="" disabled>Select evidence</option>
+              <template x-for="opt in evidenceOptions()" :key="opt.value">
+                <option :value="opt.value" x-text="opt.label"></option>
+              </template>
+            </select>
+            <template x-for="token in (a1Evidence || [])" :key="token">
+              <input type="hidden" name="section1[a1][evidence][]" :value="token">
+            </template>
+          </td>
+          <td class="px-3 py-2 text-right align-top">
+            <button type="button"
+                    @click="clearA1()"
+                    class="inline-flex items-center rounded-lg border px-2.5 py-1 text-xs font-semibold transition"
+                    :class="'border-red-200 bg-red-50 text-red-700 hover:bg-red-100'">
+              Remove
+            </button>
+          </td>
+        </tr>
+        <tr x-show="a1Enabled && a1Comments.length" data-row-review-comments class="bg-gray-50/40">
+          <td colspan="99" class="px-3 py-2">
+            <div x-data="{ row: { comments: a1Comments } }">
+              @include('reclassification.partials.entry-review-comments-inline')
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
   </div>
 </div>
 
@@ -246,7 +288,7 @@ $tables = [
 ],
 'A4. Master’s degree units (9-unit minimum)' => [
   'key' => 'a4',
-  'cols' => ['Category','Units','Pts','Evidence'],
+  'cols' => ['Degree','Category','Units','Pts','Evidence'],
 ],
 'A5. For every additional Master’s degree' => [
   'key' => 'a5',
@@ -255,7 +297,7 @@ $tables = [
 ],
 'A6. Doctoral degree units (9-unit minimum)' => [
   'key' => 'a6',
-  'cols' => ['Category','Units','Pts','Evidence'],
+  'cols' => ['Degree','Category','Units','Pts','Evidence'],
 ],
 'A7. Doctor’s degree' => [
   'key' => 'a7',
@@ -281,7 +323,7 @@ $tables = [
 
   <p x-show="{{ $cfg['key'] }}.length === 0" class="text-sm italic text-gray-500">No entry added.</p>
 
-  <table x-show="{{ $cfg['key'] }}.length > 0" class="w-full text-sm border rounded-lg overflow-hidden">
+  <table x-show="{{ $cfg['key'] }}.length > 0" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
     <thead class="bg-gray-50">
       <tr>
         @foreach($cfg['cols'] as $col)
@@ -310,7 +352,7 @@ $tables = [
                 </div>
 
               @elseif($col === 'Evidence')
-                <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+                <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                   <button type="button"
                           @click="openSelectEvidence('{{ $cfg['key'] }}', i)"
                           class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -397,6 +439,21 @@ $tables = [
                        class="w-full rounded border-gray-300"
                        placeholder="Enter units">
 
+              @elseif($col === 'Degree')
+                <template x-if="['a4','a6'].includes('{{ $cfg['key'] }}')">
+                  <input x-model="row.degree"
+                         :name="`section1[{{ $cfg['key'] }}][${i}][degree]`"
+                         class="w-full rounded border-gray-300"
+                         :placeholder="'{{ $cfg['key'] }}' === 'a4' ? 'e.g., MAEd units' : 'e.g., PhD units'">
+                </template>
+
+                <template x-if="!['a4','a6'].includes('{{ $cfg['key'] }}')">
+                  <input x-model="row.text"
+                         :name="`section1[{{ $cfg['key'] }}][${i}][text]`"
+                         class="w-full rounded border-gray-300"
+                         :placeholder="placeholders['{{ $cfg['key'] }}']['{{ $col }}'] || 'Enter value'">
+                </template>
+
               @else
                 <input x-model="row.text"
                        :name="`section1[{{ $cfg['key'] }}][${i}][text]`"
@@ -453,9 +510,9 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
   </div>
 
     <div class="p-6 space-y-2">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <label class="block text-xs text-gray-500">Previous Reclassification (B) Points</label>
+      <div class="grid grid-cols-1 gap-3">
+        <div class="w-full rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <label class="block text-xs text-gray-500">Previous Reclassification (Section 1-B) Points (if applicable)</label>
           <input type="hidden" name="section1[b_prev_id]" :value="b_prev_id || ''">
           <input type="number"
                  min="0"
@@ -463,9 +520,9 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
                  x-model="b_prev"
                  name="section1[b_prev]"
                  class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-                 placeholder="Enter previous B points">
+                 placeholder="Enter raw points">
           <p class="mt-1 text-[11px] text-gray-500">
-            Counted: <span class="font-medium text-gray-700" x-text="(Number(b_prev || 0) / 3).toFixed(2)"></span>
+            Counted (1/3): <span class="font-medium text-gray-700" x-text="(Number(b_prev || 0) / 3).toFixed(2)"></span>
           </p>
           <template x-if="(b_prev_comments || []).length">
             <div class="mt-2" x-data="{ row: { comments: b_prev_comments } }">
@@ -476,7 +533,7 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
       </div>
       <p x-show="b.length === 0" class="text-sm italic text-gray-500">No training added.</p>
 
-    <table x-show="b.length > 0" class="w-full text-sm border rounded-lg overflow-hidden">
+    <table x-show="b.length > 0" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
       <thead class="bg-gray-50">
         <tr>
           <th class="px-3 py-2 text-left">Training Title</th>
@@ -522,7 +579,7 @@ B. ADVANCED / SPECIALIZED TRAINING (paper: fixed options)
             </td>
 
             <td class="px-3 py-2">
-              <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+              <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                 <button type="button"
                         @click="openSelectEvidence('b', i)"
                         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -600,9 +657,9 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
   </div>
 
     <div class="p-6 space-y-2">
-      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <div class="rounded-xl border border-gray-200 bg-gray-50 p-3">
-          <label class="block text-xs text-gray-500">Previous Reclassification (C) Points</label>
+      <div class="grid grid-cols-1 gap-3">
+        <div class="w-full rounded-xl border border-gray-200 bg-gray-50 p-3">
+          <label class="block text-xs text-gray-500">Previous Reclassification (Section 1-C) Points (if applicable)</label>
           <input type="hidden" name="section1[c_prev_id]" :value="c_prev_id || ''">
           <input type="number"
                  min="0"
@@ -610,9 +667,9 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                  x-model="c_prev"
                  name="section1[c_prev]"
                  class="mt-1 w-56 max-w-full rounded border-gray-300 text-sm"
-                 placeholder="Enter previous C points">
+                 placeholder="Enter raw points">
           <p class="mt-1 text-[11px] text-gray-500">
-            Counted: <span class="font-medium text-gray-700" x-text="(Number(c_prev || 0) / 3).toFixed(2)"></span>
+            Counted (1/3): <span class="font-medium text-gray-700" x-text="(Number(c_prev || 0) / 3).toFixed(2)"></span>
           </p>
           <template x-if="(c_prev_comments || []).length">
             <div class="mt-2" x-data="{ row: { comments: c_prev_comments } }">
@@ -623,7 +680,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
       </div>
       <p x-show="c.length === 0" class="text-sm italic text-gray-500">No activity added.</p>
 
-    <table x-show="c.length > 0" class="w-full text-sm border rounded-lg overflow-hidden">
+    <table x-show="c.length > 0" class="reclass-score-table w-full text-sm border rounded-lg overflow-hidden">
       <thead class="bg-gray-50">
         <tr>
           <th class="px-3 py-2 text-left">Title</th>
@@ -692,7 +749,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
             </td>
 
             <td class="px-3 py-2">
-              <div class="flex items-center flex-wrap gap-2" data-evidence-proxy>
+              <div class="flex items-center flex-nowrap gap-2" data-evidence-proxy>
                 <button type="button"
                         @click="openSelectEvidence('c', i)"
                         class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium text-gray-700 hover:bg-gray-50">
@@ -829,7 +886,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                   <input type="checkbox" class="rounded text-bu"
                          :value="item.value" x-model="evidenceSelection">
                   <button type="button"
-                          @click.stop="openPreview(item)"
+                          @click.stop="openPreview(item, evidencePool())"
                           :disabled="!item.url && !item.file"
                           :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
                           class="h-11 w-11 shrink-0 overflow-hidden rounded-lg border border-gray-200 bg-gray-50 flex items-center justify-center transition">
@@ -894,7 +951,7 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
                     <tr>
                       <td class="px-4 py-2">
                         <button type="button"
-                                @click="openPreview(item)"
+                                @click="openPreview(item, currentEvidenceItems())"
                                 :disabled="!item.url && !item.file"
                                 :class="(!item.url && !item.file) ? 'opacity-50 cursor-not-allowed' : 'cursor-zoom-in hover:border-bu/40'"
                                 class="inline-flex h-10 w-10 items-center justify-center overflow-hidden rounded-lg border border-gray-200 bg-gray-50 transition">
@@ -949,7 +1006,10 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
         <button type="button"
                 x-show="evidenceModalMode === 'select' && evidencePool().length > 0"
                 @click="attachSelectedEvidence()"
-                class="px-4 py-2 rounded-lg bg-bu text-white text-sm">
+                :disabled="!hasEvidenceSelection()"
+                :class="hasEvidenceSelection() ? 'bg-bu text-white hover:bg-bu-dark' : 'bg-gray-200 text-gray-500 cursor-not-allowed'"
+                :title="hasEvidenceSelection() ? 'Attach selected evidence' : 'Select at least one evidence file'"
+                class="px-4 py-2 rounded-lg text-sm font-semibold transition">
           Attach Selected
         </button>
       </div>
@@ -966,9 +1026,16 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
        aria-labelledby="preview-modal-title"
        x-ref="previewModal"
        @keydown.tab.prevent="cycleFocus($event, 'preview')"
+       @keydown.arrow-right.prevent="previewNext()"
+       @keydown.arrow-left.prevent="previewPrev()"
        @keydown.escape.window="closePreview()">
-    <div class="px-6 py-4 border-b flex items-center justify-between">
-      <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800" x-text="previewItem?.label || 'Preview'"></h3>
+    <div class="px-6 py-4 border-b flex items-center justify-between gap-3">
+      <h3 id="preview-modal-title" class="text-lg font-semibold text-gray-800 flex-1 truncate" x-text="previewItem?.label || 'Preview'"></h3>
+      <div class="text-xs text-gray-500 shrink-0" x-show="previewItems.length > 1">
+        <span x-text="previewIndex + 1"></span>
+        /
+        <span x-text="previewItems.length"></span>
+      </div>
       <button type="button" @click="closePreview()" class="text-gray-500 hover:text-gray-700">Close</button>
     </div>
     <div class="p-6">
@@ -989,6 +1056,18 @@ C. SEMINARS / WORKSHOPS / CONFERENCES
           </template>
         </div>
       </template>
+      <div class="mt-5 flex items-center justify-between" x-show="previewItems.length > 1">
+        <button type="button"
+                @click="previewPrev()"
+                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Previous
+        </button>
+        <button type="button"
+                @click="previewNext()"
+                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-sm font-medium text-gray-700 hover:bg-gray-50">
+          Next
+        </button>
+      </div>
     </div>
   </div>
 </div>
@@ -1018,13 +1097,17 @@ function sectionOne(initial = {}, globalEvidence = []) {
     lastFocusEl: null,
     previewOpen: false,
     previewItem: null,
+    previewItems: [],
+    previewIndex: 0,
     pendingOpenSelectAfterUpload: false,
     removeConfirmOpen: false,
     removePendingRows: null,
     removePendingIndex: null,
     toast: { show: false, message: '', type: 'success' },
     toastTimer: null,
+    a1Enabled: false,
     a1Id: (initial.a1 && initial.a1.id) ? Number(initial.a1.id) : '',
+    a1Degree: (initial.a1 && initial.a1.degree) ? String(initial.a1.degree) : '',
     a1Honors: (initial.a1 && initial.a1.honors) ? initial.a1.honors : '',
     a1Evidence: (initial.a1 && Array.isArray(initial.a1.evidence)) ? initial.a1.evidence : [],
     a1Comments: (initial.a1 && Array.isArray(initial.a1.comments)) ? initial.a1.comments : [],
@@ -1060,6 +1143,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
 
     init() {
       const keys = ['a2','a3','a4','a5','a6','a7','a8','a9','b','c'];
+      const degreeKeys = ['a4', 'a6'];
       keys.forEach((k) => {
         if (!Array.isArray(this[k])) this[k] = [];
       });
@@ -1074,13 +1158,18 @@ function sectionOne(initial = {}, globalEvidence = []) {
 
       this.a1Evidence = toArray(this.a1Evidence);
       this.a1Comments = toComments(this.a1Comments);
-      if (!this.a1Honors || this.a1Honors === 'none') {
+      if (this.a1Honors === 'none') {
+        this.a1Honors = '';
+      }
+      this.a1Enabled = this.a1HasContent();
+      if (!this.a1Honors) {
         this.a1Evidence = [];
       }
 
       keys.forEach((k) => {
         this[k] = this[k].map((row) => ({
           ...row,
+          degree: degreeKeys.includes(k) ? String(row?.degree ?? row?.text ?? '') : row?.degree,
           is_removed: this.isRemovedRow(row),
           evidence: toArray(row.evidence),
           comments: toComments(row.comments),
@@ -1088,7 +1177,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
       });
 
       this.$watch('a1Honors', (value) => {
-        if (!value || value === 'none') {
+        if (!value) {
           this.a1Evidence = [];
         }
       });
@@ -1175,6 +1264,27 @@ function sectionOne(initial = {}, globalEvidence = []) {
       return this.evidencePool().length > 0;
     },
 
+    hasEvidenceSelection() {
+      return Array.isArray(this.evidenceSelection) && this.evidenceSelection.length > 0;
+    },
+
+    a1HasContent() {
+      return String(this.a1Degree || '').trim() !== ''
+        || String(this.a1Honors || '').trim() !== ''
+        || this.rowEvidenceCount('a1') > 0;
+    },
+
+    addA1Entry() {
+      this.a1Enabled = true;
+    },
+
+    clearA1() {
+      this.a1Degree = '';
+      this.a1Honors = '';
+      this.a1Evidence = [];
+      this.a1Enabled = false;
+    },
+
     selectedEvidence(values) {
       const list = [];
       const map = new Map(this.evidencePool().map((opt) => [String(opt.value), opt]));
@@ -1250,6 +1360,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
     },
 
     attachSelectedEvidence() {
+      if (!this.hasEvidenceSelection()) return;
       this.setRowEvidence(this.currentRow.key, this.currentRow.index, this.evidenceSelection);
       this.toastMessage('Evidence attached', 'success');
       this.closeEvidenceModal();
@@ -1270,24 +1381,56 @@ function sectionOne(initial = {}, globalEvidence = []) {
       return this.selectedEvidence(this.getRowEvidence(this.currentRow.key, this.currentRow.index));
     },
 
-    openPreview(item) {
+    openPreview(item, items = null) {
       if (!item) return;
       this.lastFocusEl = document.activeElement;
-      let previewUrl = item.url || null;
-      if (!previewUrl && item.file instanceof File) {
-        previewUrl = URL.createObjectURL(item.file);
-      }
-      this.previewItem = {
-        ...item,
-        previewUrl,
-      };
+
+      const source = Array.isArray(items) && items.length ? items : [item];
+      this.previewItems = source.map((candidate) => {
+        let previewUrl = candidate?.url || null;
+        if (!previewUrl && candidate?.file instanceof File) {
+          previewUrl = URL.createObjectURL(candidate.file);
+        }
+        return {
+          ...candidate,
+          previewUrl,
+        };
+      });
+
+      const itemKey = String(item?.value ?? item?.id ?? item?.label ?? '');
+      let index = this.previewItems.findIndex((candidate) => {
+        const key = String(candidate?.value ?? candidate?.id ?? candidate?.label ?? '');
+        return key !== '' && key === itemKey;
+      });
+      if (index < 0) index = 0;
+
+      this.previewIndex = index;
+      this.previewItem = this.previewItems[index] || null;
       this.previewOpen = true;
       this.$nextTick(() => this.focusFirst('preview'));
+    },
+
+    previewPrev() {
+      if (!Array.isArray(this.previewItems) || this.previewItems.length < 2) return;
+      this.previewIndex = this.previewIndex <= 0
+        ? this.previewItems.length - 1
+        : this.previewIndex - 1;
+      this.previewItem = this.previewItems[this.previewIndex] || null;
+    },
+
+    previewNext() {
+      if (!Array.isArray(this.previewItems) || this.previewItems.length < 2) return;
+      this.previewIndex = this.previewIndex >= this.previewItems.length - 1
+        ? 0
+        : this.previewIndex + 1;
+      this.previewItem = this.previewItems[this.previewIndex] || null;
     },
 
     closePreview() {
       this.previewOpen = false;
       this.previewItem = null;
+      this.previewItems = [];
+      this.previewIndex = 0;
       this.$nextTick(() => {
         if (this.lastFocusEl) this.lastFocusEl.focus({ preventScroll: true });
       });
@@ -1331,7 +1474,7 @@ function sectionOne(initial = {}, globalEvidence = []) {
     },
 
     addRow(key) {
-      const base = { text:'', category:'', thesis:'', relation:'', level:'', units:'', evidence:[] };
+      const base = { text:'', degree:'', category:'', thesis:'', relation:'', level:'', units:'', evidence:[] };
       this[key].push({ ...base });
     },
 
@@ -1751,3 +1894,5 @@ function sectionOne(initial = {}, globalEvidence = []) {
   }
 }
 </script>
+
+

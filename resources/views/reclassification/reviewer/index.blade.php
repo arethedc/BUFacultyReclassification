@@ -152,18 +152,6 @@
                                             <div class="inline-flex items-center gap-3">
                                                 <a href="{{ route('reclassification.review.show', $app) }}"
                                                    class="inline-flex items-center px-3 py-1.5 rounded-lg border border-gray-300 text-xs font-semibold text-gray-700 hover:bg-gray-50">Review</a>
-                                                @if($isHr)
-                                                    <form method="POST"
-                                                          action="{{ route('reclassification.admin.submissions.destroy', $app) }}"
-                                                          onsubmit="return confirm('Delete this reclassification and all related records? This cannot be undone.');">
-                                                        @csrf
-                                                        @method('DELETE')
-                                                        <button type="submit"
-                                                                class="text-red-700 hover:underline font-semibold">
-                                                            Delete
-                                                        </button>
-                                                    </form>
-                                                @endif
                                             </div>
                                         </td>
                                     </tr>
@@ -177,4 +165,3 @@
         </div>
     </div>
 </x-app-layout>
-

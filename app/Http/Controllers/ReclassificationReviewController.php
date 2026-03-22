@@ -6,6 +6,7 @@ use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
 use App\Models\ReclassificationSectionEntry;
 use App\Support\ReclassificationEligibility;
+use App\Support\ReclassificationWorkflowRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Schema;
@@ -420,7 +421,7 @@ class ReclassificationReviewController extends Controller
 
         $entry->update(['points' => $points]);
 
-        $section = $entry->section->loadMissing('entries');
+        $section = $entry->section()->with('entries')->firstOrFail();
         $section->update([
             'points_total' => $this->recalculateSectionOnePoints($section->entries),
         ]);
@@ -435,7 +436,7 @@ class ReclassificationReviewController extends Controller
             'chair' => ['i1' => null, 'i2' => null, 'i3' => null, 'i4' => null],
             'student' => ['i1' => null, 'i2' => null, 'i3' => null, 'i4' => null],
         ];
-        $previous = 0;
+        $previous = '';
 
         foreach ($section->entries as $entry) {
             $data = is_array($entry->data) ? $entry->data : [];
@@ -443,7 +444,8 @@ class ReclassificationReviewController extends Controller
                 $ratings = array_replace_recursive($ratings, $data['ratings']);
             }
             if ($entry->criterion_key === 'previous_points') {
-                $previous = (float) ($data['value'] ?? $data['points'] ?? 0);
+                $rawPrevious = (float) ($data['value'] ?? $data['points'] ?? 0);
+                $previous = $rawPrevious > 0 ? $rawPrevious : '';
             }
         }
 
@@ -562,13 +564,7 @@ class ReclassificationReviewController extends Controller
 
     private function statusForRole(?string $role): ?string
     {
-        return match ($role) {
-            'dean' => 'dean_review',
-            'hr' => 'hr_review',
-            'vpaa' => 'vpaa_review',
-            'president' => null,
-            default => null,
-        };
+        return ReclassificationWorkflowRules::reviewStatusForRole($role);
     }
 
     private function resolveRankLabel($profile): string
@@ -592,12 +588,12 @@ class ReclassificationReviewController extends Controller
         $aBase = $sumKeys(['a1','a2','a3','a4','a5','a6','a7']);
         $a8 = min($sum('a8'), 15);
         $a9 = min($sum('a9'), 10);
-        $rawA = min($aBase + $a8 + $a9, 140);
+        $aTotal = $aBase + $a8 + $a9;
 
-        $rawB = min($sum('b'), 20);
-        $rawC = min($sum('c'), 20);
+        $bTotal = min($sum('b') + $sum('b_prev'), 20);
+        $cTotal = min($sum('c') + $sum('c_prev'), 20);
 
-        return min($rawA + $rawB + $rawC, 140);
+        return min($aTotal + $bTotal + $cTotal, 140);
     }
 
     private function buildChangeLogDetails($logs): array

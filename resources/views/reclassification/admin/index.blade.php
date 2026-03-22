@@ -249,52 +249,24 @@
                                                             <div class="p-1">
                                                                 @if($canToggleReject)
                                                                     @if($app->status === 'rejected_final')
-                                                                        <form method="POST"
-                                                                              action="{{ route('reclassification.admin.submissions.toggle-reject', $app) }}"
-                                                                              data-async-action
-                                                                              data-async-refresh-target="#admin-submissions-results"
-                                                                              data-loading-message="Setting submission active..."
-                                                                              data-loading-text="Setting active..."
-                                                                              data-success-message="Submission set to active."
-                                                                              onsubmit="return confirm('Set this submission back to active?');">
-                                                                            @csrf
-                                                                            <button type="submit"
-                                                                                    class="block w-full rounded-lg px-4 py-2 text-left text-sm font-medium text-green-700 hover:bg-green-50">
-                                                                                Set Active
-                                                                            </button>
-                                                                        </form>
-                                                                    @else
-                                                                        <form method="POST"
-                                                                              action="{{ route('reclassification.admin.submissions.toggle-reject', $app) }}"
-                                                                              data-async-action
-                                                                              data-async-refresh-target="#admin-submissions-results"
-                                                                              data-loading-message="Rejecting submission..."
-                                                                              data-loading-text="Rejecting..."
-                                                                              data-success-message="Submission marked as rejected."
-                                                                              onsubmit="return confirm('Reject this submission?');">
-                                                                            @csrf
-                                                                            <button type="submit"
-                                                                                    class="block w-full rounded-lg px-4 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50">
-                                                                                Reject
-                                                                            </button>
-                                                                        </form>
-                                                                    @endif
-
-                                                                    <form method="POST"
-                                                                          action="{{ route('reclassification.admin.submissions.destroy', $app) }}"
-                                                                          data-async-action
-                                                                          data-async-refresh-target="#admin-submissions-results"
-                                                                          data-loading-message="Deleting submission..."
-                                                                          data-loading-text="Deleting..."
-                                                                          data-success-message="Submission deleted."
-                                                                          onsubmit="return confirm('Delete this submission and all related records? This cannot be undone.');">
-                                                                        @csrf
-                                                                        @method('DELETE')
-                                                                        <button type="submit"
-                                                                                class="block w-full rounded-lg px-4 py-2 text-left text-sm font-medium text-red-800 hover:bg-red-100">
-                                                                            Delete
+                                                                        @php
+                                                                            $confirmSetActiveModalName = 'confirm-set-active-' . $app->id;
+                                                                        @endphp
+                                                                        <button type="button"
+                                                                                @click.prevent="open = false; $dispatch('open-modal', '{{ $confirmSetActiveModalName }}')"
+                                                                                class="block w-full rounded-lg px-4 py-2 text-left text-sm font-medium text-green-700 hover:bg-green-50">
+                                                                            Set Active
                                                                         </button>
-                                                                    </form>
+                                                                    @else
+                                                                        @php
+                                                                            $confirmRejectModalName = 'confirm-reject-submission-' . $app->id;
+                                                                        @endphp
+                                                                        <button type="button"
+                                                                                @click.prevent="open = false; $dispatch('open-modal', '{{ $confirmRejectModalName }}')"
+                                                                                class="block w-full rounded-lg px-4 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50">
+                                                                            Reject
+                                                                        </button>
+                                                                    @endif
                                                                 @endif
                                                             </div>
                                                         </div>
@@ -311,6 +283,96 @@
                         </div>
                     @endif
                 </div>
+
+                @foreach($applications as $app)
+                    @if(strtolower((string) auth()->user()->role) === 'hr')
+                        @if($app->status === 'rejected_final')
+                            @php
+                                $confirmSetActiveModalName = 'confirm-set-active-' . $app->id;
+                            @endphp
+                            <x-modal name="{{ $confirmSetActiveModalName }}" focusable>
+                                <form method="POST"
+                                      action="{{ route('reclassification.admin.submissions.toggle-reject', $app) }}"
+                                      data-async-action
+                                      data-async-refresh-target="#admin-submissions-results"
+                                      data-loading-message="Setting submission active..."
+                                      data-loading-text="Setting active..."
+                                      data-success-message="Submission set to active."
+                                      class="p-6">
+                                    @csrf
+                                    <h2 class="text-lg font-semibold text-gray-900">Set submission back to active?</h2>
+                                    <p class="mt-2 text-sm text-gray-600">
+                                        This will move the submission out of final rejected status.
+                                    </p>
+                                    <div class="mt-4">
+                                        <label for="reactivation-reason-{{ $app->id }}" class="block text-sm font-medium text-gray-700">
+                                            Reactivation reason
+                                        </label>
+                                        <textarea id="reactivation-reason-{{ $app->id }}"
+                                                  name="reason"
+                                                  rows="4"
+                                                  required
+                                                  placeholder="Enter reason for reactivating this submission"
+                                                  class="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-bu focus:ring-bu"></textarea>
+                                    </div>
+                                    <div class="mt-6 flex justify-end gap-2">
+                                        <button type="button"
+                                                x-on:click="$dispatch('close')"
+                                                class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                            Cancel
+                                        </button>
+                                        <button type="submit"
+                                                class="px-4 py-2 rounded-xl border border-green-200 bg-green-50 text-sm font-semibold text-green-700 hover:bg-green-100">
+                                            Confirm Set Active
+                                        </button>
+                                    </div>
+                                </form>
+                            </x-modal>
+                        @else
+                            @php
+                                $confirmRejectModalName = 'confirm-reject-submission-' . $app->id;
+                            @endphp
+                            <x-modal name="{{ $confirmRejectModalName }}" focusable>
+                                <form method="POST"
+                                      action="{{ route('reclassification.admin.submissions.toggle-reject', $app) }}"
+                                      data-async-action
+                                      data-async-refresh-target="#admin-submissions-results"
+                                      data-loading-message="Rejecting submission..."
+                                      data-loading-text="Rejecting..."
+                                      data-success-message="Submission marked as rejected."
+                                      class="p-6">
+                                    @csrf
+                                    <h2 class="text-lg font-semibold text-gray-900">Reject this submission?</h2>
+                                    <p class="mt-2 text-sm text-gray-600">
+                                        The submission will be marked as final rejected.
+                                    </p>
+                                    <div class="mt-4">
+                                        <label for="reject-reason-{{ $app->id }}" class="block text-sm font-medium text-gray-700">
+                                            Rejection reason
+                                        </label>
+                                        <textarea id="reject-reason-{{ $app->id }}"
+                                                  name="reason"
+                                                  rows="4"
+                                                  required
+                                                  placeholder="Enter reason for final rejection"
+                                                  class="mt-1 block w-full rounded-xl border border-gray-300 px-3 py-2 text-sm focus:border-bu focus:ring-bu"></textarea>
+                                    </div>
+                                    <div class="mt-6 flex justify-end gap-2">
+                                        <button type="button"
+                                                x-on:click="$dispatch('close')"
+                                                class="px-4 py-2 rounded-xl border border-gray-300 bg-white text-sm font-semibold text-gray-700 hover:bg-gray-50">
+                                            Cancel
+                                        </button>
+                                        <button type="submit"
+                                                class="px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-sm font-semibold text-red-700 hover:bg-red-100">
+                                            Confirm Reject
+                                        </button>
+                                    </div>
+                                </form>
+                            </x-modal>
+                        @endif
+                    @endif
+                @endforeach
 
                 <div>
                     {{ $applications->links() }}

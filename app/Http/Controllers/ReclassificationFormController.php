@@ -8,6 +8,7 @@ use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 use App\Support\ReclassificationEligibility;
+use App\Support\ReclassificationWorkflowRules;
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationSection;
 use App\Models\ReclassificationSectionEntry;
@@ -18,6 +19,27 @@ use App\Models\ReclassificationChangeLog;
 
 class ReclassificationFormController extends Controller
 {
+    private function submittedSummaryRelations(): array
+    {
+        $relations = [
+            'sections.entries.evidences',
+            'sections.evidences',
+            'faculty.facultyProfile',
+        ];
+
+        if (Schema::hasTable('reclassification_status_trails')) {
+            $relations[] = 'statusTrails.actor';
+        }
+        if (Schema::hasColumn('reclassification_applications', 'rejection_finalized_by_user_id')) {
+            $relations[] = 'rejectionFinalizedBy';
+        }
+        if (Schema::hasColumn('reclassification_applications', 'faculty_return_requested_by_user_id')) {
+            $relations[] = 'facultyReturnRequestedBy';
+        }
+
+        return $relations;
+    }
+
     /**
      * Get the user's latest application.
      * If none exists, auto-create draft + default sections.
@@ -382,19 +404,8 @@ class ReclassificationFormController extends Controller
             return [];
         }
 
-        $threadActivityAt = function ($thread) {
-            $latest = $thread->created_at ?? null;
-            $children = collect($thread->children ?? []);
-            foreach ($children as $child) {
-                if (!$child?->created_at) {
-                    continue;
-                }
-                if (!$latest || $child->created_at->gt($latest)) {
-                    $latest = $child->created_at;
-                }
-            }
-
-            return $latest;
+        $threadAnchorAt = function ($thread) {
+            return $thread->created_at ?? null;
         };
 
         if (!Schema::hasTable('reclassification_status_trails')) {
@@ -431,22 +442,22 @@ class ReclassificationFormController extends Controller
             $startAt = optional($previousResubmit)->created_at;
 
             $threadsForSnapshot = $threads
-                ->filter(function ($thread) use ($startAt, $returnedAt, $threadActivityAt) {
-                    $activityAt = $threadActivityAt($thread);
-                    if (!$activityAt) {
+                ->filter(function ($thread) use ($startAt, $returnedAt, $threadAnchorAt) {
+                    $anchorAt = $threadAnchorAt($thread);
+                    if (!$anchorAt) {
                         return false;
                     }
-                    if ($startAt && !$activityAt->gt($startAt)) {
+                    if ($startAt && !$anchorAt->gt($startAt)) {
                         return false;
                     }
-                    if ($returnedAt && !$activityAt->lte($returnedAt)) {
+                    if ($returnedAt && !$anchorAt->lte($returnedAt)) {
                         return false;
                     }
 
                     return true;
                 })
-                ->sortByDesc(function ($thread) use ($threadActivityAt) {
-                    return optional($threadActivityAt($thread))->timestamp ?? 0;
+                ->sortByDesc(function ($thread) use ($threadAnchorAt) {
+                    return optional($threadAnchorAt($thread))->timestamp ?? 0;
                 })
                 ->values();
 
@@ -830,10 +841,7 @@ class ReclassificationFormController extends Controller
             return redirect()->route('reclassification.show');
         }
 
-        $application->load([
-            'sections.entries',
-            'sections.evidences',
-        ]);
+        $application->load($this->submittedSummaryRelations());
 
         $sectionsByCode = $application->sections->keyBy('section_code');
         $section2Review = $this->buildSectionTwoReview($sectionsByCode->get('2'));
@@ -853,6 +861,8 @@ class ReclassificationFormController extends Controller
             $currentRankLabel = $this->resolveRankLabel($profile);
         }
 
+        $canRequestReturn = ReclassificationWorkflowRules::canFacultyRequestReturnFrom((string) ($application->status ?? ''));
+
         return view('reclassification.submitted-summary', compact(
             'application',
             'section2Review',
@@ -860,7 +870,8 @@ class ReclassificationFormController extends Controller
             'yearsService',
             'currentRankLabel',
             'profile',
-            'eligibility'
+            'eligibility',
+            'canRequestReturn',
         ));
     }
 
@@ -876,10 +887,7 @@ class ReclassificationFormController extends Controller
             return redirect()->route('reclassification.show');
         }
 
-        $application->load([
-            'sections.entries',
-            'sections.evidences',
-        ]);
+        $application->load($this->submittedSummaryRelations());
 
         $sectionsByCode = $application->sections->keyBy('section_code');
         $section2Review = $this->buildSectionTwoReview($sectionsByCode->get('2'));
@@ -898,6 +906,8 @@ class ReclassificationFormController extends Controller
             $currentRankLabel = $this->resolveRankLabel($profile, $profile?->teaching_rank);
         }
 
+        $canRequestReturn = ReclassificationWorkflowRules::canFacultyRequestReturnFrom((string) ($application->status ?? ''));
+
         return view('reclassification.submitted-summary', compact(
             'application',
             'section2Review',
@@ -905,7 +915,8 @@ class ReclassificationFormController extends Controller
             'yearsService',
             'currentRankLabel',
             'profile',
-            'eligibility'
+            'eligibility',
+            'canRequestReturn',
         ));
     }
 
@@ -921,10 +932,7 @@ class ReclassificationFormController extends Controller
             return redirect()->route('reclassification.show');
         }
 
-        $application->load([
-            'sections.entries',
-            'sections.evidences',
-        ]);
+        $application->load($this->submittedSummaryRelations());
 
         $sectionsByCode = $application->sections->keyBy('section_code');
         $section2Review = $this->buildSectionTwoReview($sectionsByCode->get('2'));
@@ -944,6 +952,7 @@ class ReclassificationFormController extends Controller
         }
 
         $summaryMode = 'draft_history';
+        $canRequestReturn = false;
 
         return view('reclassification.submitted-summary', compact(
             'application',
@@ -954,6 +963,7 @@ class ReclassificationFormController extends Controller
             'profile',
             'eligibility',
             'summaryMode',
+            'canRequestReturn',
         ));
     }
 
@@ -991,16 +1001,30 @@ class ReclassificationFormController extends Controller
             'evidence_files.*' => $this->evidenceFileRules(),
         ]);
 
-        $this->storeGlobalEvidenceFiles($request, $application, $request->user()->id, 'evidence_files');
+        $result = $this->storeGlobalEvidenceFiles($request, $application, $request->user()->id, 'evidence_files');
+        $uploadedCount = (int) ($result['created_count'] ?? 0);
+        $duplicateCount = (int) ($result['duplicate_count'] ?? 0);
+
+        $message = 'Evidence uploaded.';
+        if ($uploadedCount > 0 && $duplicateCount > 0) {
+            $message = "{$uploadedCount} file(s) uploaded. {$duplicateCount} duplicate file(s) skipped.";
+        } elseif ($uploadedCount > 0) {
+            $message = "{$uploadedCount} file(s) uploaded.";
+        } elseif ($duplicateCount > 0) {
+            $message = "No new files uploaded. {$duplicateCount} duplicate file(s) skipped.";
+        }
 
         if ($request->wantsJson()) {
             return response()->json([
                 'ok' => true,
+                'message' => $message,
+                'uploaded_count' => $uploadedCount,
+                'duplicate_count' => $duplicateCount,
                 'evidence' => $this->buildGlobalEvidence($application),
             ]);
         }
 
-        return back()->with('success', 'Evidence uploaded.');
+        return back()->with('success', $message);
     }
 
     public function deleteEvidence(Request $request, ReclassificationEvidence $evidence)
@@ -1451,7 +1475,7 @@ class ReclassificationFormController extends Controller
 
         if ($code === '1') {
             $data = [
-                'a1' => ['id' => null, 'honors' => null, 'evidence' => [], 'comments' => []],
+                'a1' => ['id' => null, 'degree' => null, 'honors' => null, 'evidence' => [], 'comments' => []],
                 'a2' => [],
                 'a3' => [],
                 'a4' => [],
@@ -1477,6 +1501,7 @@ class ReclassificationFormController extends Controller
 
                 if ($entry->criterion_key === 'a1') {
                     $data['a1']['id'] = $entry->id;
+                    $data['a1']['degree'] = $row['degree'] ?? null;
                     $data['a1']['honors'] = $row['honors'] ?? null;
                     $data['a1']['evidence'] = $resolveEvidence($entry->id);
                     $data['a1']['comments'] = $resolveComments($entry);
@@ -1528,7 +1553,7 @@ class ReclassificationFormController extends Controller
                     'chair' => ['i1' => null, 'i2' => null, 'i3' => null, 'i4' => null],
                     'student' => ['i1' => null, 'i2' => null, 'i3' => null, 'i4' => null],
                 ],
-                'previous_points' => 0,
+                'previous_points' => '',
             ];
 
             foreach ($section->entries as $entry) {
@@ -1540,7 +1565,8 @@ class ReclassificationFormController extends Controller
                 }
 
                 if ($entry->criterion_key === 'previous_points') {
-                    $data['previous_points'] = (float) ($row['value'] ?? $row['points'] ?? 0);
+                    $rawPrevious = (float) ($row['value'] ?? $row['points'] ?? 0);
+                    $data['previous_points'] = $rawPrevious > 0 ? $rawPrevious : '';
                 }
             }
 
@@ -1935,12 +1961,13 @@ class ReclassificationFormController extends Controller
         $bSum = 0;
         $cSum = 0;
 
-        $a1Honors = data_get($input, 'a1.honors');
+        $a1Degree = trim((string) data_get($input, 'a1.degree', ''));
+        $a1Honors = trim((string) data_get($input, 'a1.honors', ''));
         $a1Evidence = data_get($input, 'a1.evidence', []);
 
         $touchedIds = [];
 
-        if ($a1Honors && $a1Honors !== 'none') {
+        if ($a1Honors !== '') {
             if ($action === 'submit') {
                 $this->ensureEvidence([['evidence' => $a1Evidence]], 'section1.a1', $uploaded, $section, $application);
             }
@@ -1950,6 +1977,7 @@ class ReclassificationFormController extends Controller
             $a1Id = (int) data_get($input, 'a1.id', 0);
             $entryId = $this->createEntry($section, $application, 'a1', [
                 'id' => $a1Id,
+                'degree' => $a1Degree,
                 'honors' => $a1Honors,
                 'evidence' => $a1Evidence,
             ], $points, $a1Evidence, $uploaded);
@@ -2459,13 +2487,21 @@ class ReclassificationFormController extends Controller
             $files = [$files];
         }
         $uploaded = [];
+        $hasHashColumn = Schema::hasColumn('reclassification_evidences', 'content_hash');
 
         foreach ($files as $index => $file) {
             if (!$file) continue;
 
+            $contentHash = $this->uploadedFileHash($file);
+            $existing = $this->findDuplicateEvidence($application->id, $file, $contentHash);
+            if ($existing) {
+                $uploaded[$index] = $existing;
+                continue;
+            }
+
             $path = $file->store("reclassification/{$application->id}/section{$sectionNumber}", 'public');
 
-            $uploaded[$index] = ReclassificationEvidence::create([
+            $payload = [
                 'reclassification_application_id' => $application->id,
                 'reclassification_section_id' => $section->id,
                 'reclassification_section_entry_id' => null,
@@ -2477,7 +2513,12 @@ class ReclassificationFormController extends Controller
                 'size_bytes' => $file->getSize(),
                 'label' => "Section {$sectionNumber} upload",
                 'status' => 'pending',
-            ]);
+            ];
+            if ($hasHashColumn) {
+                $payload['content_hash'] = $contentHash;
+            }
+
+            $uploaded[$index] = ReclassificationEvidence::create($payload);
         }
 
         return $uploaded;
@@ -2503,13 +2544,24 @@ class ReclassificationFormController extends Controller
             $files = [$files];
         }
         $uploaded = [];
+        $createdCount = 0;
+        $duplicateCount = 0;
+        $hasHashColumn = Schema::hasColumn('reclassification_evidences', 'content_hash');
 
         foreach ($files as $index => $file) {
             if (!$file) continue;
 
+            $contentHash = $this->uploadedFileHash($file);
+            $existing = $this->findDuplicateEvidence($application->id, $file, $contentHash);
+            if ($existing) {
+                $uploaded[$index] = $existing;
+                $duplicateCount++;
+                continue;
+            }
+
             $path = $file->store("reclassification/{$application->id}/global", 'public');
 
-            $uploaded[$index] = ReclassificationEvidence::create([
+            $payload = [
                 'reclassification_application_id' => $application->id,
                 'reclassification_section_id' => null,
                 'reclassification_section_entry_id' => null,
@@ -2521,10 +2573,119 @@ class ReclassificationFormController extends Controller
                 'size_bytes' => $file->getSize(),
                 'label' => 'Global upload',
                 'status' => 'pending',
-            ]);
+            ];
+            if ($hasHashColumn) {
+                $payload['content_hash'] = $contentHash;
+            }
+
+            $uploaded[$index] = ReclassificationEvidence::create($payload);
+            $createdCount++;
         }
 
-        return $uploaded;
+        return [
+            'uploaded' => $uploaded,
+            'created_count' => $createdCount,
+            'duplicate_count' => $duplicateCount,
+        ];
+    }
+
+    private function uploadedFileHash($file): ?string
+    {
+        $path = method_exists($file, 'getRealPath') ? $file->getRealPath() : null;
+        if (!$path || !is_file($path)) {
+            return null;
+        }
+
+        $hash = @hash_file('sha256', $path);
+        if (!is_string($hash) || trim($hash) === '') {
+            return null;
+        }
+
+        return strtolower(trim($hash));
+    }
+
+    private function storedEvidenceHash(ReclassificationEvidence $evidence): ?string
+    {
+        $path = (string) ($evidence->path ?? '');
+        if ($path === '') {
+            return null;
+        }
+
+        $disk = (string) ($evidence->disk ?: 'public');
+        $storage = Storage::disk($disk);
+        if (!$storage->exists($path)) {
+            return null;
+        }
+
+        $stream = $storage->readStream($path);
+        if (!is_resource($stream)) {
+            return null;
+        }
+
+        $context = hash_init('sha256');
+        try {
+            while (!feof($stream)) {
+                $chunk = fread($stream, 1024 * 1024);
+                if ($chunk === false) {
+                    break;
+                }
+                if ($chunk !== '') {
+                    hash_update($context, $chunk);
+                }
+            }
+        } finally {
+            fclose($stream);
+        }
+
+        return hash_final($context);
+    }
+
+    private function findDuplicateEvidence(
+        int $applicationId,
+        $file,
+        ?string $contentHash
+    ): ?ReclassificationEvidence {
+        if (!$contentHash) {
+            return null;
+        }
+
+        $hasHashColumn = Schema::hasColumn('reclassification_evidences', 'content_hash');
+        if ($hasHashColumn) {
+            $existingByHash = ReclassificationEvidence::query()
+                ->where('reclassification_application_id', $applicationId)
+                ->where('content_hash', $contentHash)
+                ->first();
+            if ($existingByHash) {
+                return $existingByHash;
+            }
+        }
+
+        $size = method_exists($file, 'getSize') ? (int) ($file->getSize() ?? 0) : 0;
+        $candidates = ReclassificationEvidence::query()
+            ->where('reclassification_application_id', $applicationId)
+            ->when($size > 0, fn ($query) => $query->where('size_bytes', $size))
+            ->orderByDesc('id')
+            ->limit(25)
+            ->get();
+
+        foreach ($candidates as $candidate) {
+            $candidateHash = $hasHashColumn
+                ? strtolower(trim((string) ($candidate->content_hash ?? '')))
+                : '';
+
+            if ($candidateHash === '') {
+                $candidateHash = strtolower(trim((string) ($this->storedEvidenceHash($candidate) ?? '')));
+                if ($candidateHash !== '' && $hasHashColumn) {
+                    $candidate->update(['content_hash' => $candidateHash]);
+                }
+            }
+
+            if ($candidateHash !== '' && hash_equals($candidateHash, $contentHash)) {
+                return $candidate;
+            }
+        }
+
+        return null;
     }
 
     private function resolveExistingSingletonEntryId(
@@ -2589,7 +2750,7 @@ class ReclassificationFormController extends Controller
 
         $entryPayload = [
             'criterion_key' => $key,
-            'title' => $payloadRow['title'] ?? $payloadRow['text'] ?? null,
+            'title' => $payloadRow['title'] ?? $payloadRow['text'] ?? $payloadRow['degree'] ?? null,
             'description' => null,
             'evidence_note' => null,
             'points' => $points,

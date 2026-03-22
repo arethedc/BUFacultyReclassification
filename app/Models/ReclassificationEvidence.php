@@ -19,6 +19,7 @@ class ReclassificationEvidence extends Model
         'original_name',
         'mime_type',
         'size_bytes',
+        'content_hash',
         'label',
 
         'status',

@@ -24,7 +24,15 @@
         <!-- Email Address -->
         <div>
             <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email" class="block mt-1 w-full" type="email" name="email" :value="old('email', $request->email)" required autofocus autocomplete="username" />
+            <x-text-input id="email"
+                          class="block mt-1 w-full bg-gray-100 text-gray-600"
+                          type="email"
+                          name="email"
+                          :value="old('email', $request->email)"
+                          required
+                          readonly
+                          aria-readonly="true"
+                          autocomplete="username" />
             <x-input-error :messages="$errors->get('email')" class="mt-2" />
         </div>
 

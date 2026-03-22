@@ -1,13 +1,15 @@
 @php
     $canFacultyRespond = (($application->status ?? '') === 'returned_to_faculty');
     $currentUserId = (int) (auth()->id() ?? 0);
+    $currentUserName = (string) (auth()->user()->name ?? 'Faculty');
 @endphp
 
 <div x-data="{
         showResolvedInMain: true,
         rootComments() {
             return (row.comments || [])
-                .filter(item => !item.parent_id && (item.action_type || 'requires_action') !== 'info');
+                .filter(item => !item.parent_id)
+                .filter(item => String(item?.visibility || 'faculty_visible') === 'faculty_visible');
         },
         commentTimestamp(item) {
             const raw = Date.parse(String(item?.created_at || ''));
@@ -150,6 +152,8 @@
                         <div class="text-[11px] font-semibold text-gray-800" x-text="`${comment.author || 'Reviewer'} - ${comment.created_at_label || comment.created_at || ''}`"></div>
                     </div>
                     <div class="flex flex-wrap items-center gap-1.5">
+                        <span x-show="(comment.action_type || 'requires_action') === 'info'"
+                              class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700">Note</span>
                         <span x-show="(comment.action_type || 'requires_action') === 'requires_action' && (comment.status || 'open') === 'open'"
                               class="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 text-[10px] font-medium text-amber-700">Action required</span>
                         <span x-show="(comment.status || 'open') === 'addressed'"
@@ -157,7 +161,8 @@
                     </div>
                 </div>
 
-                <div class="text-[10px] font-semibold text-gray-500">Reviewer Comment:</div>
+                <div class="text-[10px] font-semibold text-gray-500"
+                     x-text="(comment.action_type || 'requires_action') === 'info' ? 'Reviewer Note:' : 'Reviewer Comment:'"></div>
                 <div class="break-words text-[13px] leading-5 text-gray-800" x-text="comment.body"></div>
 
                 <template x-if="threadReplies(comment.id).length">
@@ -165,7 +170,8 @@
                         <template x-for="(reply, replyIndex) in threadReplies(comment.id)" :key="reply.id">
                             <div class="text-[11px] text-gray-700"
                                  :class="replyIndex > 0 ? 'border-t border-gray-200 pt-1.5' : ''"
-                                 x-data="{ editing: false, editBody: String(reply.body || ''), saving: false }">
+                                 x-data="{ editing: false, editBody: String(reply.body || ''), saving: false }"
+                                 @click.outside="if (editing && !saving) { editBody = String(reply.body || ''); editing = false; }">
                                 <div class="text-[11px] font-semibold text-gray-800" x-text="`${reply.author || 'Faculty'} - ${reply.created_at_label || reply.created_at || ''}`"></div>
                                 <div class="mt-0.5 flex items-start justify-between gap-2">
                                     <div class="text-[10px] font-semibold text-gray-500"
@@ -230,16 +236,19 @@
                                         if (!body || replying || !String(comment.reply_url || '').trim()) return;
                                         replying = true;
                                         window.BuFacultyInlineComments.reply(comment, body)
-                                            .then(() => {
+                                            .then((data) => {
+                                                const replyData = data?.reply || null;
                                                 if (Array.isArray(row.comments)) {
+                                                    const nowIso = new Date().toISOString();
                                                     row.comments.push({
-                                                        id: `local-reply-${comment.id}-${Date.now()}`,
-                                                        parent_id: comment.id,
-                                                        body,
-                                                        author: 'You',
-                                                        author_id: {{ $currentUserId }},
-                                                        created_at: new Date().toISOString(),
-                                                        created_at_label: 'Just now',
+                                                        id: replyData?.id || `local-reply-${comment.id}-${Date.now()}`,
+                                                        parent_id: replyData?.parent_id || comment.id,
+                                                        body: replyData?.body || body,
+                                                        author: replyData?.author || @js($currentUserName),
+                                                        author_id: Number(replyData?.author_id || {{ $currentUserId }}),
+                                                        created_at: replyData?.created_at || nowIso,
+                                                        created_at_label: replyData?.created_at_label || new Date().toLocaleString(),
+                                                        update_reply_url: replyData?.update_reply_url || '',
                                                     });
                                                 }
                                                 replyBody = '';
@@ -279,11 +288,14 @@
                                                 <div class="text-[11px] font-semibold text-gray-800" x-text="`${comment.author || 'Reviewer'} - ${comment.created_at_label || comment.created_at || ''}`"></div>
                                             </div>
                                             <div class="flex flex-wrap items-center gap-1.5">
+                                                <span x-show="(comment.action_type || 'requires_action') === 'info'"
+                                                      class="inline-flex items-center rounded-full border border-slate-200 bg-slate-50 px-2 py-0.5 text-[10px] font-medium text-slate-700">Note</span>
                                                 <span class="inline-flex items-center rounded-full border border-green-200 bg-green-50 px-2 py-0.5 text-[10px] font-medium text-green-700">Resolved by reviewer</span>
                                             </div>
                                         </div>
 
-                                        <div class="text-[10px] font-semibold text-gray-500">Reviewer's Comment:</div>
+                                        <div class="text-[10px] font-semibold text-gray-500"
+                                             x-text="(comment.action_type || 'requires_action') === 'info' ? 'Reviewer Note:' : 'Reviewer Comment:'"></div>
                                         <div class="break-words text-[13px] leading-5 text-gray-800" x-text="comment.body"></div>
 
                                         <template x-if="threadReplies(comment.id).length">
@@ -291,7 +303,8 @@
                                                 <template x-for="(reply, replyIndex) in threadReplies(comment.id)" :key="reply.id">
                                                     <div class="text-[11px] text-gray-700"
                                                          :class="replyIndex > 0 ? 'border-t border-gray-200 pt-1.5' : ''"
-                                                         x-data="{ editing: false, editBody: String(reply.body || ''), saving: false }">
+                                                         x-data="{ editing: false, editBody: String(reply.body || ''), saving: false }"
+                                                         @click.outside="if (editing && !saving) { editBody = String(reply.body || ''); editing = false; }">
                                                         <div class="text-[11px] font-semibold text-gray-800" x-text="`${reply.author || 'Faculty'} - ${reply.created_at_label || reply.created_at || ''}`"></div>
                                                         <div class="mt-0.5 flex items-start justify-between gap-2">
                                                             <div class="text-[10px] font-semibold text-gray-500"

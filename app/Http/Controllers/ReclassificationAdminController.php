@@ -7,7 +7,7 @@ use App\Models\Department;
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
 use App\Models\ReclassificationStatusTrail;
-use App\Services\ReclassificationNotificationService;
+use App\Support\ReclassificationWorkflowRules;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -51,6 +51,57 @@ class ReclassificationAdminController extends Controller
             'note' => $note,
             'meta' => !empty($meta) ? $meta : null,
         ]);
+    }
+
+    private function clearFacultyReturnRequestPayload(): array
+    {
+        $payload = [];
+        if (Schema::hasColumn('reclassification_applications', 'faculty_return_requested_at')) {
+            $payload['faculty_return_requested_at'] = null;
+        }
+        if (Schema::hasColumn('reclassification_applications', 'faculty_return_requested_by_user_id')) {
+            $payload['faculty_return_requested_by_user_id'] = null;
+        }
+        if (Schema::hasColumn('reclassification_applications', 'faculty_return_request_reason')) {
+            $payload['faculty_return_request_reason'] = null;
+        }
+
+        return $payload;
+    }
+
+    private function resolveReactivateTarget(ReclassificationApplication $application): array
+    {
+        $defaultStatus = ReclassificationWorkflowRules::reviewStatusForRole('hr') ?? 'hr_review';
+        $defaultStep = ReclassificationWorkflowRules::stepForStatus($defaultStatus) ?? 'hr';
+
+        $trail = null;
+        if (Schema::hasTable('reclassification_status_trails')) {
+            $trail = $application->statusTrails()
+                ->where('action', 'reject_final')
+                ->reorder()
+                ->orderByDesc('id')
+                ->first();
+        }
+
+        $candidateStatus = ReclassificationWorkflowRules::normalizeStatus(
+            (string) data_get($trail?->meta, 'restorable_to_status', '')
+        );
+        $candidateStep = ReclassificationWorkflowRules::normalizeRole(
+            (string) data_get($trail?->meta, 'restorable_to_step', '')
+        );
+
+        $disallowedRestoreStatuses = ['draft', 'rejected_final'];
+        $restoredStatus = $defaultStatus;
+        if ($candidateStatus !== '' && !in_array($candidateStatus, $disallowedRestoreStatuses, true)) {
+            $restoredStatus = $candidateStatus;
+        }
+
+        $restoredStep = $candidateStep !== '' ? $candidateStep : (ReclassificationWorkflowRules::stepForStatus($restoredStatus) ?? $defaultStep);
+
+        return [
+            'status' => $restoredStatus,
+            'step' => $restoredStep,
+        ];
     }
 
     private function applyDepartmentFilter($query, $departmentId): void
@@ -106,7 +157,7 @@ class ReclassificationAdminController extends Controller
     private function ensureReviewerHistoryRole(Request $request): array
     {
         $role = $this->reviewerRole($request);
-        abort_unless(in_array($role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+        abort_unless(ReclassificationWorkflowRules::isReviewerRole($role), 403);
 
         $departmentId = null;
         if ($role === 'dean') {
@@ -299,15 +350,47 @@ class ReclassificationAdminController extends Controller
     {
         abort_unless(strtolower((string) $request->user()->role) === 'hr', 403);
         abort_unless($application->status !== 'draft', 422);
+        $validated = $request->validate([
+            'reason' => ['required', 'string', 'max:1000'],
+        ], [
+            'reason.required' => 'Please provide a decision reason.',
+        ]);
+        $reason = trim((string) ($validated['reason'] ?? ''));
+        $actor = $request->user();
 
         if ($application->status === 'rejected_final') {
+            $fromStatus = (string) ($application->status ?? '');
+            $fromStep = (string) ($application->current_step ?? '');
+            $target = $this->resolveReactivateTarget($application);
+            $reactivationReason = $reason;
+
             $application->update([
-                'status' => 'hr_review',
-                'current_step' => 'hr',
+                'status' => $target['status'],
+                'current_step' => $target['step'],
                 'returned_from' => null,
+                ...$this->clearFacultyReturnRequestPayload(),
+                'rejection_finalized_by_user_id' => null,
+                'rejection_final_reason' => null,
+                'rejection_finalized_at' => null,
             ]);
 
-            $message = 'Submission is now active and returned to HR review.';
+            $this->recordStatusTrail(
+                $application,
+                $fromStatus,
+                $target['status'],
+                $fromStep,
+                $target['step'],
+                'reactivate_after_final_reject',
+                "Reactivated by HR. Reason: {$reactivationReason}",
+                [
+                    'reactivation_reason' => $reactivationReason,
+                    'restored_to_status' => $target['status'],
+                    'restored_to_step' => $target['step'],
+                ],
+                $actor
+            );
+
+            $message = 'Submission is now active and restored to its previous workflow stage.';
             if ($request->expectsJson() || $request->ajax()) {
                 return response()->json(['message' => $message]);
             }
@@ -315,11 +398,41 @@ class ReclassificationAdminController extends Controller
             return back()->with('success', $message);
         }
 
+        if (!ReclassificationWorkflowRules::canHrFinalRejectFrom((string) $application->status)) {
+            return back()->withErrors([
+                'reject' => 'This submission cannot be final rejected from its current stage.',
+            ]);
+        }
+
+        $fromStatus = (string) ($application->status ?? '');
+        $fromStep = (string) ($application->current_step ?? '');
+        $finalReason = $reason;
+
         $application->update([
             'status' => 'rejected_final',
             'current_step' => 'finalized',
             'returned_from' => null,
+            ...$this->clearFacultyReturnRequestPayload(),
+            'rejection_finalized_by_user_id' => $actor->id,
+            'rejection_final_reason' => $finalReason,
+            'rejection_finalized_at' => now(),
         ]);
+
+        $this->recordStatusTrail(
+            $application,
+            $fromStatus,
+            'rejected_final',
+            $fromStep,
+            'finalized',
+            'reject_final',
+            "Final rejection marked by HR. Reason: {$finalReason}",
+            [
+                'reason' => $finalReason,
+                'restorable_to_status' => $fromStatus ?: null,
+                'restorable_to_step' => $fromStep ?: null,
+            ],
+            $actor
+        );
 
         $message = 'Submission marked as rejected.';
         if ($request->expectsJson() || $request->ajax()) {
@@ -599,6 +712,7 @@ class ReclassificationAdminController extends Controller
         $query = ReclassificationApplication::query()
             ->with([
                 'faculty.department',
+                'faculty.facultyProfile',
                 'approvedBy',
             ])
             ->where('status', 'finalized');
@@ -674,7 +788,7 @@ class ReclassificationAdminController extends Controller
         $hasActivePeriod = (bool) $activePeriod;
 
         $query = ReclassificationApplication::query()
-            ->with(['faculty.department', 'approvedBy'])
+            ->with(['faculty.department', 'faculty.facultyProfile', 'approvedBy'])
             ->where('status', 'finalized');
         $this->applyDepartmentFilter($query, $departmentId);
         $this->applyPeriodScope($query, $activePeriod);
@@ -863,6 +977,7 @@ class ReclassificationAdminController extends Controller
         $query = ReclassificationApplication::query()
             ->with([
                 'faculty.department',
+                'faculty.facultyProfile',
                 'approvedBy',
             ])
             ->where('status', 'finalized');
@@ -1019,19 +1134,7 @@ class ReclassificationAdminController extends Controller
             $workflow->finalizeForApproval($app, $request->user());
         }
 
-        $wasSubmissionOpen = (bool) $activePeriod->is_open;
-        if (Schema::hasColumn('reclassification_periods', 'is_open')) {
-            $activePeriod->forceFill([
-                'is_open' => false,
-            ])->save();
-        }
-
-        if ($wasSubmissionOpen) {
-            app(ReclassificationNotificationService::class)
-                ->notifySubmissionClosed($activePeriod->fresh());
-        }
-
-        return back()->with('success', "{$apps->count()} active-cycle submissions finalized and promotions applied. Submission is now closed for this period.");
+        return back()->with('success', "{$apps->count()} active-cycle submissions finalized and promotions applied.");
     }
 
     public function approvedExportCsv(Request $request)
@@ -1261,7 +1364,7 @@ class ReclassificationAdminController extends Controller
         }
 
         $query = ReclassificationApplication::query()
-            ->with(['faculty.department', 'approvedBy'])
+            ->with(['faculty.department', 'faculty.facultyProfile', 'approvedBy'])
             ->where('status', 'finalized');
         $this->applyPeriodScope($query, $period);
 

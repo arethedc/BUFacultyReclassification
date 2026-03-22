@@ -110,12 +110,12 @@
                 'a9' => 'A9. International/National Certifications',
                 'b' => 'B. Advanced/Specialized Training',
                 'c' => 'C. Short-term Workshops/Seminars',
-                'b_prev' => 'B. Previous Reclassification (1/3)',
-                'c_prev' => 'C. Previous Reclassification (1/3)',
+                'b_prev' => 'B. Previous Reclassification (Section 1-B) (1/3)',
+                'c_prev' => 'C. Previous Reclassification (Section 1-C) (1/3)',
             ],
             '2' => [
                 'ratings' => 'Instructional Competence Ratings',
-                'previous_points' => 'Previous Reclassification (1/3)',
+                'previous_points' => 'Previous Reclassification (Section 2) (1/3)',
             ],
             '3' => [
                 'c1' => 'C1. Book Authorship',
@@ -127,7 +127,7 @@
                 'c7' => 'C7. Artistic Works',
                 'c8' => 'C8. Editorial Work',
                 'c9' => 'C9. Professional Output',
-                'previous_points' => 'Previous Reclassification (1/3)',
+                'previous_points' => 'Previous Reclassification (Section 3) (1/3)',
             ],
             '4' => [
                 'a1' => 'A1. Actual Services Outside BU',
@@ -141,10 +141,10 @@
                 'c2' => 'C2. Extension/Outreach',
                 'c3' => 'C3. University Activities',
                 'd' => 'D. Community Involvement',
-                'b_prev' => 'B. Previous Reclassification (1/3)',
-                'c_prev' => 'C. Previous Reclassification (1/3)',
-                'd_prev' => 'D. Previous Reclassification (1/3)',
-                'previous_points' => 'Previous Reclassification (1/3)',
+                'b_prev' => 'B. Previous Reclassification (Section 5-B) (1/3)',
+                'c_prev' => 'C. Previous Reclassification (Section 5-C) (1/3)',
+                'd_prev' => 'D. Previous Reclassification (Section 5-D) (1/3)',
+                'previous_points' => 'Previous Reclassification (Section 5) (1/3)',
             ],
         ];
         $criterionOrder = [
@@ -316,7 +316,7 @@
                                 'entry_change_details' => $entryChangeDetails,
                                 'visibility' => $visibility,
                                 'action_type' => $actionType,
-                                'status' => (string) ($comment->status ?? 'open'),
+                                'status' => strtolower(trim((string) ($comment->status ?? 'open'))),
                                 'author_role' => strtolower((string) ($comment->author?->role ?? '')),
                                 'return_label' => $returnLabel,
                                 'return_reviewer' => (string) ($returnMeta['reviewer'] ?? ''),
@@ -415,18 +415,6 @@
                    class="px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-50">
                     Back to Queue
                 </a>
-                @if($isHrReviewer)
-                    <form method="POST"
-                          action="{{ route('reclassification.admin.submissions.destroy', $application) }}"
-                          onsubmit="return confirm('Delete this reclassification and all related records? This cannot be undone.');">
-                        @csrf
-                        @method('DELETE')
-                        <button type="submit"
-                                class="px-4 py-2 rounded-xl border border-red-200 bg-red-50 text-red-700 hover:bg-red-100">
-                            Delete Reclassification
-                        </button>
-                    </form>
-                @endif
             </div>
         </div>
     </x-slot>
@@ -596,7 +584,7 @@
                     <template x-if="activeTab === 'open'">
                         <div class="space-y-2">
                             <template x-for="group in groupedCurrentSections()" :key="group.section">
-                                <div x-show="hasVisibleInGroup(group.items)" x-cloak class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                                <div x-show="hasVisibleInGroup(group.items)" class="rounded-lg border border-gray-200 bg-white overflow-hidden">
                                     <button type="button"
                                             @click="toggleCommentGroup('current', group.section)"
                                             class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50">
@@ -616,7 +604,6 @@
                                         <template x-for="item in group.items" :key="item.id">
                                             <button type="button"
                                                     x-show="matchesFilter(item)"
-                                                    x-cloak
                                                     @click="jumpToEntry(item.entry_id)"
                                                     class="w-full rounded-lg border border-gray-200 bg-white p-3 text-left space-y-2 cursor-pointer hover:border-bu/40 transition">
                                                 <div class="flex items-start justify-between gap-2">
@@ -667,13 +654,13 @@
                     <template x-if="activeTab === 'resolved'">
                         <div class="space-y-2">
                             <template x-for="snapshot in groupedResolvedStageItems()" :key="snapshot.key">
-                                <div class="space-y-2" x-show="snapshotHasVisible(snapshot)" x-cloak>
+                                <div class="space-y-2" x-show="snapshotHasVisible(snapshot)">
                                     <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                                         <div class="text-xs font-semibold text-slate-800" x-text="snapshot.label"></div>
                                         <div class="text-[11px] text-slate-600" x-text="`${snapshot.count} resolved`"></div>
                                     </div>
                                     <template x-for="group in snapshot.sections" :key="`${snapshot.key}-${group.section}`">
-                                        <div x-show="hasVisibleInGroup(group.items)" x-cloak class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                                        <div x-show="hasVisibleInGroup(group.items)" class="rounded-lg border border-gray-200 bg-white overflow-hidden">
                                             <button type="button"
                                                     @click="toggleCommentGroup(snapshot.key, group.section)"
                                                     class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50">
@@ -693,7 +680,6 @@
                                                 <template x-for="item in group.items" :key="item.id">
                                                     <button type="button"
                                                             x-show="matchesFilter(item)"
-                                                            x-cloak
                                                             @click="jumpToEntry(item.entry_id)"
                                                             class="w-full rounded-lg border border-gray-200 bg-white p-3 text-left space-y-2 cursor-pointer hover:border-bu/40 transition">
                                                         <div class="flex items-start justify-between gap-2">
@@ -746,7 +732,7 @@
                     <template x-if="activeTab === 'addressed' || activeTab === 'notes'">
                         <div class="space-y-2">
                             <template x-for="snapshot in groupedSnapshotItems()" :key="snapshot.key">
-                                <div class="space-y-2" x-show="snapshotHasVisible(snapshot)" x-cloak>
+                                <div class="space-y-2" x-show="snapshotHasVisible(snapshot)">
                                     <div class="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
                                         <div class="text-xs font-semibold text-slate-800" x-text="snapshot.label"></div>
                                         <div class="text-[11px] text-slate-600"
@@ -755,7 +741,7 @@
                                         </div>
                                     </div>
                                     <template x-for="group in snapshot.sections" :key="`${snapshot.key}-${group.section}`">
-                                        <div x-show="hasVisibleInGroup(group.items)" x-cloak class="rounded-lg border border-gray-200 bg-white overflow-hidden">
+                                        <div x-show="hasVisibleInGroup(group.items)" class="rounded-lg border border-gray-200 bg-white overflow-hidden">
                                             <button type="button"
                                                     @click="toggleCommentGroup(snapshot.key, group.section)"
                                                     class="flex w-full items-center justify-between gap-3 px-3 py-2 text-left hover:bg-gray-50">
@@ -775,7 +761,6 @@
                                                 <template x-for="item in group.items" :key="item.id">
                                                     <button type="button"
                                                             x-show="matchesFilter(item)"
-                                                            x-cloak
                                                             @click="jumpToEntry(item.entry_id)"
                                                             class="w-full rounded-lg border border-gray-200 bg-white p-3 text-left space-y-2 cursor-pointer hover:border-bu/40 transition">
                                                         <div class="flex items-start justify-between gap-2">
@@ -957,6 +942,13 @@
                     <div class="flex flex-col items-end gap-2">
                         @php
                             $currentRole = strtolower((string) (auth()->user()->role ?? ''));
+                            $currentRoleLabel = match($currentRole) {
+                                'dean' => 'Dean',
+                                'hr' => 'HR',
+                                'vpaa' => 'VPAA',
+                                'president' => 'President',
+                                default => ucfirst(str_replace('_', ' ', $currentRole)),
+                            };
                             $nextLabel = match($application->status) {
                                 'dean_review' => 'Forward to HR',
                                 'hr_review' => 'Forward to VPAA',
@@ -964,6 +956,16 @@
                                 'president_review' => 'Use Approved List',
                                 default => 'Forward',
                             };
+                            $forwardTargetLabel = match($application->status) {
+                                'dean_review' => 'HR',
+                                'hr_review' => 'VPAA',
+                                'vpaa_review' => 'VPAA Approved List',
+                                default => 'Next Stage',
+                            };
+                            $forwardActionVerb = (string) $application->status === 'vpaa_review' ? 'approved to' : 'forwarded to';
+                            $returnFlowLabel = "{$currentRoleLabel} returned to Faculty";
+                            $forwardFlowLabel = "{$currentRoleLabel} {$forwardActionVerb} {$forwardTargetLabel}";
+                            $formFacultyName = trim((string) ($application->faculty?->name ?? 'Faculty member'));
                             $canReturnPerPaper = in_array($application->status, ['dean_review','hr_review','vpaa_review','vpaa_approved','president_review'], true);
                             $canForwardPerPaper = in_array($application->status, ['dean_review','hr_review','vpaa_review'], true);
                             $section2 = $application->sections->firstWhere('section_code', '2');
@@ -1082,7 +1084,10 @@
                                                 Are you sure you want to return this to faculty?
                                             </h2>
                                             <p class="mt-1 text-sm text-gray-600">
-                                                The submission will move back to faculty for revision.
+                                                Form: <span class="font-semibold">{{ $formFacultyName }}</span>
+                                            </p>
+                                            <p class="mt-1 text-sm text-gray-600">
+                                                Flow: <span class="font-semibold">{{ $returnFlowLabel }}</span>
                                             </p>
 
                                             <div class="mt-6 flex justify-end gap-2">
@@ -1092,6 +1097,7 @@
                                                     Cancel
                                                 </button>
                                                 <button type="submit"
+                                                        data-ux-action-loading="Returning to faculty..."
                                                         class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
                                                     Confirm Return to Faculty
                                                 </button>
@@ -1118,7 +1124,10 @@
                                                 Are you sure you want to continue?
                                             </h2>
                                             <p class="mt-1 text-sm text-gray-600">
-                                                This will proceed with: <span class="font-semibold">{{ $nextLabel }}</span>.
+                                                Form: <span class="font-semibold">{{ $formFacultyName }}</span>
+                                            </p>
+                                            <p class="mt-1 text-sm text-gray-600">
+                                                Flow: <span class="font-semibold">{{ $forwardFlowLabel }}</span>
                                             </p>
 
                                             <div class="mt-6 flex justify-end gap-2">
@@ -1128,6 +1137,7 @@
                                                     Cancel
                                                 </button>
                                                 <button type="submit"
+                                                        data-ux-action-loading="Updating stage..."
                                                         class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold hover:bg-bu-dark">
                                                     Confirm {{ $nextLabel }}
                                                 </button>
@@ -1399,20 +1409,34 @@
                     'resubmit' => 'Resubmitted',
                     'forward' => 'Forwarded',
                     'return_to_faculty' => 'Returned to Faculty',
+                    'faculty_request_return' => 'Requested Return',
+                    'faculty_cancel_return_request' => 'Canceled Return Request',
                     'approve_to_vpaa_list' => 'Approved to VPAA List',
                     'forward_approved_list' => 'Forwarded Approved List',
                     'finalize' => 'Finalized',
+                    'reject_final' => 'Final Rejected',
+                    'reactivate_after_final_reject' => 'Reactivated',
                 ];
                 $statusTrails = collect($application->statusTrails ?? [])->sortByDesc('created_at')->values();
             @endphp
             @if($reviewerRole === 'vpaa' && $statusTrails->isNotEmpty())
-                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6">
-                    <h3 class="text-lg font-semibold text-gray-800">Status Trail History</h3>
-                    <p class="text-sm text-gray-500 mt-1">
-                        Full routing trail of this submission (submit, return, resubmit, forward, and approvals).
-                    </p>
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6"
+                     x-data="{ statusTrailOpen: false }">
+                    <div class="flex items-start justify-between gap-3">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800">Status Trail History</h3>
+                            <p class="text-sm text-gray-500 mt-1">
+                                Full routing trail of this submission (submit, return, resubmit, forward, and approvals).
+                            </p>
+                        </div>
+                        <button type="button"
+                                @click="statusTrailOpen = !statusTrailOpen"
+                                class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50">
+                            <span x-text="statusTrailOpen ? 'Hide Details' : 'See Details'"></span>
+                        </button>
+                    </div>
 
-                    <div class="mt-4 space-y-3">
+                    <div class="mt-4 space-y-3" x-show="statusTrailOpen" x-collapse x-cloak>
                         @foreach($statusTrails as $trail)
                             @php
                                 $fromLabel = $trail->from_status
@@ -1802,7 +1826,7 @@
                                     <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s3Subtotal, 0) }}</div>
                                 </div>
                                 <div class="rounded-xl border p-4 bg-white">
-                                    <div class="text-xs text-gray-500">Section 3 Previous Reclassification (1/3)</div>
+                                    <div class="text-xs text-gray-500">Previous Reclassification (Section 3) (1/3)</div>
                                     <div class="mt-1 text-xl font-semibold text-gray-800">{{ number_format($s3PrevThird, 2) }}</div>
                                     <div class="text-xs text-gray-500">Input: {{ number_format($inputValueFor('previous_points'), 2) }}</div>
                                 </div>
@@ -1913,6 +1937,10 @@
                                                         $isRemoved = in_array(strtolower((string) ($data['is_removed'] ?? '')), ['1', 'true', 'yes', 'on'], true);
                                                         $title = $entry->title ?: ($data['text'] ?? $data['title'] ?? 'Entry');
                                                         $showTitleInDetails = trim((string) $title) !== '' && strtolower(trim((string) $title)) !== 'entry';
+                                                        $titleLabel = ((string) ($section->section_code ?? '') === '1'
+                                                            && in_array(strtolower((string) $criterionKey), ['a1','a2','a3','a4','a5','a6','a7'], true))
+                                                            ? 'Degree'
+                                                            : 'Title';
                                                         $titleComparable = preg_replace('/\s+/', ' ', mb_strtolower(trim((string) $title)));
                                                         $evidences = $entry->evidences ?? collect();
                                                         $ignoredDetailKeys = [
@@ -1947,11 +1975,20 @@
                                                                 continue;
                                                             }
                                                             $rawComparable = preg_replace('/\s+/', ' ', mb_strtolower($raw));
-                                                            if ($showTitleInDetails && in_array($keyString, ['title', 'text'], true) && $rawComparable === $titleComparable) {
+                                                            if ($showTitleInDetails && in_array($keyString, ['title', 'text', 'degree'], true) && $rawComparable === $titleComparable) {
                                                                 continue;
                                                             }
 
                                                             $detailLabel = ucwords(str_replace(['_', '-'], ' ', $keyString));
+                                                            if ((string) ($section->section_code ?? '') === '1') {
+                                                                if ($keyString === 'category') {
+                                                                    $detailLabel = 'Category';
+                                                                } elseif ($keyString === 'honors') {
+                                                                    $detailLabel = 'Honors';
+                                                                } elseif ($keyString === 'degree') {
+                                                                    $detailLabel = 'Degree';
+                                                                }
+                                                            }
                                                             $detailLabel = preg_replace('/\bBu\b/', 'BU', $detailLabel);
 
                                                             $display = $raw;
@@ -1978,8 +2015,9 @@
                                                                 'w-[55%]' => !$isPreviousReclassificationCriterion,
                                                             ])>
                                                             @if($showTitleInDetails)
-                                                                <div class="mb-1 flex items-center gap-2 font-medium {{ $isRemoved ? 'text-gray-500' : 'text-gray-800' }}">
-                                                                    <span>Title: {{ $title }}</span>
+                                                                <div class="mb-1">
+                                                                    <span class="text-gray-400">{{ $titleLabel }}:</span>
+                                                                    <span class="{{ $isRemoved ? 'text-gray-500' : 'text-gray-700' }}">{{ $title }}</span>
                                                                 </div>
                                                             @endif
                                                             <div class="mb-1">
@@ -2007,50 +2045,57 @@
                                                                 @if($evidences->isEmpty())
                                                                     <span class="text-gray-400">None</span>
                                                                 @else
-                                                                    <div class="space-y-2">
-                                                                        @foreach($evidences as $ev)
-                                                                            @php
-                                                                                $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
-                                                                                $mime = strtolower((string) ($ev->mime_type ?? ''));
-                                                                                $fileName = strtolower((string) ($ev->original_name ?? ''));
-                                                                                $isImage = str_starts_with($mime, 'image/')
-                                                                                    || preg_match('/\.(jpg|jpeg|png|gif|webp|bmp|svg|tif|tiff|heic|heif)$/i', $fileName);
-                                                                                $isPdf = $mime === 'application/pdf' || str_ends_with($fileName, '.pdf');
-                                                                            @endphp
-                                                                            <div class="rounded-lg border p-3">
-                                                                                <div class="flex items-center justify-between gap-3">
-                                                                                    <div class="min-w-0 flex items-center gap-2">
-                                                                                        <div class="shrink-0 h-8 w-8 rounded-md border border-gray-200 bg-gray-50 flex items-center justify-center overflow-hidden">
-                                                                                            @if($isImage && $url)
-                                                                                                <img src="{{ $url }}" alt="Evidence preview" class="h-full w-full object-cover">
-                                                                                            @elseif($isPdf)
-                                                                                                <span class="text-[10px] font-bold text-red-600">PDF</span>
-                                                                                            @else
-                                                                                                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4 text-gray-500" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
-                                                                                                    <path d="M4 3.5A1.5 1.5 0 015.5 2h6.879a1.5 1.5 0 011.06.44l2.121 2.12a1.5 1.5 0 01.44 1.061V16.5A1.5 1.5 0 0114.5 18h-9A1.5 1.5 0 014 16.5v-13z" />
-                                                                                                </svg>
-                                                                                            @endif
-                                                                                        </div>
-                                                                                        <div class="truncate font-medium text-gray-800">
-                                                                                            {{ $ev->original_name ?? 'Evidence file' }}
-                                                                                        </div>
-                                                                                    </div>
-                                                                                    <div class="shrink-0">
-                                                                                        @if($url)
-                                                                                            <button type="button"
-                                                                                                    class="js-evidence-preview-trigger inline-flex items-center rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
-                                                                                                    data-evidence-url="{{ $url }}"
-                                                                                                    data-evidence-name="{{ $ev->original_name ?? 'Evidence file' }}"
-                                                                                                    data-evidence-mime="{{ $ev->mime_type ?? '' }}">
-                                                                                                View
-                                                                                            </button>
-                                                                                        @else
-                                                                                            <span class="text-xs text-gray-400">Unavailable</span>
-                                                                                        @endif
-                                                                                    </div>
-                                                                                </div>
-                                                                            </div>
-                                                                        @endforeach
+                                                                    @php
+                                                                        $evidenceItems = $evidences->map(function ($ev) {
+                                                                            $url = $ev->disk ? \Illuminate\Support\Facades\Storage::disk($ev->disk)->url($ev->path) : null;
+                                                                            return [
+                                                                                'url' => $url,
+                                                                                'name' => $ev->original_name ?? 'Evidence file',
+                                                                                'mime' => $ev->mime_type ?? '',
+                                                                            ];
+                                                                        })->filter(fn ($item) => !empty($item['url']))->values();
+                                                                        $evidenceCount = $evidences->count();
+                                                                        $entryDetailLines = [];
+                                                                        if ($showTitleInDetails) {
+                                                                            $entryDetailLines[] = [
+                                                                                'label' => (string) $titleLabel,
+                                                                                'value' => (string) $title,
+                                                                            ];
+                                                                        }
+                                                                        foreach ($detailRows as $detailRow) {
+                                                                            $entryDetailLines[] = [
+                                                                                'label' => (string) ($detailRow['label'] ?? ''),
+                                                                                'value' => (string) ($detailRow['value'] ?? ''),
+                                                                            ];
+                                                                        }
+                                                                        $sectionCodeText = trim((string) ($section->section_code ?? ''));
+                                                                        $sectionLabelText = $sectionCodeText !== ''
+                                                                            ? ('Section ' . $sectionCodeText)
+                                                                            : trim((string) ($section->title ?? ''));
+                                                                        $entryContext = [
+                                                                            'section' => $sectionLabelText,
+                                                                            'criterion' => (string) $label,
+                                                                            'details' => $entryDetailLines,
+                                                                            'field_label' => (string) $titleLabel,
+                                                                            'field_value' => (string) $title,
+                                                                            'points' => number_format((float) $entry->points, 2),
+                                                                        ];
+                                                                    @endphp
+                                                                    <div class="rounded-lg border border-gray-200 bg-gray-50/60 p-3 flex items-center justify-center">
+                                                                        @if($evidenceItems->isNotEmpty())
+                                                                            <button type="button"
+                                                                                    class="js-evidence-preview-trigger inline-flex items-center rounded-lg border border-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                                                                                    data-evidence-url="{{ $evidenceItems[0]['url'] }}"
+                                                                                    data-evidence-name="{{ $evidenceItems[0]['name'] }}"
+                                                                                    data-evidence-mime="{{ $evidenceItems[0]['mime'] }}"
+                                                                                    data-evidence-items='@json($evidenceItems)'
+                                                                                    data-entry-context='@json($entryContext)'
+                                                                                    data-evidence-index="0">
+                                                                                View Evidence ({{ $evidenceCount }})
+                                                                            </button>
+                                                                        @else
+                                                                            <span class="text-xs text-gray-400">Unavailable</span>
+                                                                        @endif
                                                                     </div>
                                                                 @endif
                                                             </td>
@@ -2580,7 +2625,10 @@
                                         Are you sure you want to return this to faculty?
                                     </h2>
                                     <p class="mt-1 text-sm text-gray-600">
-                                        The submission will move back to faculty for revision.
+                                        Form: <span class="font-semibold">{{ $formFacultyName }}</span>
+                                    </p>
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        Flow: <span class="font-semibold">{{ $returnFlowLabel }}</span>
                                     </p>
 
                                     <div class="mt-6 flex justify-end gap-2">
@@ -2590,6 +2638,7 @@
                                             Cancel
                                         </button>
                                         <button type="submit"
+                                                data-ux-action-loading="Returning to faculty..."
                                                 class="px-4 py-2 rounded-xl border border-amber-300 bg-amber-50 text-sm font-semibold text-amber-700 hover:bg-amber-100">
                                             Confirm Return to Faculty
                                         </button>
@@ -2614,7 +2663,10 @@
                                         Are you sure you want to continue?
                                     </h2>
                                     <p class="mt-1 text-sm text-gray-600">
-                                        This will proceed with: <span class="font-semibold">{{ $nextLabel }}</span>.
+                                        Form: <span class="font-semibold">{{ $formFacultyName }}</span>
+                                    </p>
+                                    <p class="mt-1 text-sm text-gray-600">
+                                        Flow: <span class="font-semibold">{{ $forwardFlowLabel }}</span>
                                     </p>
 
                                     <div class="mt-6 flex justify-end gap-2">
@@ -2624,6 +2676,7 @@
                                             Cancel
                                         </button>
                                         <button type="submit"
+                                                data-ux-action-loading="Updating stage..."
                                                 class="px-4 py-2 rounded-xl bg-bu text-white text-sm font-semibold hover:bg-bu-dark">
                                             Confirm {{ $nextLabel }}
                                         </button>
@@ -2794,12 +2847,26 @@
 
                     return items;
                 },
+                normalizeType(value) {
+                    return String(value || 'requires_action').trim().toLowerCase() === 'info'
+                        ? 'info'
+                        : 'requires_action';
+                },
+                normalizeStatus(value) {
+                    const raw = String(value || 'open').trim().toLowerCase();
+                    if (raw === 'resolved') return 'resolved';
+                    if (raw === 'addressed') return 'addressed';
+                    if (raw === 'open') return 'open';
+                    if (raw.includes('resolve')) return 'resolved';
+                    if (raw.includes('address')) return 'addressed';
+                    return 'open';
+                },
                 matchesFilter(typeOrItem, status = null, authorRole = '') {
                     const item = (typeOrItem && typeof typeOrItem === 'object')
                         ? typeOrItem
                         : { action_type: typeOrItem, status, author_role: authorRole, visibility: 'faculty_visible' };
-                    const t = String(item?.action_type || 'requires_action');
-                    const s = String(item?.status || 'open');
+                    const t = this.normalizeType(item?.action_type);
+                    const s = this.normalizeStatus(item?.status);
                     if (this.activeTab === 'notes') return t === 'info' && this.noteTabMatches(item);
                     if (this.activeTab === 'addressed') return t !== 'info' && s === 'addressed';
                     if (this.activeTab === 'resolved') {
@@ -2824,8 +2891,8 @@
                 countFor(mode, list = null) {
                     const items = Array.isArray(list) ? list : this.datasetForMode(mode);
                     return items.filter((item) => {
-                        const t = String(item?.action_type || 'requires_action');
-                        const s = String(item?.status || 'open');
+                        const t = this.normalizeType(item?.action_type);
+                        const s = this.normalizeStatus(item?.status);
                         if (mode === 'notes') {
                             if (t !== 'info') return false;
                             if (Array.isArray(list) && this.activeTab === 'notes') {
@@ -2846,47 +2913,47 @@
                 },
                 openRequiredCount() {
                     return (this.items || []).filter((item) => {
-                        const t = String(item?.action_type || 'requires_action');
-                        const s = String(item?.status || 'open');
+                        const t = this.normalizeType(item?.action_type);
+                        const s = this.normalizeStatus(item?.status);
                         return t !== 'info' && s === 'open';
                     }).length;
                 },
                 addressedCount() {
                     return (this.items || []).filter((item) => {
-                        const t = String(item?.action_type || 'requires_action');
-                        const s = String(item?.status || 'open');
+                        const t = this.normalizeType(item?.action_type);
+                        const s = this.normalizeStatus(item?.status);
                         return t !== 'info' && s === 'addressed';
                     }).length;
                 },
                 notesCount() {
-                    return (this.items || []).filter((item) => String(item?.action_type || 'requires_action') === 'info').length;
+                    return (this.items || []).filter((item) => this.normalizeType(item?.action_type) === 'info').length;
                 },
                 notesFacultyCount() {
                     return (this.items || []).filter((item) => {
-                        return String(item?.action_type || 'requires_action') === 'info'
+                        return this.normalizeType(item?.action_type) === 'info'
                             && String(item?.visibility || 'faculty_visible') === 'faculty_visible';
                     }).length;
                 },
                 notesInternalCount() {
                     return (this.items || []).filter((item) => {
-                        return String(item?.action_type || 'requires_action') === 'info'
+                        return this.normalizeType(item?.action_type) === 'info'
                             && String(item?.visibility || 'faculty_visible') === 'internal';
                     }).length;
                 },
                 requiredTotalCount() {
-                    return (this.items || []).filter((item) => String(item?.action_type || 'requires_action') !== 'info').length;
+                    return (this.items || []).filter((item) => this.normalizeType(item?.action_type) !== 'info').length;
                 },
                 unresolvedCount() {
                     return (this.items || []).filter((item) => {
-                        const t = String(item?.action_type || 'requires_action');
-                        const s = String(item?.status || 'open');
+                        const t = this.normalizeType(item?.action_type);
+                        const s = this.normalizeStatus(item?.status);
                         return t !== 'info' && s !== 'resolved';
                     }).length;
                 },
                 resolvedCount() {
                     return (this.items || []).filter((item) => {
-                        const t = String(item?.action_type || 'requires_action');
-                        const s = String(item?.status || 'open');
+                        const t = this.normalizeType(item?.action_type);
+                        const s = this.normalizeStatus(item?.status);
                         return t !== 'info' && s === 'resolved';
                     }).length;
                 },
@@ -2901,7 +2968,7 @@
                 trackerItems() {
                     const role = String(this.reviewerRole || '').toLowerCase();
                     return (this.items || []).filter((item) => {
-                        const type = String(item?.action_type || 'requires_action');
+                        const type = this.normalizeType(item?.action_type);
                         const visibility = String(item?.visibility || 'faculty_visible');
                         if (type === 'info' || visibility !== 'faculty_visible') return false;
                         if (!role) return true;
@@ -2909,13 +2976,13 @@
                     });
                 },
                 trackerOpenRequiredCount() {
-                    return this.trackerItems().filter((item) => String(item?.status || 'open') === 'open').length;
+                    return this.trackerItems().filter((item) => this.normalizeStatus(item?.status) === 'open').length;
                 },
                 trackerAddressedCount() {
-                    return this.trackerItems().filter((item) => String(item?.status || 'open') === 'addressed').length;
+                    return this.trackerItems().filter((item) => this.normalizeStatus(item?.status) === 'addressed').length;
                 },
                 trackerResolvedCount() {
-                    return this.trackerItems().filter((item) => String(item?.status || 'open') === 'resolved').length;
+                    return this.trackerItems().filter((item) => this.normalizeStatus(item?.status) === 'resolved').length;
                 },
                 trackerRequiredTotalCount() {
                     return this.trackerItems().length;
@@ -2932,8 +2999,8 @@
                 visibleItemCount() {
                     const items = this.datasetForMode(this.activeTab);
                     return (items || []).filter((item) => {
-                        const t = String(item?.action_type || 'requires_action');
-                        const s = String(item?.status || 'open');
+                        const t = this.normalizeType(item?.action_type);
+                        const s = this.normalizeStatus(item?.status);
                         if (this.activeTab === 'notes') return t === 'info' && this.noteTabMatches(item);
                         if (this.activeTab === 'addressed') return t !== 'info' && s === 'addressed';
                         if (this.activeTab === 'resolved') return t !== 'info' && s === 'resolved';
@@ -3015,8 +3082,8 @@
                         reviewer: String(batch.items?.[0]?.return_reviewer || ''),
                         dateLabel: String(batch.items?.[0]?.return_date_label || ''),
                          openCount: (batch.items || []).filter((item) => {
-                            const t = String(item?.action_type || 'requires_action');
-                            const s = String(item?.status || 'open');
+                            const t = this.normalizeType(item?.action_type);
+                            const s = this.normalizeStatus(item?.status);
                             return t !== 'info' && s === 'open';
                         }).length,
                         sections: this.sectionGroups(batch.items),
@@ -3041,8 +3108,8 @@
                 groupedResolvedStageItems() {
                     const stageMap = new Map();
                     (this.items || []).forEach((item) => {
-                        const type = String(item?.action_type || 'requires_action');
-                        const status = String(item?.status || 'open');
+                        const type = this.normalizeType(item?.action_type);
+                        const status = this.normalizeStatus(item?.status);
                         if (type === 'info' || status !== 'resolved') {
                             return;
                         }
@@ -3108,16 +3175,16 @@
                     return leftDate.localeCompare(rightDate);
                 },
                 statusLabel(item) {
-                    const type = item?.action_type || 'requires_action';
-                    const status = item?.status || 'open';
+                    const type = this.normalizeType(item?.action_type);
+                    const status = this.normalizeStatus(item?.status);
                     if (type === 'info') return 'Info';
                     if (status === 'resolved') return 'Resolved by reviewer';
                     if (status === 'addressed') return 'Addressed by faculty';
                     return 'Action required';
                 },
                 statusClass(item) {
-                    const type = item?.action_type || 'requires_action';
-                    const status = item?.status || 'open';
+                    const type = this.normalizeType(item?.action_type);
+                    const status = this.normalizeStatus(item?.status);
                     if (type === 'info') return 'border-slate-200 bg-slate-50 text-slate-700';
                     if (status === 'resolved') return 'border-green-200 bg-green-50 text-green-700';
                     if (status === 'addressed') return 'border-blue-200 bg-blue-50 text-blue-700';

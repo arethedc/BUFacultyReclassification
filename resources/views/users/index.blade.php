@@ -16,6 +16,7 @@
         $q = request('q');
         $status = request('status', 'active');
         $role = $role ?? request('role', '');
+        $createdUserId = (int) session('created_user_id', (int) request('created_user_id', 0));
         $hasUserFilters = $status !== 'active' || $role !== '';
         $showDeanDepartmentColumn = $role === 'dean';
     @endphp
@@ -133,12 +134,20 @@
                                                 'president' => 'bg-rose-50 text-rose-700 border-rose-200',
                                                 default => 'bg-gray-50 text-gray-700 border-gray-200',
                                             };
-                                            $metaLabel = $user->facultyProfile?->employee_no
-                                                ? 'Employee No. ' . $user->facultyProfile->employee_no
-                                                : 'User ID #' . $user->id;
+                                            $metaLabel = null;
+                                            if ($roleKey === 'faculty') {
+                                                $metaLabel = $user->facultyProfile?->employee_no
+                                                    ? 'Employee No. ' . $user->facultyProfile->employee_no
+                                                    : 'Employee No. -';
+                                            }
                                             $isEmailVerified = !empty($user->email_verified_at);
                                         @endphp
-                                        <tr class="transition-colors hover:bg-gray-50/80">
+                                        @php
+                                            $isNewlyCreatedUser = $createdUserId > 0 && (int) $user->id === $createdUserId;
+                                        @endphp
+                                        <tr id="user-row-{{ $user->id }}"
+                                            data-user-row-id="{{ $user->id }}"
+                                            class="transition-colors hover:bg-gray-50/80 {{ $isNewlyCreatedUser ? 'bg-emerald-50/80' : '' }}">
                                             <td class="px-6 py-4 align-top">
                                                 <div class="flex items-start gap-2">
                                                     <a href="{{ route('users.edit', ['user' => $user, 'context' => 'users']) }}"
@@ -156,7 +165,9 @@
                                                         </span>
                                                     @endif
                                                 </div>
-                                                <div class="mt-1 text-xs text-gray-500">{{ $metaLabel }}</div>
+                                                @if($metaLabel)
+                                                    <div class="mt-1 text-xs text-gray-500">{{ $metaLabel }}</div>
+                                                @endif
                                             </td>
 
                                             <td class="px-6 py-4 align-top text-gray-700">{{ $user->email }}</td>
@@ -191,21 +202,6 @@
                                                                class="block w-full rounded-lg px-4 py-2 text-left text-sm font-medium text-gray-700 hover:bg-gray-50">
                                                                 Edit Profile
                                                             </a>
-
-                                                            <div class="my-1 border-t border-gray-200"></div>
-
-                                                            <form method="POST"
-                                                                  action="{{ route('users.destroy', $user) }}"
-                                                                  data-user-delete-form
-                                                                  data-no-progress="true"
-                                                                  data-confirm="Delete this user? This cannot be undone.">
-                                                                @csrf
-                                                                @method('DELETE')
-                                                                <button type="submit"
-                                                                        class="block w-full rounded-lg px-4 py-2 text-left text-sm font-medium text-red-700 hover:bg-red-50">
-                                                                    Delete User
-                                                                </button>
-                                                            </form>
                                                         </div>
                                                     </div>
                                                 </div>
@@ -249,6 +245,18 @@
             status.addEventListener('change', syncResetVisibility);
             role.addEventListener('change', syncResetVisibility);
             syncResetVisibility();
+
+            const createdUserId = @json($createdUserId);
+            if (Number(createdUserId) > 0) {
+                const row = document.querySelector(`[data-user-row-id="${Number(createdUserId)}"]`);
+                if (row) {
+                    row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    row.classList.add('bg-emerald-100');
+                    window.setTimeout(() => {
+                        row.classList.remove('bg-emerald-100');
+                    }, 3200);
+                }
+            }
         });
 
         document.addEventListener('click', (event) => {
@@ -271,90 +279,6 @@
             }
         });
 
-        document.addEventListener('submit', async (event) => {
-            const form = event.target;
-            if (!(form instanceof HTMLFormElement)) return;
-            if (!form.matches('[data-user-delete-form]')) return;
-
-            event.preventDefault();
-
-            if (form.dataset.asyncBusy === '1') return;
-
-            const confirmMessage = form.dataset.confirm || 'Delete this user? This cannot be undone.';
-            if (!window.confirm(confirmMessage)) return;
-
-            const submitButton = event.submitter instanceof HTMLButtonElement
-                ? event.submitter
-                : form.querySelector('button[type="submit"]');
-            if (!submitButton) return;
-
-            const panelSelector = '#users-results';
-            const refreshResultsPanel = async () => {
-                const response = await fetch(window.location.href, {
-                    method: 'GET',
-                    credentials: 'same-origin',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'X-UX-Background': '1',
-                    },
-                });
-
-                if (!response.ok) {
-                    throw new Error('Could not refresh the users list.');
-                }
-
-                const html = await response.text();
-                const parsed = new DOMParser().parseFromString(html, 'text/html');
-                const incoming = parsed.querySelector(panelSelector);
-                const current = document.querySelector(panelSelector);
-
-                if (!incoming || !current) {
-                    throw new Error('Could not refresh the users list.');
-                }
-
-                current.replaceWith(incoming);
-                if (window.Alpine && typeof window.Alpine.initTree === 'function') {
-                    window.Alpine.initTree(incoming);
-                }
-                window.BuUx?.bindSubmitFeedback?.(document);
-                window.BuUx?.bindActionLoading?.(document);
-            };
-
-            form.dataset.asyncBusy = '1';
-            window.BuUx?.setActionButtonLoading?.(submitButton, 'Deleting...');
-            window.BuUx?.panel?.setRefreshing(panelSelector, true, 'Refreshing users list...');
-
-            try {
-                const response = await fetch(form.action, {
-                    method: 'POST',
-                    credentials: 'same-origin',
-                    headers: {
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': 'application/json',
-                    },
-                    body: new FormData(form),
-                });
-
-                let payload = {};
-                try {
-                    payload = await response.json();
-                } catch (error) {
-                    payload = {};
-                }
-
-                if (!response.ok) {
-                    throw new Error(payload.message || 'Could not delete user.');
-                }
-
-                await refreshResultsPanel();
-                window.BuUx?.toast?.(payload.message || 'User deleted.', 'success');
-            } catch (error) {
-                window.BuUx?.toast?.(error?.message || 'Could not delete user.', 'error');
-            } finally {
-                form.dataset.asyncBusy = '0';
-                window.BuUx?.panel?.setRefreshing(panelSelector, false);
-                window.BuUx?.resetActionButton?.(submitButton);
-            }
-        });
     </script>
 </x-app-layout>
+

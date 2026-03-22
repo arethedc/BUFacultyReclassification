@@ -11,6 +11,7 @@ use App\Http\Controllers\ReclassificationWorkflowController;
 use App\Http\Controllers\ReclassificationEvidenceReviewController;
 use App\Http\Controllers\ReclassificationRowCommentController;
 use App\Http\Controllers\ReclassificationAdminController;
+use App\Http\Controllers\ReclassificationSettingsController;
 use App\Models\ReclassificationApplication;
 use App\Models\ReclassificationPeriod;
 use App\Models\User;
@@ -30,7 +31,7 @@ Route::get('/', function () {
 | Authenticated Routes
 |--------------------------------------------------------------------------
 */
-Route::middleware(['auth', 'verified'])->group(function () {
+Route::middleware(['auth', 'verified', 'active_user'])->group(function () {
 
     // Generic dashboard entrypoint: redirect to role dashboard
     Route::get('/dashboard', function () {
@@ -366,6 +367,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('reclassification.admin.approved');
     });
 
+    Route::middleware(['role:hr'])->prefix('settings/reclassification')->group(function () {
+        Route::get('/', [ReclassificationSettingsController::class, 'index'])
+            ->name('settings.reclassification');
+        Route::post('/seed-defaults', [ReclassificationSettingsController::class, 'seedDefaults'])
+            ->name('settings.reclassification.seed-defaults');
+        Route::post('/departments', [ReclassificationSettingsController::class, 'storeDepartment'])
+            ->name('settings.reclassification.departments.store');
+        Route::put('/departments/{department}', [ReclassificationSettingsController::class, 'updateDepartment'])
+            ->name('settings.reclassification.departments.update');
+        Route::delete('/departments/{department}', [ReclassificationSettingsController::class, 'destroyDepartment'])
+            ->name('settings.reclassification.departments.destroy');
+        Route::post('/rank-levels', [ReclassificationSettingsController::class, 'storeRankLevel'])
+            ->name('settings.reclassification.rank-levels.store');
+        Route::put('/rank-levels/{rankLevel}', [ReclassificationSettingsController::class, 'updateRankLevel'])
+            ->name('settings.reclassification.rank-levels.update');
+        Route::delete('/rank-levels/{rankLevel}', [ReclassificationSettingsController::class, 'destroyRankLevel'])
+            ->name('settings.reclassification.rank-levels.destroy');
+    });
+
     Route::middleware(['role:vpaa'])->get('/vpaa/dashboard', function () {
         $activePeriod = ReclassificationPeriod::query()
             ->when(
@@ -552,8 +572,6 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('users.edit');
         Route::put('/users/{user}', [UserController::class, 'update'])
             ->name('users.update');
-        Route::get('/users/{user}/email-availability', [UserController::class, 'emailAvailability'])
-            ->name('users.email-availability');
         Route::get('/users/{user}/employee-no-availability', [UserController::class, 'employeeNoAvailability'])
             ->name('users.employee-no-availability');
     });
@@ -613,6 +631,8 @@ Route::middleware(['auth', 'verified'])->group(function () {
             ->name('reclassification.submit');
         Route::post('/{application}/request-return', [ReclassificationWorkflowController::class, 'requestReturn'])
             ->name('reclassification.request-return');
+        Route::post('/{application}/cancel-return-request', [ReclassificationWorkflowController::class, 'cancelReturnRequest'])
+            ->name('reclassification.cancel-return-request');
         Route::post('/{application}/entries/{entry}/restore', [ReclassificationFormController::class, 'restoreEntry'])
             ->name('reclassification.entries.restore');
 

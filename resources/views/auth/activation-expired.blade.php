@@ -13,17 +13,15 @@
 
     <form method="POST" action="{{ route('activation.resend') }}" class="mt-4 space-y-4">
         @csrf
+        <input type="hidden" name="activation_user_id" value="{{ (int) ($activationUserId ?? 0) }}">
+        <input type="hidden" name="activation_hash" value="{{ (string) ($activationHash ?? '') }}">
 
         <div>
-            <x-input-label for="email" :value="__('Email')" />
-            <x-text-input id="email"
-                          class="block mt-1 w-full"
-                          type="email"
-                          name="email"
-                          :value="old('email', $email ?? '')"
-                          required
-                          autofocus />
-            <x-input-error :messages="$errors->get('email')" class="mt-2" />
+            <x-input-label :value="__('Email')" />
+            <div class="mt-1 block w-full rounded-md border border-gray-300 bg-gray-50 px-3 py-2 text-gray-700">
+                {{ (string) ($email ?? '') }}
+            </div>
+            <x-input-error :messages="$errors->get('activation')" class="mt-2" />
         </div>
 
         <div class="flex items-center justify-end">
@@ -33,4 +31,3 @@
         </div>
     </form>
 </x-guest-layout>
-

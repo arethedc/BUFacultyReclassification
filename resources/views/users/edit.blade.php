@@ -18,13 +18,68 @@
         $showDepartment = in_array($user->role, ['faculty', 'dean'], true);
         $showFacultyDetails = $user->role === 'faculty';
         $profile = $user->facultyProfile;
+        $profileErrorFields = [
+            'first_name',
+            'last_name',
+            'middle_name',
+            'suffix',
+            'status',
+            'department_id',
+            'employee_no',
+            'employment_type',
+            'rank_level_id',
+            'teaching_rank',
+            'rank_step',
+            'highest_degree',
+            'original_appointment_date',
+        ];
+        $hasProfileErrors = collect($profileErrorFields)->contains(fn ($field) => $errors->has($field));
+        $hasEmailError = $errors->has('email');
     @endphp
 
     <div class="py-12 bg-bu-muted min-h-screen">
-        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+        <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6"
+             x-data="{
+                 suppressEditBeforeUnload: false,
+                 hasEditUnsavedChanges() {
+                     const emailForm = document.querySelector('[data-email-edit-form]');
+                     const profileForm = document.querySelector('[data-profile-edit-form]');
+                     const emailEditMode = emailForm?.dataset.emailEditMode === '1';
+                     const profileEditMode = profileForm?.dataset.profileEditMode === '1';
+                     const emailDirty = emailForm?.dataset.emailDirty === '1';
+                     const profileDirty = profileForm?.dataset.profileDirty === '1';
+                     return emailEditMode || profileEditMode || emailDirty || profileDirty;
+                 },
+                 init() {
+                     if (window.__editProfileBeforeUnloadGuard) {
+                         window.removeEventListener('beforeunload', window.__editProfileBeforeUnloadGuard);
+                     }
+                     window.__editProfileBeforeUnloadGuard = (event) => {
+                         if (!this.suppressEditBeforeUnload && this.hasEditUnsavedChanges()) {
+                             event.preventDefault();
+                             event.returnValue = '';
+                         }
+                     };
+                     window.addEventListener('beforeunload', window.__editProfileBeforeUnloadGuard);
+                 }
+             }"
+             @edit-form-submitting.window="suppressEditBeforeUnload = true">
             @if(session('success'))
                 <div class="p-4 rounded-xl bg-green-50 border border-green-200 text-green-700">
                     {{ session('success') }}
+                </div>
+            @endif
+
+            @if(session('post_create_notice'))
+                @php $notice = session('post_create_notice'); @endphp
+                <div class="p-4 rounded-xl bg-blue-50 border border-blue-200 text-blue-800 text-sm">
+                    {{ $notice['message'] ?? '' }}
+                    @if(!empty($notice['link_url']) && !empty($notice['link_label']))
+                        <span>{{ $notice['link_prefix'] ?? '' }}</span>
+                        <a href="{{ $notice['link_url'] }}" class="font-semibold underline hover:no-underline">
+                            {{ $notice['link_label'] }}
+                        </a>.
+                    @endif
                 </div>
             @endif
 
@@ -39,24 +94,176 @@
                 </div>
             @endif
 
+            <div class="bg-white rounded-2xl shadow-card border border-gray-200"
+                 x-data="{ editMode: {{ $hasProfileErrors ? 'true' : 'false' }}, saveLocked: true }"
+                 @profile-toolbar-state.window="editMode = !!($event.detail?.editMode); saveLocked = !!($event.detail?.saveLocked)">
+                <div class="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+                    <div class="flex items-center gap-3">
+                        <div class="text-sm text-gray-500">
+                            Current role:
+                            <span class="font-semibold text-gray-800">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</span>
+                        </div>
+                    </div>
+
+                    <div class="flex items-center gap-2">
+                        <button type="button"
+                                x-show="!editMode"
+                                @click="$dispatch('profile-toolbar-edit')"
+                                class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
+                            Edit Profile
+                        </button>
+                        <button type="button"
+                                x-show="editMode"
+                                @click="$dispatch('profile-toolbar-discard')"
+                                class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
+                            Discard Changes
+                        </button>
+                        <button type="submit"
+                                form="profile-edit-form"
+                                x-show="editMode"
+                                :disabled="saveLocked"
+                                :class="saveLocked ? 'opacity-60 cursor-not-allowed' : ''"
+                                class="px-5 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft transition">
+                            Save Changes
+                        </button>
+                    </div>
+                </div>
+
+                <div class="px-6 pb-4 text-xs text-gray-500">
+                    <span x-show="!editMode">Fields are locked. Click <span class="font-semibold">Edit Profile</span> to unlock.</span>
+                    <span x-show="editMode">Edit mode enabled. Save Changes is available only when you modify fields.</span>
+                </div>
+            </div>
+
             <form method="POST"
                   action="{{ route('users.update', ['user' => $user, 'context' => ($editContext ?? 'users')]) }}"
                   class="space-y-6"
-                  x-ref="profile_form"
-                  @submit="if (isProfileSaveLocked()) { $event.preventDefault(); }"
+                  data-email-edit-form
+                  x-bind:data-email-edit-mode="emailEditMode ? '1' : '0'"
+                  x-bind:data-email-dirty="(emailEditMode && emailHasChanged()) ? '1' : '0'"
+                  @input="emailChangeTick++"
+                  @change="emailChangeTick++"
+                  @submit="if (isEmailSaveLocked()) { $event.preventDefault(); return; } $dispatch('edit-form-submitting')"
                   x-data="{
-                      editMode: {{ ($errors->any() && !$errors->has('email')) ? 'true' : 'false' }},
-                      emailEditMode: {{ $errors->has('email') ? 'true' : 'false' }},
-                      emailAvailabilityUrl: @js(route('users.email-availability', $user)),
+                      emailEditMode: {{ $hasEmailError ? 'true' : 'false' }},
+                      isEmailVerified: @js(!empty($user->email_verified_at)),
+                      originalEmail: @js((string) ($user->email ?? '')),
+                      emailChangeTick: 0,
+                      emailHasChanged() {
+                          const _tick = this.emailChangeTick;
+                          return String(this.$refs.email?.value ?? '').trim() !== String(this.originalEmail).trim();
+                      },
+                      isEmailSaveLocked() {
+                          if (this.isEmailVerified) return true;
+                          if (!this.emailEditMode) return true;
+                          return !this.emailHasChanged();
+                      },
+                      enableEmailEdit() {
+                          if (this.isEmailVerified) return;
+                          this.emailEditMode = true;
+                          this.$nextTick(() => this.$refs.email?.focus());
+                      },
+                      discardEmail() {
+                          if (this.$refs.email) this.$refs.email.value = this.originalEmail;
+                          this.emailEditMode = false;
+                          this.emailChangeTick++;
+                      }
+                  }">
+                @csrf
+                @method('PUT')
+                <input type="hidden" name="profile_action" value="email">
+
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200">
+                    <div class="px-6 py-4 border-b flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                            <h3 class="text-lg font-semibold text-gray-800">Account Information</h3>
+                            <p class="text-sm text-gray-500">Email and login identity.</p>
+                        </div>
+                        <div class="flex flex-wrap items-center gap-2">
+                            <button type="button"
+                                    x-show="!isEmailVerified && !emailEditMode"
+                                    @click="enableEmailEdit()"
+                                    class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
+                                Edit Email
+                            </button>
+                            <button type="button"
+                                    x-show="!isEmailVerified && emailEditMode"
+                                    @click="discardEmail()"
+                                    class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
+                                Cancel Email Edit
+                            </button>
+                            <button type="submit"
+                                    x-show="!isEmailVerified && emailEditMode"
+                                    :disabled="isEmailSaveLocked()"
+                                    :class="isEmailSaveLocked() ? 'opacity-60 cursor-not-allowed' : ''"
+                                    class="px-5 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft transition">
+                                Save Email & Send Verification
+                            </button>
+                        </div>
+                    </div>
+
+                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-gray-700">Email</label>
+                            <input x-ref="email"
+                                   type="email"
+                                   name="email"
+                                   value="{{ old('email', $user->email) }}"
+                                   :disabled="isEmailVerified || !emailEditMode"
+                                   class="mt-1 w-full rounded-xl border border-gray-300 bg-white text-gray-700 focus:border-bu focus:ring-bu disabled:bg-gray-100 disabled:text-gray-600">
+                            @error('email')
+                                <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
+                            @enderror
+                            <p class="mt-2 text-xs text-gray-500">
+                                <span x-show="isEmailVerified">
+                                    Email is locked once verified.
+                                </span>
+                                <span x-show="!isEmailVerified">
+                                    Updating email will send a new verification link to the new address.
+                                </span>
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </form>
+
+            <form method="POST"
+                  id="profile-edit-form"
+                  action="{{ route('users.update', ['user' => $user, 'context' => ($editContext ?? 'users')]) }}"
+                  class="space-y-6"
+                  data-profile-edit-form
+                  x-bind:data-profile-edit-mode="editMode ? '1' : '0'"
+                  x-bind:data-profile-dirty="(editMode && hasProfileChanges()) ? '1' : '0'"
+                  x-bind:data-profile-save-locked="isProfileSaveLocked() ? '1' : '0'"
+                  x-ref="profile_form"
+                  @input="profileChangeTick++"
+                  @change="profileChangeTick++"
+                  @profile-toolbar-edit.window="enableEdit()"
+                  @profile-toolbar-discard.window="discard()"
+                  @submit="if (isProfileSaveLocked()) { $event.preventDefault(); return; } $dispatch('edit-form-submitting')"
+                  x-data="{
+                      editMode: {{ $hasProfileErrors ? 'true' : 'false' }},
+                      usesRankLevels: @js($showFacultyDetails && $rankLevels->isNotEmpty()),
+                      profileChangeTick: 0,
                       employeeNoAvailabilityUrl: @js(route('users.employee-no-availability', $user)),
-                      emailCheckState: 'idle',
-                      emailCheckMessage: '',
-                      emailCheckTimer: null,
                       employeeCheckState: 'idle',
                       employeeCheckMessage: '',
                       employeeCheckTimer: null,
                       hasEmployeeNoServerError: @js($errors->has('employee_no')),
-                      original: {},
+                      original: {
+                          first_name: @js((string) ($nameParts['first_name'] ?? '')),
+                          middle_name: @js((string) ($nameParts['middle_name'] ?? '')),
+                          last_name: @js((string) ($nameParts['last_name'] ?? '')),
+                          suffix: @js((string) ($nameParts['suffix'] ?? '')),
+                          department_id: @js((string) ($user->department_id ?? '')),
+                          status: @js((string) ($user->status ?? '')),
+                          employee_no: @js((string) ($profile?->employee_no ?? '')),
+                          employment_type: @js((string) ($profile?->employment_type ?? '')),
+                          rank_level_id: @js(($showFacultyDetails && $rankLevels->isNotEmpty()) ? (string) ($profile?->rank_level_id ?? '') : ''),
+                          teaching_rank: @js(($showFacultyDetails && !$rankLevels->isNotEmpty()) ? (string) ($profile?->teaching_rank ?? '') : ''),
+                          highest_degree: @js((string) ($highestDegree?->highest_degree ?? '')),
+                          original_appointment_date: @js((string) optional($profile?->original_appointment_date)->format('Y-m-d')),
+                      },
                       parseAppointmentDateFromEmployeeNo(value) {
                           const raw = String(value || '').trim();
                           if (!/^\d{2}(0[1-9]|1[0-2])-\d{3}$/.test(raw)) return null;
@@ -65,7 +272,10 @@
                           const monthPart = Number(raw.slice(2, 4));
                           if (!Number.isInteger(monthPart) || monthPart < 1 || monthPart > 12) return null;
 
-                          const fullYear = 2000 + yearPart;
+                          const currentYearTwoDigits = new Date().getFullYear() % 100;
+                          const fullYear = yearPart <= currentYearTwoDigits
+                              ? 2000 + yearPart
+                              : 1900 + yearPart;
                           return `${String(fullYear).padStart(4, '0')}-${String(monthPart).padStart(2, '0')}-01`;
                       },
                       formatEmployeeNoInput() {
@@ -82,129 +292,56 @@
                           const derivedDate = this.parseAppointmentDateFromEmployeeNo(this.$refs.employee_no.value);
                           this.$refs.original_appointment_date.value = derivedDate || '';
                       },
-                      init() {
+                      currentSnapshot() {
                           const refs = this.$refs;
-                          this.original = {
+                          return {
                               first_name: refs.first_name?.value ?? '',
                               middle_name: refs.middle_name?.value ?? '',
                               last_name: refs.last_name?.value ?? '',
                               suffix: refs.suffix?.value ?? '',
-                              email: @js($user->email),
                               department_id: refs.department_id?.value ?? '',
                               status: refs.status?.value ?? '',
                               employee_no: refs.employee_no?.value ?? '',
                               employment_type: refs.employment_type?.value ?? '',
-                              rank_level_id: refs.rank_level_id?.value ?? '',
-                              teaching_rank: refs.teaching_rank?.value ?? '',
+                              rank_level_id: this.usesRankLevels
+                                  ? (refs.rank_level_id?.value ?? '')
+                                  : '',
+                              teaching_rank: this.usesRankLevels
+                                  ? ''
+                                  : (refs.teaching_rank?.value ?? ''),
                               highest_degree: refs.highest_degree?.value ?? '',
                               original_appointment_date: refs.original_appointment_date?.value ?? '',
                           };
-
+                      },
+                      hasProfileChanges() {
+                          const _tick = this.profileChangeTick;
+                          const current = this.currentSnapshot();
+                          return Object.keys(current).some((key) => String(current[key] ?? '') !== String(this.original[key] ?? ''));
+                      },
+                      syncToolbarState() {
+                          this.$dispatch('profile-toolbar-state', {
+                              editMode: this.editMode,
+                              saveLocked: this.isProfileSaveLocked(),
+                          });
+                      },
+                      init() {
                           this.formatEmployeeNoInput();
-                          this.autoSetOriginalAppointmentDateFromEmployeeNo();
-                          if (this.editMode && refs.employee_no && !this.hasEmployeeNoServerError) {
+                          if (this.editMode && this.$refs.employee_no && !this.hasEmployeeNoServerError) {
                               this.checkEmployeeNoAvailability(true);
                           }
+                          this.$nextTick(() => this.syncToolbarState());
+                          this.$watch('editMode', () => this.syncToolbarState());
+                          this.$watch('profileChangeTick', () => this.syncToolbarState());
+                          this.$watch('employeeCheckState', () => this.syncToolbarState());
+                          this.$watch('hasEmployeeNoServerError', () => this.syncToolbarState());
                       },
                       enableEdit() {
                           this.editMode = true;
-                          this.emailEditMode = false;
-                          if ($refs.email_change_only) $refs.email_change_only.value = '0';
-                          this.emailCheckState = 'idle';
-                          this.emailCheckMessage = '';
+                          this.profileChangeTick++;
                           this.$nextTick(() => {
-                              this.autoSetOriginalAppointmentDateFromEmployeeNo();
                               this.hasEmployeeNoServerError = false;
                               this.checkEmployeeNoAvailability(true);
                           });
-                      },
-                      startEmailEdit() {
-                          if (this.editMode) return;
-                          this.emailEditMode = true;
-                          if ($refs.email_change_only) $refs.email_change_only.value = '0';
-                          this.emailCheckState = 'idle';
-                          this.emailCheckMessage = '';
-                          this.$nextTick(() => $refs.email?.focus());
-                      },
-                      async checkEmailAvailability(immediate = false) {
-                          if (!this.emailEditMode || !$refs.email) return this.emailCheckState;
-                          const nextEmail = String($refs.email.value || '').trim();
-                          const currentEmail = String(this.original.email || '').trim();
-
-                          if (this.emailCheckTimer) {
-                              clearTimeout(this.emailCheckTimer);
-                              this.emailCheckTimer = null;
-                          }
-
-                          if (!nextEmail) {
-                              this.emailCheckState = 'idle';
-                              this.emailCheckMessage = '';
-                              return this.emailCheckState;
-                          }
-
-                          if (nextEmail.toLowerCase() === currentEmail.toLowerCase()) {
-                              this.emailCheckState = 'invalid';
-                              this.emailCheckMessage = 'New email must be different from current email.';
-                              return this.emailCheckState;
-                          }
-
-                          const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-                          if (!emailPattern.test(nextEmail)) {
-                              this.emailCheckState = 'invalid';
-                              this.emailCheckMessage = 'Enter a valid email address.';
-                              return this.emailCheckState;
-                          }
-
-                          const runCheck = async () => {
-                              this.emailCheckState = 'checking';
-                              this.emailCheckMessage = 'Checking email availability...';
-                              try {
-                                  const url = `${this.emailAvailabilityUrl}?email=${encodeURIComponent(nextEmail)}`;
-                                  const response = await fetch(url, {
-                                      method: 'GET',
-                                      credentials: 'same-origin',
-                                      headers: {
-                                          'X-Requested-With': 'XMLHttpRequest',
-                                      },
-                                  });
-                                  if (!response.ok) throw new Error('Email check failed');
-                                  const payload = await response.json();
-                                  if (String($refs.email.value || '').trim().toLowerCase() !== nextEmail.toLowerCase()) {
-                                      return;
-                                  }
-
-                                  if (payload.available) {
-                                      this.emailCheckState = 'valid';
-                                      this.emailCheckMessage = payload.message || 'This email address is available.';
-                                  } else {
-                                      this.emailCheckState = 'unavailable';
-                                      this.emailCheckMessage = payload.message || 'This email address is already in use.';
-                                  }
-                              } catch (error) {
-                                  this.emailCheckState = 'error';
-                                  this.emailCheckMessage = 'Unable to verify email right now. Try again.';
-                              }
-                          };
-
-                          if (immediate) {
-                              await runCheck();
-                          } else {
-                              this.emailCheckTimer = setTimeout(() => {
-                                  runCheck();
-                              }, 350);
-                          }
-
-                          return this.emailCheckState;
-                      },
-                      async saveEmailChange() {
-                          await this.checkEmailAvailability(true);
-                          if (this.emailCheckState !== 'valid') return;
-                          if ($refs.email_change_only) $refs.email_change_only.value = '1';
-                          if (typeof $refs.profile_form?.requestSubmit === 'function') {
-                              $refs.profile_form.requestSubmit();
-                          } else if ($refs.profile_form) {
-                              $refs.profile_form.submit();
-                          }
                       },
                       async checkEmployeeNoAvailability(immediate = false) {
                           if (!this.$refs.employee_no) return this.employeeCheckState;
@@ -284,24 +421,18 @@
                           return this.employeeCheckState;
                       },
                       isProfileSaveLocked() {
-                          if (!this.editMode) return false;
+                          const _tick = this.profileChangeTick;
+                          if (!this.editMode) return true;
+                          if (!this.hasProfileChanges()) return true;
                           if (!this.$refs.employee_no) return false;
                           if (this.hasEmployeeNoServerError) return true;
                           return ['invalid', 'unavailable', 'checking', 'error'].includes(this.employeeCheckState);
-                      },
-                      cancelEmailEdit() {
-                          if ($refs.email) $refs.email.value = '';
-                          if ($refs.email_change_only) $refs.email_change_only.value = '0';
-                          this.emailCheckState = 'idle';
-                          this.emailCheckMessage = '';
-                          this.emailEditMode = false;
                       },
                       discard() {
                           if ($refs.first_name) $refs.first_name.value = this.original.first_name;
                           if ($refs.middle_name) $refs.middle_name.value = this.original.middle_name;
                           if ($refs.last_name) $refs.last_name.value = this.original.last_name;
                           if ($refs.suffix) $refs.suffix.value = this.original.suffix;
-                          if ($refs.email) $refs.email.value = this.original.email;
                           if ($refs.department_id) $refs.department_id.value = this.original.department_id;
                           if ($refs.status) $refs.status.value = this.original.status;
                           if ($refs.employee_no) $refs.employee_no.value = this.original.employee_no;
@@ -310,132 +441,16 @@
                           if ($refs.teaching_rank) $refs.teaching_rank.value = this.original.teaching_rank;
                           if ($refs.highest_degree) $refs.highest_degree.value = this.original.highest_degree;
                           if ($refs.original_appointment_date) $refs.original_appointment_date.value = this.original.original_appointment_date;
-                          this.emailEditMode = false;
-                          this.emailCheckState = 'idle';
-                          this.emailCheckMessage = '';
                           this.employeeCheckState = 'idle';
                           this.employeeCheckMessage = '';
                           this.hasEmployeeNoServerError = false;
-                          if ($refs.email_change_only) $refs.email_change_only.value = '0';
                           this.editMode = false;
+                          this.profileChangeTick++;
                       }
                   }">
                 @csrf
                 @method('PUT')
-                <input type="hidden" name="email_change_only" value="0" x-ref="email_change_only">
-
-                <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-                    <div class="px-6 py-4 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
-                        <div class="flex items-center gap-3">
-                            <div class="text-sm text-gray-500">
-                                Current role:
-                                <span class="font-semibold text-gray-800">{{ ucfirst(str_replace('_', ' ', $user->role)) }}</span>
-                            </div>
-                        </div>
-
-                        <div class="flex items-center gap-2">
-                            <button type="button"
-                                    x-show="!editMode"
-                                    @click="enableEdit()"
-                                    class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
-                                Edit Profile
-                            </button>
-                            <button type="button"
-                                    x-show="editMode"
-                                    @click="discard()"
-                                    class="px-5 py-2.5 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
-                                Cancel
-                            </button>
-                            <button type="submit"
-                                    x-show="editMode"
-                                    :disabled="isProfileSaveLocked()"
-                                    :class="isProfileSaveLocked() ? 'opacity-60 cursor-not-allowed' : ''"
-                                    class="px-5 py-2.5 rounded-xl bg-bu text-white hover:bg-bu-dark shadow-soft transition">
-                                Save
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="px-6 pb-4 text-xs text-gray-500">
-                        <span x-show="!editMode">Fields are locked. Click <span class="font-semibold">Edit Profile</span> to unlock.</span>
-                        <span x-show="editMode">Edit mode enabled. Save to apply changes or Cancel to discard.</span>
-                    </div>
-                </div>
-
-                <div class="bg-white rounded-2xl shadow-card border border-gray-200">
-                    <div class="px-6 py-4 border-b flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
-                        <div>
-                            <h3 class="text-lg font-semibold text-gray-800">Account Information</h3>
-                            <p class="text-sm text-gray-500">Email and login identity.</p>
-                        </div>
-                        <div class="flex items-center gap-2">
-                            <button type="button"
-                                    x-show="!emailEditMode"
-                                    @click="startEmailEdit()"
-                                    :disabled="editMode"
-                                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition disabled:opacity-60 disabled:cursor-not-allowed">
-                                Change Email
-                            </button>
-                            <button type="button"
-                                    x-show="emailEditMode"
-                                    @click="cancelEmailEdit()"
-                                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl border border-gray-300 text-gray-700 hover:bg-gray-100 transition">
-                                Cancel
-                            </button>
-                            <button type="button"
-                                    x-show="emailEditMode"
-                                    @click="saveEmailChange()"
-                                    :disabled="emailCheckState !== 'valid'"
-                                    class="inline-flex items-center justify-center px-4 py-2 rounded-xl bg-bu text-white hover:bg-bu-dark transition disabled:opacity-60 disabled:cursor-not-allowed">
-                                Save Email
-                            </button>
-                        </div>
-                    </div>
-
-                    <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
-                        <div class="md:col-span-2">
-                            <label class="block text-sm font-medium text-gray-700">Current Email</label>
-                            <input type="email"
-                                   value="{{ $user->email }}"
-                                   class="mt-1 w-full rounded-xl border border-gray-300 bg-gray-100 text-gray-600"
-                                   readonly
-                                   disabled>
-                        </div>
-
-                        <div class="md:col-span-2" x-show="emailEditMode" x-cloak>
-                            <label class="block text-sm font-medium text-gray-700">New Email</label>
-                            <input x-ref="email"
-                                   :disabled="!emailEditMode"
-                                   :required="emailEditMode"
-                                   type="email"
-                                   name="email"
-                                   value="{{ old('email', '') }}"
-                                   @input="checkEmailAvailability()"
-                                   @blur="checkEmailAvailability(true)"
-                                   class="mt-1 w-full rounded-xl border border-gray-300 bg-white focus:border-bu focus:ring-bu">
-
-                            <p class="mt-2 text-xs"
-                               x-show="emailCheckMessage !== ''"
-                               x-bind:class="{
-                                   'text-gray-500': emailCheckState === 'checking',
-                                   'text-green-600': emailCheckState === 'valid',
-                                   'text-red-600': ['invalid', 'unavailable', 'error'].includes(emailCheckState)
-                               }"
-                               x-text="emailCheckMessage"></p>
-
-                            @error('email')
-                                <p class="mt-1 text-sm text-red-600">{{ $message }}</p>
-                            @enderror
-
-                        </div>
-
-                        <div class="md:col-span-2" x-show="!emailEditMode">
-                            <p class="text-xs text-gray-500">
-                                Email is locked. Click <span class="font-semibold">Change Email</span> to set a new email.
-                            </p>
-                        </div>
-                    </div>
-                </div>
+                <input type="hidden" name="profile_action" value="profile">
 
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200">
                     <div class="px-6 py-4 border-b">
@@ -515,7 +530,7 @@
                     <div class="bg-white rounded-2xl shadow-card border border-gray-200 overflow-hidden">
                         <div class="px-6 py-4 border-b">
                             <h3 class="text-lg font-semibold text-gray-800">Faculty Profile Details</h3>
-                            <p class="text-sm text-gray-500">Saved to faculty_profiles and faculty_highest_degrees.</p>
+                            <p class="text-sm text-gray-500">Maintains faculty profile records and highest academic credential details.</p>
                         </div>
 
                         <div class="p-6 grid grid-cols-1 md:grid-cols-2 gap-5">
@@ -628,7 +643,7 @@
                                     <p class="text-xs text-red-600 mt-1">{{ $message }}</p>
                                 @enderror
                                 <p class="text-xs text-gray-500 mt-2">
-                                    Auto-filled from Employee Number using <span class="font-medium">YYMM</span> as <span class="font-medium">20YY-MM-01</span>.
+                                    Auto-filled from Employee Number using <span class="font-medium">YYMM</span> as <span class="font-medium">19YY/20YY-MM-01</span>.
                                 </p>
                             </div>
                         </div>
@@ -654,6 +669,7 @@
                     </div>
                 </div>
             </form>
+
         </div>
     </div>
 </x-app-layout>

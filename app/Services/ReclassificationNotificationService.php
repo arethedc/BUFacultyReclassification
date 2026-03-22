@@ -13,6 +13,19 @@ use Illuminate\Support\Facades\Schema;
 
 class ReclassificationNotificationService
 {
+    private function canReceiveWorkflowMail(User $user): bool
+    {
+        if (empty($user->email)) {
+            return false;
+        }
+
+        if (Schema::hasColumn('users', 'email_verified_at') && empty($user->email_verified_at)) {
+            return false;
+        }
+
+        return true;
+    }
+
     private function submissionWindowLabel(ReclassificationPeriod $period): ?string
     {
         $startAt = $period->start_at instanceof Carbon ? $period->start_at : null;
@@ -33,6 +46,28 @@ class ReclassificationNotificationService
         }
 
         return "Submission closes on {$endAt->format($format)}.";
+    }
+
+    private function submissionWindowOpenMessage(ReclassificationPeriod $period): ?string
+    {
+        $startAt = $period->start_at instanceof Carbon ? $period->start_at : null;
+        $endAt = $period->end_at instanceof Carbon ? $period->end_at : null;
+
+        if (!$startAt && !$endAt) {
+            return null;
+        }
+
+        $format = 'M d, Y h:i A';
+
+        if ($startAt && $endAt) {
+            return "Submission window:\n{$startAt->format($format)} to {$endAt->format($format)}.";
+        }
+
+        if ($startAt) {
+            return "Submission starts on\n{$startAt->format($format)}.";
+        }
+
+        return "Submission closes on\n{$endAt->format($format)}.";
     }
 
     private function periodLabel(?ReclassificationPeriod $period, ?string $fallbackCycle = null): string
@@ -74,6 +109,10 @@ class ReclassificationNotificationService
             ->whereIn('role', $roles)
             ->whereNotNull('email')
             ->when(
+                Schema::hasColumn('users', 'email_verified_at'),
+                fn ($query) => $query->whereNotNull('email_verified_at')
+            )
+            ->when(
                 Schema::hasColumn('users', 'status'),
                 fn ($query) => $query->where('status', 'active')
             )
@@ -95,7 +134,7 @@ class ReclassificationNotificationService
         $sent = 0;
 
         foreach ($users as $user) {
-            if (empty($user->email)) {
+            if (!$user instanceof User || !$this->canReceiveWorkflowMail($user)) {
                 continue;
             }
             $user->notify($notification);
@@ -117,7 +156,7 @@ class ReclassificationNotificationService
             : now()->addDay();
 
         foreach ($users as $user) {
-            if (empty($user->email)) {
+            if (!$user instanceof User || !$this->canReceiveWorkflowMail($user)) {
                 continue;
             }
             $cacheKey = "reclassification:email:{$eventKey}:user:{$user->id}";
@@ -141,18 +180,16 @@ class ReclassificationNotificationService
     {
         $periodLabel = $this->periodLabel($period);
         $faculty = $this->facultyUsers();
-        $windowLabel = $this->submissionWindowLabel($period);
-        $message = "You may now submit your reclassification for {$periodLabel}.";
-        if ($windowLabel) {
-            $message .= " {$windowLabel}";
-        }
+        $windowLabel = $this->submissionWindowOpenMessage($period);
+        $title = "Submission for {$periodLabel} is now open.";
+        $message = $windowLabel ?: 'Please submit within the active submission window.';
 
         return $this->send($faculty, new ReclassificationStatusNotification(
             subject: 'Reclassification Submission Is Open',
-            title: 'Reclassification submission is now open.',
+            title: $title,
             message: $message,
-            actionUrl: route('reclassification.show'),
-            actionLabel: 'Open reclassification form',
+            actionUrl: null,
+            actionLabel: null,
             eventKey: "period:{$period->id}:submission_open",
             meta: [
                 'period_id' => $period->id,
@@ -203,6 +240,26 @@ class ReclassificationNotificationService
                 'period_id' => $period->id,
                 'cycle_year' => $period->cycle_year,
                 'type' => 'period_ended',
+            ],
+        ));
+    }
+
+    public function notifyPeriodOpened(ReclassificationPeriod $period): int
+    {
+        $periodLabel = $this->periodLabel($period);
+        $faculty = $this->facultyUsers();
+
+        return $this->send($faculty, new ReclassificationStatusNotification(
+            subject: 'Reclassification Period Is Now Active',
+            title: 'A new reclassification period is now active.',
+            message: "{$periodLabel} is now active. Submission opening schedule will be announced separately.",
+            actionUrl: route('faculty.dashboard'),
+            actionLabel: 'Open dashboard',
+            eventKey: "period:{$period->id}:opened",
+            meta: [
+                'period_id' => $period->id,
+                'cycle_year' => $period->cycle_year,
+                'type' => 'period_opened',
             ],
         ));
     }

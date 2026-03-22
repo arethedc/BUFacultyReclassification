@@ -166,7 +166,7 @@
                                     <div class="ux-skeleton h-10 w-28"></div>
                                 </div>
                             </div>
-                            <x-ui.skeleton-table :rows="8" :cols="$showVpaaActions ? 9 : 8" />
+                            <x-ui.skeleton-table :rows="8" :cols="8" />
                         </div>
                     </div>
                 </div>
@@ -275,9 +275,6 @@
                                             <th class="px-4 py-2">Stage</th>
                                             <th class="px-4 py-2">Approved By</th>
                                             <th class="px-4 py-2">Approved At</th>
-                                            @if($showVpaaActions)
-                                                <th class="px-4 py-2 text-right">Action</th>
-                                            @endif
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y">
@@ -305,7 +302,7 @@
                                             <tr>
                                                 <td class="px-4 py-2">
                                                     <div class="font-medium text-gray-800">{{ $app->faculty?->name ?? 'Faculty' }}</div>
-                                                    <div class="text-xs text-gray-500">ID #{{ $app->faculty_user_id }}</div>
+                                                    <div class="text-xs text-gray-500">Employee No. {{ $app->faculty?->facultyProfile?->employee_no ?? '-' }}</div>
                                                 </td>
                                                 <td class="px-4 py-2 text-gray-600">{{ $app->faculty?->department?->name ?? '-' }}</td>
                                                 <td class="px-4 py-2 text-gray-600">{{ $app->cycle_year ?? '-' }}</td>
@@ -318,23 +315,6 @@
                                                 <td class="px-4 py-2 text-gray-600">{{ $stageLabel }}</td>
                                                 <td class="px-4 py-2 text-gray-600">{{ $app->approvedBy?->name ?? '-' }}</td>
                                                 <td class="px-4 py-2 text-gray-600">{{ optional($app->approved_at ?? $app->finalized_at)->format('M d, Y g:i A') ?? '-' }}</td>
-                                                @if($showVpaaActions)
-                                                    <td class="px-4 py-2 text-right">
-                                                        @if((string) ($app->status ?? '') === 'vpaa_approved')
-                                                            <form method="POST"
-                                                                  action="{{ route('reclassification.return', $app) }}"
-                                                                  onsubmit="return confirm('Return this submission to faculty?');"
-                                                                  class="inline-block">
-                                                                @csrf
-                                                                <button type="submit"
-                                                                        data-ux-action-loading="Returning..."
-                                                                        class="px-3 py-1.5 rounded-lg border border-amber-300 text-amber-700 text-xs font-semibold hover:bg-amber-50">
-                                                                    Return to Faculty
-                                                                </button>
-                                                            </form>
-                                                        @endif
-                                                    </td>
-                                                @endif
                                             </tr>
                                         @endforeach
                                     </tbody>

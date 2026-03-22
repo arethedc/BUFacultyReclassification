@@ -77,15 +77,12 @@ class UserController extends Controller
             return null;
         }
 
-        return sprintf('%04d-%02d-01', 2000 + $year, $month);
-    }
+        $currentYearTwoDigits = (int) now()->format('y');
+        $fullYear = $year <= $currentYearTwoDigits
+            ? 2000 + $year
+            : 1900 + $year;
 
-    private function findUserByEmailExcept(string $email, int $exceptUserId): ?User
-    {
-        return User::query()
-            ->whereRaw('LOWER(email) = ?', [mb_strtolower(trim($email))])
-            ->whereKeyNot($exceptUserId)
-            ->first();
+        return sprintf('%04d-%02d-01', $fullYear, $month);
     }
 
     private function resolveDuplicateCreateError(QueryException $exception): ?array
@@ -207,6 +204,10 @@ class UserController extends Controller
     public function store(Request $request)
     {
         $isDean = $request->user()->role === 'dean';
+        $creationContext = strtolower(trim((string) $request->input('context', 'users')));
+        if (!in_array($creationContext, ['users', 'faculty'], true)) {
+            $creationContext = 'users';
+        }
         if ($isDean) {
             $departmentId = $request->user()->department_id;
             abort_unless($departmentId, 422);
@@ -349,9 +350,36 @@ class UserController extends Controller
             $message .= ' Activation email could not be sent.';
         }
 
+        if ($user->role === 'faculty') {
+            if (!$isDean && $creationContext === 'users') {
+                return redirect()
+                    ->route('users.index')
+                    ->with('success', $message)
+                    ->with('created_user_id', (int) $user->id);
+            }
+
+            $visibilityMessage = $isDean
+                ? 'It will appear in Manage Faculties after email verification.'
+                : 'It will appear in Manage Faculties after email verification.';
+            $postCreateNotice = [
+                'message' => "{$message} {$visibilityMessage}",
+            ];
+
+            if (!$isDean) {
+                $postCreateNotice['link_url'] = route('users.index', ['created_user_id' => (int) $user->id]);
+                $postCreateNotice['link_label'] = 'Manage Users';
+                $postCreateNotice['link_prefix'] = 'To view this unverified account now, go to ';
+            }
+
+            return redirect()
+                ->route($isDean ? 'dean.faculty.index' : 'faculty.index')
+                ->with('faculty_create_notice', $postCreateNotice);
+        }
+
         return redirect()
             ->route($isDean ? 'dean.faculty.index' : 'users.index')
-            ->with('success', $message);
+            ->with('success', $message)
+            ->with('created_user_id', (int) $user->id);
     }
 
     /* =====================================================
@@ -420,26 +448,48 @@ class UserController extends Controller
         $viewerRole = $this->authorizeProfileAccess($viewer, $user);
         $editContext = $this->resolveEditContext($request, $viewerRole, $user);
 
-        if ($request->boolean('email_change_only')) {
+        if ((string) $request->input('profile_action', 'profile') === 'email') {
+            if (!empty($user->email_verified_at)) {
+                return redirect()
+                    ->route('users.edit', ['user' => $user, 'context' => $editContext])
+                    ->withErrors(['email' => 'Email is locked once verified.']);
+            }
+
             $data = $request->validate([
-                'email' => 'required|email|unique:users,email,' . $user->id,
+                'email' => ['required', 'email', Rule::unique('users', 'email')->ignore($user->id)],
+            ], [
+                'email.unique' => 'Email is already in use.',
             ]);
 
             $nextEmail = trim((string) $data['email']);
-            $emailChanged = strcasecmp($nextEmail, (string) $user->email) !== 0;
-            if (!$emailChanged) {
+            if (strcasecmp($nextEmail, (string) $user->email) === 0) {
                 return redirect()
                     ->route('users.edit', ['user' => $user, 'context' => $editContext])
-                    ->with('success', 'Email is unchanged.');
+                    ->withErrors(['email' => 'Enter a different email address to send a new verification email.'])
+                    ->withInput();
             }
 
             $user->forceFill([
                 'email' => $nextEmail,
+                'email_verified_at' => null,
             ])->save();
+
+            $message = 'Email updated successfully.';
+            try {
+                $user->sendEmailVerificationNotification();
+                $message .= ' Verification email sent to the new address.';
+            } catch (\Throwable $e) {
+                Log::error('Failed to send verification email after admin email update.', [
+                    'user_id' => (int) $user->id,
+                    'email' => (string) $user->email,
+                    'error' => $e->getMessage(),
+                ]);
+                $message .= ' Verification email could not be sent.';
+            }
 
             return redirect()
                 ->route('users.edit', ['user' => $user, 'context' => $editContext])
-                ->with('success', 'Email updated successfully.');
+                ->with('success', $message);
         }
 
         $needsDepartment = in_array($user->role, ['faculty', 'dean']);
@@ -551,37 +601,6 @@ class UserController extends Controller
         return redirect()
             ->route('users.edit', ['user' => $user, 'context' => $editContext])
             ->with('success', $message);
-    }
-
-    public function emailAvailability(Request $request, User $user)
-    {
-        $viewer = $request->user();
-        $this->authorizeProfileAccess($viewer, $user);
-
-        $data = $request->validate([
-            'email' => 'required|email',
-        ]);
-
-        $email = trim((string) $data['email']);
-        if (strcasecmp($email, (string) $user->email) === 0) {
-            return response()->json([
-                'available' => false,
-                'message' => 'New email must be different from current email.',
-            ]);
-        }
-
-        $owner = $this->findUserByEmailExcept($email, (int) $user->id);
-        if (!$owner) {
-            return response()->json([
-                'available' => true,
-                'message' => 'Email is available.',
-            ]);
-        }
-
-        return response()->json([
-            'available' => false,
-            'message' => 'Email is already in use.',
-        ]);
     }
 
     public function createEmailAvailability(Request $request)

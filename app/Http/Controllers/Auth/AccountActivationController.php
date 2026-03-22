@@ -28,7 +28,7 @@ class AccountActivationController extends Controller
                 ->withErrors(['email' => 'Invalid activation link.']);
         }
 
-        $email = (string) $request->query('email', $user->email);
+        $email = (string) $user->email;
         $token = (string) $request->query('token', '');
 
         $hasValidToken = $token !== '' && Password::broker()->tokenExists($user, $token);
@@ -39,6 +39,8 @@ class AccountActivationController extends Controller
             }
             return view('auth.activation-expired', [
                 'email' => $email,
+                'activationUserId' => (int) $user->id,
+                'activationHash' => sha1((string) $user->getEmailForVerification()),
             ]);
         }
 
@@ -61,17 +63,17 @@ class AccountActivationController extends Controller
     public function resend(Request $request): RedirectResponse
     {
         $validated = $request->validate([
-            'email' => ['required', 'email'],
+            'activation_user_id' => ['required', 'integer'],
+            'activation_hash' => ['required', 'string'],
         ]);
 
-        $email = trim((string) $validated['email']);
-        $user = User::query()
-            ->whereRaw('LOWER(email) = ?', [mb_strtolower($email)])
-            ->first();
+        $userId = (int) $validated['activation_user_id'];
+        $hash = trim((string) $validated['activation_hash']);
+        $user = User::query()->find($userId);
 
-        if (!$user) {
+        if (!$user || !hash_equals($hash, sha1((string) $user->getEmailForVerification()))) {
             return back()->withErrors([
-                'email' => 'No account found for this email.',
+                'activation' => 'Invalid activation request. Please use your latest activation link.',
             ])->withInput();
         }
 

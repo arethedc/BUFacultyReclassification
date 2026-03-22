@@ -142,6 +142,10 @@
                            class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
                             Manage Periods
                         </a>
+                        <a href="{{ route('settings.reclassification') }}"
+                           class="px-3 py-1.5 rounded-lg border border-gray-300 text-gray-700 text-xs font-semibold hover:bg-gray-50">
+                            Reclassification Settings
+                        </a>
                     </div>
                 </div>
             </div>

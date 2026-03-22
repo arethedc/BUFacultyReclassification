@@ -354,7 +354,7 @@
                         const icon = button.querySelector('[data-reload-icon]');
                         if (icon) icon.classList.add('animate-spin');
 
-                        window.BuUx?.panel?.setRefreshing(targetSelector, true, 'Refreshing table...');
+                        window.BuUx?.panel?.setLoading(targetSelector, true, 'Reloading table...');
 
                         try {
                             const response = await fetch(window.location.href, {
@@ -388,7 +388,7 @@
                             button.dataset.reloadBusy = '0';
                             button.classList.remove('opacity-70', 'cursor-wait');
                             if (icon) icon.classList.remove('animate-spin');
-                            window.BuUx?.panel?.setRefreshing(targetSelector, false);
+                            window.BuUx?.panel?.setLoading(targetSelector, false);
                         }
                     });
                 });
