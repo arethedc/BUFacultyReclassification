@@ -166,7 +166,7 @@
                                     <div class="ux-skeleton h-10 w-28"></div>
                                 </div>
                             </div>
-                            <x-ui.skeleton-table :rows="8" :cols="8" />
+                            <x-ui.skeleton-table :rows="8" :cols="9" />
                         </div>
                     </div>
                 </div>
@@ -275,6 +275,7 @@
                                             <th class="px-4 py-2">Stage</th>
                                             <th class="px-4 py-2">Approved By</th>
                                             <th class="px-4 py-2">Approved At</th>
+                                            <th class="px-4 py-2 text-right">Action</th>
                                         </tr>
                                     </thead>
                                     <tbody class="divide-y">
@@ -315,6 +316,13 @@
                                                 <td class="px-4 py-2 text-gray-600">{{ $stageLabel }}</td>
                                                 <td class="px-4 py-2 text-gray-600">{{ $app->approvedBy?->name ?? '-' }}</td>
                                                 <td class="px-4 py-2 text-gray-600">{{ optional($app->approved_at ?? $app->finalized_at)->format('M d, Y g:i A') ?? '-' }}</td>
+                                                <td class="px-4 py-2 text-right">
+                                                    <a href="{{ route('reclassification.review.submitted-summary', $app) }}"
+                                                       data-ux-link-loading="Loading details..."
+                                                       class="inline-flex items-center justify-center rounded-lg border border-bu/30 bg-bu/10 px-3 py-1.5 text-xs font-semibold text-bu hover:bg-bu/20">
+                                                        View
+                                                    </a>
+                                                </td>
                                             </tr>
                                         @endforeach
                                     </tbody>

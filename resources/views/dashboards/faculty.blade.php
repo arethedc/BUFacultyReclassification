@@ -476,7 +476,6 @@
                                             @endif
                                         @endif
                                     @endif
-                                @endif
                             </div>
                             @if($hasPendingReturnRequest)
                                 <div class="mt-3 text-xs text-amber-700">

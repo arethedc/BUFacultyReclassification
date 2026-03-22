@@ -252,6 +252,8 @@ Route::middleware(['auth', 'verified', 'active_user'])->group(function () {
     Route::middleware(['role:dean,hr,vpaa,president'])->prefix('reclassification')->group(function () {
         Route::get('/review-queue', [ReclassificationReviewController::class, 'index'])
             ->name('reclassification.review.queue');
+        Route::get('/review/{application}/submitted-summary', [ReclassificationReviewController::class, 'showSubmittedSummary'])
+            ->name('reclassification.review.submitted-summary');
         Route::get('/review/{application}', [ReclassificationReviewController::class, 'show'])
             ->name('reclassification.review.show');
         Route::post('/review/{application}/section2', [ReclassificationReviewController::class, 'saveSectionTwo'])

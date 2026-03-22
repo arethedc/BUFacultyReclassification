@@ -186,7 +186,10 @@ class ReclassificationReviewController extends Controller
         $yearsService = $facultyProfile?->original_appointment_date
             ? $facultyProfile->original_appointment_date->diffInYears(now())
             : null;
-        $currentRankLabel = $this->resolveRankLabel($facultyProfile);
+        $currentRankLabel = trim((string) ($application->current_rank_label_at_approval ?? ''));
+        if ($currentRankLabel === '') {
+            $currentRankLabel = $this->resolveRankLabel($facultyProfile);
+        }
 
         $reviewer = $request->user();
         $reviewerRole = ucfirst($reviewer->role ?? 'Reviewer');
@@ -210,6 +213,73 @@ class ReclassificationReviewController extends Controller
             'canEditSection1C',
             'section1cUpdateRoute',
             'changeLogDetails'
+        ));
+    }
+
+    public function showSubmittedSummary(Request $request, ReclassificationApplication $application)
+    {
+        $role = strtolower((string) $request->user()->role);
+        abort_unless(in_array($role, ['dean', 'hr', 'vpaa', 'president'], true), 403);
+
+        $relations = [
+            'faculty',
+            'faculty.department',
+            'faculty.facultyProfile',
+            'sections.entries.evidences',
+            'sections.evidences',
+        ];
+        if (Schema::hasTable('reclassification_status_trails')) {
+            $relations[] = 'statusTrails.actor';
+        }
+        if (Schema::hasColumn('reclassification_applications', 'rejection_finalized_by_user_id')) {
+            $relations[] = 'rejectionFinalizedBy';
+        }
+        if (Schema::hasColumn('reclassification_applications', 'faculty_return_requested_by_user_id')) {
+            $relations[] = 'facultyReturnRequestedBy';
+        }
+        $application->load($relations);
+
+        if ($role === 'dean') {
+            $userDepartmentId = $request->user()->department_id;
+            abort_unless(
+                $userDepartmentId && $application->faculty?->department_id === $userDepartmentId,
+                403
+            );
+        }
+
+        $section2 = $application->sections->firstWhere('section_code', '2');
+        $section2Review = $section2 ? $this->buildSectionTwoReview($section2) : [];
+        $eligibility = $application->faculty
+            ? ReclassificationEligibility::evaluate($application, $application->faculty)
+            : [
+                'hasMasters' => false,
+                'hasDoctorate' => false,
+                'hasResearchEquivalent' => false,
+                'hasAcceptedResearchOutput' => false,
+            ];
+
+        $facultyProfile = $application->faculty?->facultyProfile;
+        $appointmentDate = $facultyProfile?->original_appointment_date
+            ? $facultyProfile->original_appointment_date->format('M d, Y')
+            : null;
+        $yearsService = $facultyProfile?->original_appointment_date
+            ? $facultyProfile->original_appointment_date->diffInYears(now())
+            : null;
+        $currentRankLabel = $this->resolveRankLabel($facultyProfile);
+        $profile = $facultyProfile;
+        $canRequestReturn = false;
+        $summaryMode = 'review_history';
+
+        return view('reclassification.submitted-summary', compact(
+            'application',
+            'section2Review',
+            'eligibility',
+            'appointmentDate',
+            'yearsService',
+            'currentRankLabel',
+            'profile',
+            'canRequestReturn',
+            'summaryMode'
         ));
     }
 

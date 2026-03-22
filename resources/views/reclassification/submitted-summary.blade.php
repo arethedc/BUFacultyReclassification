@@ -2,6 +2,7 @@
     @php
         $summaryMode = $summaryMode ?? 'submitted';
         $isDraftHistoryMode = $summaryMode === 'draft_history';
+        $isReviewerHistoryMode = $summaryMode === 'review_history';
         $canRequestReturn = $canRequestReturn ?? (
             !$isDraftHistoryMode
             && \App\Support\ReclassificationWorkflowRules::canFacultyRequestReturnFrom((string) ($application->status ?? ''))
@@ -15,7 +16,11 @@
                     {{ $isDraftHistoryMode ? 'Draft Reclassification Paper' : 'Submitted Reclassification Paper' }}
                 </h2>
                 <p class="text-sm text-gray-500">
-                    {{ $isDraftHistoryMode ? 'Read-only summary of your historical draft.' : 'Read-only summary of your submitted form.' }}
+                    {{ $isDraftHistoryMode
+                        ? 'Read-only summary of your historical draft.'
+                        : ($isReviewerHistoryMode
+                            ? 'Read-only summary of the faculty submitted form.'
+                            : 'Read-only summary of your submitted form.') }}
                 </p>
             </div>
             <div class="flex items-center gap-2">
@@ -279,38 +284,45 @@
 
     <div class="py-10 bg-bu-muted min-h-screen">
         <div class="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 space-y-6">
+            @if($isReviewerHistoryMode)
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-4">
+                    <div class="text-sm font-semibold text-gray-800">This summary is read-only.</div>
+                </div>
+            @endif
 
-            <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 flex items-center justify-between">
-                <div>
-                    <div class="text-sm text-gray-500">Current Stage</div>
-                    <div class="text-lg font-semibold text-gray-800">{{ $statusLabel }}</div>
-                    @if($hasPendingReturnRequest)
-                        <div class="mt-1 text-xs text-amber-700">
-                            Return request sent on {{ optional($application->faculty_return_requested_at)->format('M d, Y h:i A') }}.
-                            @if(!empty($application->faculty_return_request_reason))
-                                <span class="block mt-1">Reason: {{ $application->faculty_return_request_reason }}</span>
-                            @endif
-                        </div>
-                    @endif
-                    @if((string) ($application->status ?? '') === 'rejected_final' && !empty($application->rejection_final_reason))
-                        <div class="mt-2 text-xs text-red-700">
-                            Final rejection reason: {{ $application->rejection_final_reason }}
-                            <span class="block mt-1 text-red-600">
-                                By {{ $application->rejectionFinalizedBy?->name ?? 'HR' }}
-                                @if(!empty($application->rejection_finalized_at))
-                                    on {{ optional($application->rejection_finalized_at)->format('M d, Y h:i A') }}
+            @unless($isReviewerHistoryMode)
+                <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6 flex items-center justify-between">
+                    <div>
+                        <div class="text-sm text-gray-500">Current Stage</div>
+                        <div class="text-lg font-semibold text-gray-800">{{ $statusLabel }}</div>
+                        @if($hasPendingReturnRequest)
+                            <div class="mt-1 text-xs text-amber-700">
+                                Return request sent on {{ optional($application->faculty_return_requested_at)->format('M d, Y h:i A') }}.
+                                @if(!empty($application->faculty_return_request_reason))
+                                    <span class="block mt-1">Reason: {{ $application->faculty_return_request_reason }}</span>
                                 @endif
-                            </span>
-                        </div>
-                    @endif
+                            </div>
+                        @endif
+                        @if((string) ($application->status ?? '') === 'rejected_final' && !empty($application->rejection_final_reason))
+                            <div class="mt-2 text-xs text-red-700">
+                                Final rejection reason: {{ $application->rejection_final_reason }}
+                                <span class="block mt-1 text-red-600">
+                                    By {{ $application->rejectionFinalizedBy?->name ?? 'HR' }}
+                                    @if(!empty($application->rejection_finalized_at))
+                                        on {{ optional($application->rejection_finalized_at)->format('M d, Y h:i A') }}
+                                    @endif
+                                </span>
+                            </div>
+                        @endif
+                    </div>
+                    <div class="text-sm text-gray-500">
+                        {{ $isDraftHistoryMode ? 'Saved at:' : 'Submitted at:' }}
+                        <span class="font-medium text-gray-700">
+                            {{ optional($isDraftHistoryMode ? $application->updated_at : $application->submitted_at)->format('M d, Y') ?? 'Not set' }}
+                        </span>
+                    </div>
                 </div>
-                <div class="text-sm text-gray-500">
-                    {{ $isDraftHistoryMode ? 'Saved at:' : 'Submitted at:' }}
-                    <span class="font-medium text-gray-700">
-                        {{ optional($isDraftHistoryMode ? $application->updated_at : $application->submitted_at)->format('M d, Y') ?? 'Not set' }}
-                    </span>
-                </div>
-            </div>
+            @endunless
 
             @if($statusTrails->isNotEmpty())
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-6"
@@ -389,7 +401,7 @@
                     hasResearchEquivalent: {{ ($eligibility['hasResearchEquivalent'] ?? false) ? 'true' : 'false' }},
                     hasAcceptedResearchOutput: {{ ($eligibility['hasAcceptedResearchOutput'] ?? false) ? 'true' : 'false' }},
                  })">
-                <h3 class="text-lg font-semibold text-gray-800 mb-4">My Information</h3>
+                <h3 class="text-lg font-semibold text-gray-800 mb-4">Faculty Information</h3>
                 <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                     <div class="space-y-3">
                         <div>
@@ -442,12 +454,14 @@
                         </div>
                     </div>
 
-                    <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700 space-y-2">
-                        <div class="font-semibold text-gray-800">Reminder</div>
-                        <div>This summary is read-only.</div>
-                        <div>If revisions are requested, you will be notified. You may also request a return if needed.</div>
-                        <div class="text-gray-500">{{ $section2PointsIncluded ? 'Section II points are included.' : 'Section II points are not included yet.' }}</div>
-                    </div>
+                    @if(!$isReviewerHistoryMode)
+                        <div class="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700 space-y-2">
+                            <div class="font-semibold text-gray-800">Reminder</div>
+                            <div>This summary is read-only.</div>
+                            <div>If revisions are requested, you will be notified. You may also request a return if needed.</div>
+                            <div class="text-gray-500">{{ $section2PointsIncluded ? 'Section II points are included.' : 'Section II points are not included yet.' }}</div>
+                        </div>
+                    @endif
                 </div>
             </div>
 

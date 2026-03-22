@@ -27,7 +27,7 @@
                     </div>
                 </div>
                 <div class="bg-white rounded-2xl shadow-card border border-gray-200 p-4">
-                    <x-ui.skeleton-table :rows="8" :cols="6" />
+                    <x-ui.skeleton-table :rows="8" :cols="7" />
                 </div>
             </div>
 
@@ -67,6 +67,7 @@
                             <th class="px-6 py-3 text-left">Submitted</th>
                             <th class="px-6 py-3 text-left">Finalized</th>
                             <th class="px-6 py-3 text-left">Approved Rank</th>
+                            <th class="px-6 py-3 text-right">Action</th>
                         </tr>
                     </thead>
                     <tbody class="divide-y">
@@ -101,10 +102,17 @@
                                 <td class="px-6 py-4 text-gray-700">
                                     {{ $application->approved_rank_label ?? '-' }}
                                 </td>
+                                <td class="px-6 py-4 text-right">
+                                    <a href="{{ route('reclassification.review.submitted-summary', $application) }}"
+                                       data-ux-link-loading="Loading details..."
+                                       class="inline-flex items-center justify-center rounded-lg border border-bu/30 bg-bu/10 px-3 py-1.5 text-xs font-semibold text-bu hover:bg-bu/20">
+                                        View
+                                    </a>
+                                </td>
                             </tr>
                         @empty
                             <tr>
-                                <td colspan="6" class="px-6 py-6 text-center text-gray-500">
+                                <td colspan="7" class="px-6 py-6 text-center text-gray-500">
                                     No previous reclassification submissions found.
                                 </td>
                             </tr>
